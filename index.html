@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Map of the Universe - WebGL</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="apple-mobile-web-app-capable" content="yes"/>
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+		
+		<script language='javascript' type='text/javascript' src='../js/jquery-1.10.0.min.js'></script>
+		<script language='javascript' type='text/javascript' src='../js/util.js'></script>
+		<script language='javascript' type='text/javascript' src='../js/gl-matrix-min.js'></script>
+		<script language='javascript' type='text/javascript' src='../js/gl-util.js'></script>
+		<script language='javascript' type='text/javascript' src='../js/mouse3d.js'></script>
+		<script language='javascript' type='text/javascript' src='main.js'></script>
+		
+<script type='text/javascript'>
+var _gaq = _gaq || [];
+_gaq.push(['_setAccount', 'UA-17312646-1']);
+_gaq.push(['_trackPageview']);
+(function() {
+	var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+	ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+	var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+})();
+</script>
+
+		<script id='point-vsh' type='x-shader/x-vertex'>
+attribute vec3 vtx;
+uniform mat4 mvMat;
+uniform mat4 projMat;
+uniform float spriteWidth;
+uniform float screenWidth;
+void main() {
+	vec4 eyePos = mvMat * vec4(vtx, 1.);
+	gl_Position = projMat * eyePos;
+	gl_PointSize = spriteWidth*screenWidth/gl_Position.w;
+}
+		</script>
+		<script id='point-fsh' type='x-shader/x-fragment'>
+precision mediump float;
+uniform sampler2D tex;
+void main() {
+	float z = gl_FragCoord.z;
+	float v = 1. / (z * z);
+	gl_FragColor = texture2D(tex, gl_PointCoord);
+	//gl_FragColor *= gl_FragColor * gl_FragColor;
+	gl_FragColor *= v;
+}
+		</script>
+		<script id='select-fsh' type='x-shader/x-fragment'>
+precision mediump float;
+uniform vec3 color;
+void main() {
+	vec2 absDelta = abs(gl_PointCoord - .5);
+	float dist = max(absDelta.x, absDelta.y);
+	if (dist < .4) discard;
+	gl_FragColor = vec4(color, 1.); 
+}
+		</script>
+
+		<style type='text/css'>
+
+body {
+	background-color:black;
+	color:white;
+}
+
+a:link {
+	cursor:pointer;
+	color:#00FFFF;
+}
+
+a:visited {
+	cursor:pointer;
+	color:#00FFFF;
+}
+
+a:hover {
+	cursor:pointer;
+	color:#00FFFF;
+}
+
+a:active {
+	cursor:pointer;
+	color:#00FFFF;
+}
+	
+/* wikipedia hacks */
+.editsection { display:none; }
+
+		</style>
+	</head>
+	<body style='margin:0px; overflow:hidden'>
+		<div id='panel' style='overflow-x:hidden; width:400px; z-index:1, width:300px; position:absolute; background-color:rgba(0,0,0,.75)'>
+			<a href='#' id='help' style='padding-right:10px'>Help</a>
+			<a href='#' id='find' style='padding-right:10px'>Find</a>
+			<span id='fps'></span>
+			<br>
+		</div>
+		<div id='webglfail' style='display:none'>
+			Sorry, your browser does not support WebGL<br>
+			Try one of these other, better browsers:<br>
+			<a href='http://www.google.com/chrome'>Chrome</a><br>
+			<a href='http://www.mozilla.org/firefox'>Firefox</a><br>
+			<a href='http://www.apple.com/safari'>Safari</a><br>
+			<b>Opera Users:</b><br>
+			Enter "opera:config" in the address bar.<br>
+			In the "User Prefs" section set both "Enable Hardware Acceleration" and "Enable WebGL" to "1" and then click "Save".<br>
+			It is still buggy.<br>
+			<b>IE Users:</b><br>
+			Sorry guys, IE doesn't plan to support WebGL.<br>
+			Consider using a more <a href='http://www.w3schools.com/browsers/browsers_stats.asp'>standard compliant</a> browser.<br>
+			<br>
+			<center>
+				<a href='web-screenshot.jpg'>
+					<img width=800 height=450 src='web-screenshot.jpg'></img>
+				</a><br>
+			</center>
+		</div>
+	</body>
+</html>

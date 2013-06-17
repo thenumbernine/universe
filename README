@@ -1,0 +1,9 @@
+webgl universe visualizer
+
+datasets:
+- 2MRS
+- 6DFGS
+
+future plans:
+- SDSS3 dataset
+- offline DTFE generation

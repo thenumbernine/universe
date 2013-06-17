@@ -1,0 +1,9 @@
+{
+	{'_2MASS_ID', 16},
+	{'photometryConfusionFlags', 4},
+	{'galaxyType', 5},
+	{'sourceOfType', 2},
+	{'inputCatalogCode', 1},
+	{'bibliographicCode', 19},
+	{'galaxyName', 29},
+}
