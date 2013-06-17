@@ -1,0 +1,61 @@
+<html>
+	<head>
+		<title>testing WebGL</title>
+		
+		<link rel='stylesheet' href='themes/base/jquery.ui.all.css'></link>
+
+		<script language='javascript' type='text/javascript' src='jquery-1.10.0.min.js'></script>
+		<script src="ui/jquery.ui.widget.js"></script>
+		<script src="ui/jquery.ui.mouse.js"></script>
+		<script src="ui/jquery.ui.slider.js"></script>
+		<script language='javascript' type='text/javascript' src='gl-matrix-min.js'></script>
+		<script language='javascript' type='text/javascript' src='volume.js'></script>
+		
+		<script id='plain-vsh' type='x-shader/x-vertex'>
+attribute vec3 vtx;
+uniform mat4 mvMat;
+uniform mat4 projMat;
+varying vec3 pos;
+void main() {	
+	pos = vtx;
+	gl_Position = projMat * mvMat * vec4(vtx, 1.0); 
+}
+		</script>
+		<script id='plain-fsh' type='x-shader/x-fragment'>
+precision mediump float;
+varying vec3 pos;
+void main() {
+	gl_FragColor = vec4(1., 1., 1., 1.);
+}
+		</script>
+		<script id='volume-slice-fsh' type='x-shader/x-fragment'>
+precision mediump float;
+varying vec3 pos;
+uniform sampler2D volTex, hsvTex;
+uniform float dz;
+uniform float gamma;
+void main() { 
+	/** /
+	float v = texture2D(volTex, vec2(pos.xy * .5 + .5)).r;
+	gl_FragColor = texture2D(hsvTex, vec2(v, .5));
+	v = pow(v, 1./gamma);
+	gl_FragColor.w = dz * v;
+	/**/	
+	
+	float v = texture2D(volTex, vec2(pos.xy * .5 + .5)).r;
+	v = pow(v, 1./gamma);
+	gl_FragColor = vec4(v, v, v, dz);
+	
+	//gl_FragColor = vec4(texture2D(volTex, pos.xy*.5+.5).rgb, 1.);
+}
+		</script>
+	</head>
+	<body>
+		<div id='controls' style='width:200; float:left'>
+			Gamma:
+			<div id='gamma-slider'></div>
+			<div><input id='draw-wireframe' type='checkbox'/>Wireframe</div>
+			<div><input id='draw-slices' type='checkbox'/>Slices</div>
+		</div>
+	</body>
+</html>
