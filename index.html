@@ -43,7 +43,7 @@ void main() {
 	float z = gl_FragCoord.z;
 	float v = 1. / (z * z);
 	gl_FragColor = texture2D(tex, gl_PointCoord);
-	//gl_FragColor *= gl_FragColor * gl_FragColor;
+	gl_FragColor *= gl_FragColor;
 	gl_FragColor *= v;
 }
 		</script>
