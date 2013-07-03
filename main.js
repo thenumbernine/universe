@@ -22,7 +22,9 @@ function Highlight() {
 	});
 	this.sceneObj = new GL.SceneObject({
 		mode : gl.POINTS,
-		vertexBuffer : this.vtxBuf,
+		attrs : {
+			vertex : this.vtxBuf
+		},
 		shader : selectedShader,
 		uniforms : {
 			color : [1,0,0]
@@ -676,7 +678,9 @@ $(document).ready(function() {
 
 				sceneObj = new GL.SceneObject({
 					mode : gl.POINTS,
-					vertexBuffer : pointVtxBuf,
+					attrs : {
+						vertex : pointVtxBuf
+					},
 					shader : pointShader,
 					blend : [gl.SRC_ALPHA, gl.ONE],
 					texs : [galaxyTex]

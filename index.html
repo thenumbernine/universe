@@ -25,13 +25,13 @@ _gaq.push(['_trackPageview']);
 </script>
 
 		<script id='point-vsh' type='x-shader/x-vertex'>
-attribute vec3 vtx;
+attribute vec3 vertex;
 uniform mat4 mvMat;
 uniform mat4 projMat;
 uniform float spriteWidth;
 uniform float screenWidth;
 void main() {
-	vec4 eyePos = mvMat * vec4(vtx, 1.);
+	vec4 eyePos = mvMat * vec4(vertex, 1.);
 	gl_Position = projMat * eyePos;
 	gl_PointSize = spriteWidth*screenWidth/gl_Position.w;
 }
