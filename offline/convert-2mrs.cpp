@@ -7,8 +7,7 @@ second pass: 	convert-2mrs --catalog	generates catalog.dat using catalog.specs
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <direct.h>
-
+#include <sys/stat.h>
 #include <map>
 #include <string>
 
@@ -57,7 +56,7 @@ struct Convert2MRS {
 		int numEntries = 0;
 		int numReadable = 0;
 
-		mkdir("datasets/2mrs/points");
+		mkdir("datasets/2mrs/points", 0777);
 
 		//attempt to read the catalog spec file, if it is there
 		int colMaxLens[NUM_COLS] = {0};

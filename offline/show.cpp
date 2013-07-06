@@ -2,7 +2,7 @@
 #include <GL/wglew.h>
 #include <SDL/SDL.h>
 #include <GL/gl.h>
-#include <math/vec.h>
+#include "vec.h"
 
 #include <string>
 #include <vector>

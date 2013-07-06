@@ -4,7 +4,7 @@ calculate density isobar ...
 rbf or something around each point
 then either marching cubes or (!!) surface nets over the whole thing
 */
-#include "math/vec.h"
+#include "vec.h"
 #include <iostream>
 #include "util.h"
 #include "stat.h"

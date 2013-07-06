@@ -5,7 +5,7 @@ does the same thing as show.cpp, give or take, but all offline rendering
 #include <string.h>
 #include <iostream>
 #include <vector>
-#include "math/vec.h"
+#include "vec.h"
 #include "exception.h"
 #include "util.h"
 #include "writebmp.h"

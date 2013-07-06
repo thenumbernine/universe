@@ -7,7 +7,7 @@ perf test, strtok vs std::getline, buffer all vs explicit unrolled (current) met
 #include <dirent.h>
 #include <math.h>
 #include <string.h>
-
+#include <sys/stat.h>
 #include <iostream>
 #include "batch.h"
 #include "util.h"
@@ -470,8 +470,8 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 
-	mkdir("datasets/allsky/points");
-	mkdir("datasets/allsky/raw");
+	mkdir("datasets/allsky/points", 0777);
+	mkdir("datasets/allsky/raw", 0777);
 
 	double deltaTime = profile("batch", batch);
 	cout << (deltaTime / (double)totalFiles) << " seconds per file" << endl;

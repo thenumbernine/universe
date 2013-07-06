@@ -4,19 +4,21 @@ CPPFLAGS= -g -O0 -I../libs
 #LDFLAGS = -lpthread
 LDFLAGS = -g -O0 -lpthread
 
-all: \
-	convert-2mass.exe \
-	convert-2mrs.exe \
-	convert-6dfgs.exe \
-	genvolume.exe \
-	getstats.exe \
-	gettotalstats.exe \
-	genoctree.exe \
-	show.exe \
-	show-still.exe \
-	genisos.exe \
-	mark-clusters.exe \
-	flatten-clusters.exe
+ALL =	\
+	convert-2mass \
+	convert-2mrs \
+	convert-6dfgs \
+	genvolume \
+	getstats \
+	gettotalstats \
+	genoctree \
+	show \
+	show-still \
+	genisos \
+	mark-clusters \
+	flatten-clusters
+
+all: $(ALL)
 
 convert-2mass.o: convert-2mass.cpp
 	g++ $(CPPFLAGS) -c $^ -o $@ 
@@ -55,50 +57,49 @@ flatten-clusters.o: flatten-clusters.cpp
 	g++ $(CPPFLAGS) -c $^ -o $@
 
 show.o: show.cpp
-	g++ -m32 $(CPPFLAGS) -I../SDL-1.2.15/include -c $^ -o $@
+	g++  $(CPPFLAGS) -I../SDL-1.2.15/include -c $^ -o $@
 
 show-still.o: show-still.cpp
-	g++ -m32 $(CPPFLAGS) -I../SDL-1.2.15/include -I../SDL_image-1.2.12/include -c $^ -o $@
+	g++  $(CPPFLAGS) -I../SDL-1.2.15/include -I../SDL_image-1.2.12/include -c $^ -o $@
 
 
-convert-2mass.exe: convert-2mass.o util.o
+convert-2mass: convert-2mass.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-convert-2mrs.exe : convert-2mrs.o util.o
+convert-2mrs : convert-2mrs.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-convert-6dfgs.exe : convert-6dfgs.o util.o
+convert-6dfgs : convert-6dfgs.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-genvolume.exe: 	genvolume.o stat.o util.o
+genvolume: 	genvolume.o stat.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-getstats.exe: getstats.o stat.o util.o
+getstats: getstats.o stat.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-gettotalstats.exe: gettotalstats.o stat.o util.o
+gettotalstats: gettotalstats.o stat.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-genoctree.exe: genoctree.o octree.o stat.o util.o
+genoctree: genoctree.o octree.o stat.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-genisos.exe: genisos.o util.o stat.o
+genisos: genisos.o util.o stat.o
 	g++ $^ $(LDFLAGS) -o $@
 
-mark-clusters.exe: mark-clusters.o util.o stat.o octree.o
+mark-clusters: mark-clusters.o util.o stat.o octree.o
 	g++ $^ $(LDFLAGS) -o $@
 
-flatten-clusters.exe: flatten-clusters.o util.o stat.o octree.o
+flatten-clusters: flatten-clusters.o util.o stat.o octree.o
 	g++ $^ $(LDFLAGS) -o $@
 
-show.exe: show.o stat.o octree.o util.o
-	g++ -m32 -O3 $^ -o $@ $(LDFLAGS) -lmingw32 -lwinmm -lgdi32 -lSDLmain -lSDL.dll -lopengl32 -lglew32
+show: show.o stat.o octree.o util.o
+	g++  -O3 $^ -o $@ $(LDFLAGS) -lmingw32 -lwinmm -lgdi32 -lSDLmain -lSDL.dll -lopengl32 -lglew32
 
-show-still.exe: show-still.o stat.o util.o writebmp.o
+show-still: show-still.o stat.o util.o writebmp.o
 	g++ -O3 $^ -o $@ 
 
 clean:
 	-rm *.o
-	-rm *.exe
-
+	-rm $(ALL)
 

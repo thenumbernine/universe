@@ -1,11 +1,10 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <direct.h>
 #include <math.h>
 #include <string.h>
 #include <pthread.h>
-
+#include <sys/stat.h>
 #include <exception>
 #include <iostream>
 #include <string>
@@ -202,7 +201,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		mkdir((string("datasets/") + batch.datasetname + "/stats").c_str());
+		mkdir((string("datasets/") + batch.datasetname + "/stats").c_str(), 0777);
 
 		double deltaTime = profile("getstats", batch);
 		cout << (deltaTime / (double)totalFiles) << " seconds per file" << endl;

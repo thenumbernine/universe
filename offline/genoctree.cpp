@@ -14,10 +14,11 @@ how should we name these files?
 node.f32 for the root, node[a-h] for depth 1, node[a-h][a-h] for depth 2, etc
 
 */
-#include <direct.h>
+#include <sys/stat.h>
+#include <string.h>
 
-#include <iostream>
 #include <string>
+#include <iostream>
 #include <vector>
 #include <fstream>
 
@@ -438,7 +439,7 @@ int main(int argc, char **argv) {
 			return 0;
 		}
 
-		mkdir((string("datasets/") + datasetname + "/octree").c_str());
+		mkdir((string("datasets/") + datasetname + "/octree").c_str(), 0777);
 
 		if (gotDir) {
 			list<string> dirFilenames = getDirFileNames(string("datasets/") + datasetname + "/points");

@@ -3,10 +3,8 @@
 
 #include <string>
 
-#include "math/vec.h"
-//working on this.  be better to use a good math library. blitz++ anyone?
-//#include "vec.h"
-//#include "box.h"
+#include "vec.h"
+#include "box.h"
 
 struct OctreeNode {
 	box3f bbox, usedBBox;	

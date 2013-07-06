@@ -2,6 +2,9 @@
 #define VEC_H
 
 #include <assert.h>
+#include <math.h>
+
+#include <ostream>
 
 #define REPEAT_WITH_CONST(head, body)	\
 	head { body; }				\
@@ -71,7 +74,7 @@ public:
 	//member methods:
 	template<typename U> T dot(const _vec<3,U> &v) const { return x*(T)v.x + y*(T)v.y + z*(T)v.z; }
 	T lenSq() const { return dot(*this); }
-	double len() const { return sqrt((double)lenSq()); }
+	double len() const { return (double)sqrt((double)lenSq()); }
 	_vec &normalize() { *this /= len(); return *this; }
 	
 	_vec &cross(const _vec<3,T> &a, const _vec<3,T> &b) {	//in-place
@@ -84,6 +87,17 @@ public:
 	
 	T volume() const { return x * y * z; }
 };
+
+template<typename T>
+_vec<3,T> operator+(const _vec<3,T> &a, const _vec<3,T> &b) { return _vec<3,T>(a.x + b.x, a.y + b.y, a.z + b.z); }
+
+template<typename T, typename U>
+_vec<3,T> operator*(const _vec<3,T> &a, const U &b) { return _vec<3,T>(a.x + b, a.y + b, a.z + b); }
+
+template<typename T>
+std::ostream &operator<<(std::ostream &o, const _vec<3,T> &v) {
+	return o << v.x << ", " << v.y << ", " << v.z;
+}
 
 typedef _vec<3,char> vec3c;
 typedef _vec<3,unsigned char> vec3uc;

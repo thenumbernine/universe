@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <direct.h>
-
+#include <sys/stat.h>
 #include "exception.h"
 #include "util.h"
 
@@ -15,7 +14,7 @@ struct Convert2MRS {
 		int numEntries = 0;
 		int numReadable = 0;
 
-		mkdir("datasets/6dfgs/points");
+		mkdir("datasets/6dfgs/points", 0777);
 
 		FILE *srcfile = fopen(srcfilename, "r");
 		if (!srcfile) throw Exception() << "failed to open file " << srcfilename;
