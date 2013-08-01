@@ -8,15 +8,16 @@ ALL =	\
 	convert-2mass \
 	convert-2mrs \
 	convert-6dfgs \
+	convert-sdss3 \
 	genvolume \
 	getstats \
 	gettotalstats \
 	genoctree \
-	show \
 	show-still \
-	genisos \
-	mark-clusters \
-	flatten-clusters
+	genisos
+#	flatten-clusters
+#	mark-clusters
+#	show
 
 all: $(ALL)
 
@@ -28,6 +29,9 @@ convert-2mrs.o: convert-2mrs.cpp
 
 convert-6dfgs.o: convert-6dfgs.cpp
 	g++ $(CPPFLAGS) -c $^ -o $@ 
+
+convert-sdss3.o: convert-sdss3.cpp
+	g++ $(CPPFLAGS) -c $^ -o $@
 
 util.o: util.cpp
 	g++ $(CPPFLAGS) -c $^ -o $@
@@ -66,11 +70,14 @@ show-still.o: show-still.cpp
 convert-2mass: convert-2mass.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-convert-2mrs : convert-2mrs.o util.o
+convert-2mrs: convert-2mrs.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-convert-6dfgs : convert-6dfgs.o util.o
+convert-6dfgs: convert-6dfgs.o util.o
 	g++ $^ $(LDFLAGS) -o $@
+
+convert-sdss3: convert-sdss3.o util.o
+	g++ $^ $(LDFLAGS) -lcfitsio -o $@
 
 genvolume: 	genvolume.o stat.o util.o
 	g++ $^ $(LDFLAGS) -o $@
@@ -102,4 +109,7 @@ show-still: show-still.o stat.o util.o writebmp.o
 clean:
 	-rm *.o
 	-rm $(ALL)
+
+install:
+	$(foreach FILE, $(ALL), $(shell cp $(FILE) /data/local/bin/))
 

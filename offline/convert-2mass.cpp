@@ -14,13 +14,13 @@ perf test, strtok vs std::getline, buffer all vs explicit unrolled (current) met
 
 using namespace std;
 
-int FORCE = 0;
-int PRESERVE = 0;
-int VERBOSE = 0;
-int INTERACTIVE = 0;
-int OMIT_WRITE = 0;
-int USE_DIST_OPT = 0;
-int R_VS_DIST_OPT = 0;
+bool FORCE = false;
+bool PRESERVE = false;
+bool VERBOSE = false;
+bool INTERACTIVE = false;
+bool OMIT_WRITE = false;
+bool USE_DIST_OPT = false;
+bool R_VS_DIST_OPT = false;
 
 /*
 http://www.ipac.caltech.edu/2mass/releases/allsky/doc/sec4_5a.html#stardiscrim
@@ -428,20 +428,20 @@ int main(int argc, char **argv) {
 	
 	for (int k = 1; k < argc; k++) {
 		if (!strcmp(argv[k], "--verbose")) {
-			VERBOSE = 1;
+			VERBOSE = true;
 		} else if (!strcmp(argv[k], "--wait")) {
-			VERBOSE = 1;
-			INTERACTIVE = 1;
+			VERBOSE = true;
+			INTERACTIVE = true;
 		} else if (!strcmp(argv[k], "--keep")) {
-			PRESERVE = 1;
+			PRESERVE = true;
 		} else if (!strcmp(argv[k], "--nowrite")) {
-			OMIT_WRITE = 1;
+			OMIT_WRITE = true;
 		} else if (!strcmp(argv[k], "--use_dist_opt")) {
-			USE_DIST_OPT = 1;
+			USE_DIST_OPT = true;
 		} else if (!strcmp(argv[k], "--r_vs_dist_opt")) {
-			R_VS_DIST_OPT = 1;
+			R_VS_DIST_OPT = true;
 		} else if (!strcmp(argv[k], "--force")) { 
-			FORCE = 1;
+			FORCE = true;
 		} else if (!strcmp(argv[k], "--all")) {
 			gotDir = true;
 			list<string> dirFilenames;

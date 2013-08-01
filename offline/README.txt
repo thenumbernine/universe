@@ -7,6 +7,10 @@ universe/
 		2mrs/
 			source/	<- put the 2MASS redshift survey here.  archive is found at http://tdc-www.cfa.harvard.edu/2mrs/
 				2mrs_v240/	<- should be the only contents of the source dir
+		sdss3/
+			source/ <- put the SDSS3 DR9 2gig FITS file here.  file found at http://data.sdss3.org/sas/dr9/sdss/spectro/redux/specObj-dr9.fits
+																more instructions found at http://www.sdss3.org/dr9/data_access/bulk.php
+				specObj-dr9.fits	<- should be the only contents of the source dir
 
 USAGE:
 
@@ -22,6 +26,10 @@ USAGE:
 	II.	convert-2mrs --catalog
 			uses datasets/2mrs/catalog.specs with datasets/2mrs/source/2mrs_v240/catalog/2mrs_1175_done.dat
 				to create datasets/2mrs/catalog.dat
+1C) convert-6dfgs 
+	converts datasets/6dfsgs/source/* to datasets/6dfgs/points/*.f32
+1D) convert-sdss3
+	converts datasets/sdss3/source/specObj-dr9.fits to datasets/sdss3/points/*.f32
 2) getstats --force --all
 	reads datasets/<set>/points/*.f32 data 
 	writes datasets/<set>/stats/*.stats containing the number of points and the min/max/avg/stddev x/y/z

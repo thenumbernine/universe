@@ -1,9 +1,9 @@
 webgl universe visualizer
 
 datasets:
+- 2MASS
 - 2MRS
 - 6DFGS
+- SDSS3
 
-future plans:
-- SDSS3 dataset
-- offline DTFE generation
+check it out at http://christopheremoore.net/universe
