@@ -26,9 +26,8 @@ bool verbose = false;
 bool interactive = false;
 bool useMinRedshift = false;
 bool readStringDescs = false;
+bool trackStrings = false;
 double minRedshift = -numeric_limits<double>::infinity();
-
-#define ECHO(x)	cout << #x << " " << x << endl
 
 //fits is rigit and I am lazy.  use its writer to stderr and return the same status
 string fitsGetError(int status) {
@@ -69,8 +68,9 @@ struct FITSColumn {
 	virtual string readStr(int rowNum) = 0;
 };
 
-template<typename CTYPE>
+template<typename CTYPE_>
 struct FITSTypedColumn : public FITSColumn {
+	typedef CTYPE_ CTYPE;
 	FITSTypedColumn(fitsfile *file_, const char *colName_) 
 	: FITSColumn(file_, colName_) {
 		FITS_SAFE(fits_get_colnum(file, CASESEN, const_cast<char*>(colName), &colNum, &status));
@@ -135,6 +135,31 @@ struct FITSStringColumn : public FITSColumn {
 	}
 };
 
+struct IFITSTrackBehavior {
+	virtual void track(int rowNum) = 0;
+	virtual void printAll() = 0;
+};
+
+template<typename PARENT>
+struct FITSTrackBehavior : public PARENT, public IFITSTrackBehavior {
+	map<typename PARENT::CTYPE, int> valueSet;
+	FITSTrackBehavior(fitsfile *file_, const char *colName_) : PARENT(file_, colName_) {}
+
+	void track(int rowNum) {
+		++valueSet[PARENT::read(rowNum)];
+	}
+
+	void printAll() {
+		cout << "values of " << PARENT::colName << ":" << endl;
+		for (map<string, int>::iterator i = valueSet.begin(); i != valueSet.end(); ++i) {
+			cout << i->first << " : " << i->second << endl;
+		}
+		cout << endl;
+	}
+};
+
+typedef FITSTrackBehavior<FITSStringColumn> FITSStringTrackColumn;
+
 struct ConvertSDSS3 {
 	ConvertSDSS3() {}
 	void operator()() {
@@ -181,13 +206,25 @@ struct ConvertSDSS3 {
 		catalog name? NGC_*** MS_*** or whatever other identifier?
 		*/
 		vector<FITSColumn*> columns;
+		vector<IFITSTrackBehavior *> trackColumns;
 
 		FITSTypedColumn<double> *col_CX = new FITSTypedColumn<double>(file, "CX"); columns.push_back(col_CX);
 		FITSTypedColumn<double> *col_CY = new FITSTypedColumn<double>(file, "CY"); columns.push_back(col_CY);
 		FITSTypedColumn<double> *col_CZ = new FITSTypedColumn<double>(file, "CZ"); columns.push_back(col_CZ);
 		FITSTypedColumn<float> *col_Z = new FITSTypedColumn<float>(file, "Z"); columns.push_back(col_Z);
-
+		
 		int readStringStartIndex = columns.size();
+		
+		FITSStringTrackColumn *col_SOURCETYPE = new FITSStringTrackColumn(file, "SOURCETYPE"); columns.push_back(col_SOURCETYPE);
+		FITSStringTrackColumn *col_TARGETTYPE = new FITSStringTrackColumn(file, "TARGETTYPE"); columns.push_back(col_TARGETTYPE);
+		FITSStringTrackColumn *col_CLASS = new FITSStringTrackColumn(file, "CLASS"); columns.push_back(col_CLASS);
+		FITSStringTrackColumn *col_SUBCLASS = new FITSStringTrackColumn(file, "SUBCLASS"); columns.push_back(col_SUBCLASS);
+		if (trackStrings) {
+			trackColumns.push_back(col_SOURCETYPE);
+			trackColumns.push_back(col_TARGETTYPE);
+			trackColumns.push_back(col_CLASS);
+			trackColumns.push_back(col_SUBCLASS);
+		}
 
 		if (readStringDescs ) {		//catalog stuff?
 			columns.push_back(new FITSStringColumn(file, "SURVEY"));
@@ -206,10 +243,6 @@ struct ConvertSDSS3 {
 			columns.push_back(new FITSStringColumn(file, "RUN2D"));
 			columns.push_back(new FITSStringColumn(file, "RUN1D"));
 
-			columns.push_back(new FITSStringColumn(file, "SOURCETYPE"));
-			columns.push_back(new FITSStringColumn(file, "TARGETTYPE"));
-			columns.push_back(new FITSStringColumn(file, "CLASS"));
-			columns.push_back(new FITSStringColumn(file, "SUBCLASS"));
 			columns.push_back(new FITSStringColumn(file, "TFILE"));
 			columns.push_back(new FITSStringColumn(file, "ELODIE_FILENAME"));
 			columns.push_back(new FITSStringColumn(file, "ELODIE_OBJECT"));
@@ -247,10 +280,18 @@ struct ConvertSDSS3 {
 				fflush(stdout);
 			}
 
+			//galaxies only for now
+			string value_CLASS = col_CLASS->read(rowNum);
+			if (value_CLASS != "GALAXY") continue;
+
 			double value_CX = col_CX->read(rowNum);
 			double value_CY = col_CY->read(rowNum);
 			double value_CZ = col_CZ->read(rowNum);
 			float value_Z = col_Z->read(rowNum);
+
+			for (vector<IFITSTrackBehavior*>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
+				(*i)->track(rowNum);
+			}
 			
 			if (verbose) {
 				cout << "CX = " << value_CX << endl;
@@ -299,6 +340,10 @@ struct ConvertSDSS3 {
 			printf("\n");
 		}
 
+		for (vector<IFITSTrackBehavior*>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
+			(*i)->printAll();
+		}
+
 		FITS_SAFE(fits_close_file(file, &status));
 		fclose(pointDestFile);
 		
@@ -310,10 +355,11 @@ void showhelp() {
 	cout
 	<< "usage: convert-sdss3 <options>" << endl
 	<< "options:" << endl
-	<< "	--verbose	output values" << endl
-	<< "	--wait		wait for keypress after each entry.  'q' stops" << endl
-	<<"		--read-desc	reads string descriptions" << endl
+	<< "	--verbose				output values" << endl
+	<< "	--wait					wait for keypress after each entry.  'q' stops" << endl
+	<<"		--read-desc				reads string descriptions" << endl
 	<< "	--min-redshift <cz> 	specify minimum redshift" << endl
+	<< "	--enum-class			enumerate all classes" << endl
 	;
 }
 
@@ -333,6 +379,8 @@ int main(int argc, char **argv) {
 			minRedshift = atof(argv[++i]);
 		} else if (!strcasecmp(argv[i], "--read-desc")) {
 			readStringDescs  = true;
+		} else if (!strcasecmp(argv[i], "--enum-class")) {
+			trackStrings = true;
 		} else {
 			showhelp();
 			return 0;
