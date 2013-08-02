@@ -8,8 +8,10 @@ second pass: 	convert-2mrs --catalog	generates catalog.dat using catalog.specs
 #include <string.h>
 #include <math.h>
 #include <sys/stat.h>
+
 #include <map>
 #include <string>
+#include <limits>
 
 #include "exception.h"
 #include "util.h"
@@ -39,7 +41,7 @@ const char *colNames[NUM_COLS] = {
 };
 
 bool useMinRedshift = false;
-double minRedshift = -INFINITY;
+double minRedshift = -numeric_limits<double>::infinity();
 bool VERBOSE = false;
 bool INTERACTIVE = false;
 

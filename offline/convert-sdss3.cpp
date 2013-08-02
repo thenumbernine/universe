@@ -24,6 +24,7 @@ using namespace std;
 bool verbose = false;
 bool interactive = false;
 bool useMinRedshift = false;
+bool readStringDescs = false;
 double minRedshift = -numeric_limits<double>::infinity();
 
 #define ECHO(x)	cout << #x << " " << x << endl
@@ -202,6 +203,17 @@ struct ConvertSDSS3 {
 		FITS_SAFE_GET_STRING_COLUMN(RUN2D);
 		FITS_SAFE_GET_STRING_COLUMN(RUN1D);
 
+		FITS_SAFE_GET_STRING_COLUMN(SOURCETYPE);
+		FITS_SAFE_GET_STRING_COLUMN(TARGETTYPE);
+		FITS_SAFE_GET_STRING_COLUMN(CLASS);
+		FITS_SAFE_GET_STRING_COLUMN(SUBCLASS);
+		FITS_SAFE_GET_STRING_COLUMN(TFILE);
+		FITS_SAFE_GET_STRING_COLUMN(ELODIE_FILENAME);
+		FITS_SAFE_GET_STRING_COLUMN(ELODIE_OBJECT);
+		FITS_SAFE_GET_STRING_COLUMN(ELODIE_SPTYPE);
+		FITS_SAFE_GET_STRING_COLUMN(CLASS_NOQSO);
+		FITS_SAFE_GET_STRING_COLUMN(SUBCLASS_NOQSO);
+		FITS_SAFE_GET_STRING_COLUMN(COMMENTS_PERSON);
 
 		if (verbose) {
 			ECHO(colNum_CX);
@@ -225,56 +237,134 @@ struct ConvertSDSS3 {
 			ECHO(colNum_FIRSTRELEASE);
 			ECHO(colNum_RUN2D);
 			ECHO(colNum_RUN1D);
+		
+			ECHO(colNum_SOURCETYPE);
+			ECHO(colNum_TARGETTYPE);
+			ECHO(colNum_CLASS);
+			ECHO(colNum_SUBCLASS);
+			ECHO(colNum_TFILE);
+			ECHO(colNum_ELODIE_FILENAME);
+			ECHO(colNum_ELODIE_OBJECT);
+			ECHO(colNum_ELODIE_SPTYPE);
+			ECHO(colNum_CLASS_NOQSO);
+			ECHO(colNum_SUBCLASS_NOQSO);
+			ECHO(colNum_COMMENTS_PERSON);
 		}	
 
 		//TODO assert columns are of the type  matching what I will be reading
 
+		float vtx[3];
+		int numReadable = 0;
+		
 		//now cycle through rows and pick out values that we want
+		printf("processing     ");
+		fflush(stdout);
+		time_t lasttime = -1;
 		for (int rowNum = 1; rowNum <= numRows; ++rowNum) {
+		
+			time_t thistime = time(NULL);
+			if (thistime != lasttime) {
+				lasttime = thistime;
+				double frac = (double)rowNum / (double)numRows;
+				int percent = (int)(100. * sqrt(frac));
+				printf("\b\b\b\b%3d%%", percent);
+				fflush(stdout);
+			}
+
 			FITS_SAFE_READ_COLUMN(double, CX);
 			FITS_SAFE_READ_COLUMN(double, CY);
 			FITS_SAFE_READ_COLUMN(double, CZ);
 			FITS_SAFE_READ_COLUMN(float, Z);
 			
-			//catalog stuff?
-			FITS_SAFE_READ_STRING_COLUMN(SURVEY);
-			FITS_SAFE_READ_STRING_COLUMN(INSTRUMENT);
-			FITS_SAFE_READ_STRING_COLUMN(CHUNK);
-			FITS_SAFE_READ_STRING_COLUMN(PROGRAMNAME);
-			FITS_SAFE_READ_STRING_COLUMN(PLATERUN);
-			FITS_SAFE_READ_STRING_COLUMN(PLATEQUALITY);
-
-			FITS_SAFE_READ_STRING_COLUMN(SPECOBJID);
-			FITS_SAFE_READ_STRING_COLUMN(FLUXOBJID);
-			FITS_SAFE_READ_STRING_COLUMN(BESTOBJID);
-			FITS_SAFE_READ_STRING_COLUMN(TARGETOBJID);
-			FITS_SAFE_READ_STRING_COLUMN(PLATEID);
-			FITS_SAFE_READ_STRING_COLUMN(FIRSTRELEASE);
-			FITS_SAFE_READ_STRING_COLUMN(RUN2D);
-			FITS_SAFE_READ_STRING_COLUMN(RUN1D);
-
 			if (verbose) {
 				ECHO(value_CX);
 				ECHO(value_CY);
 				ECHO(value_CZ);
 				ECHO(value_Z);
-				
-				//catalog stuff?
-				ECHO(value_SURVEY);
-				ECHO(value_INSTRUMENT);
-				ECHO(value_CHUNK);
-				ECHO(value_PROGRAMNAME);
-				ECHO(value_PLATERUN);
-				ECHO(value_PLATEQUALITY);
+			}
 			
-				ECHO(value_SPECOBJID);
-				ECHO(value_FLUXOBJID);
-				ECHO(value_BESTOBJID);
-				ECHO(value_TARGETOBJID);
-				ECHO(value_PLATEID);
-				ECHO(value_FIRSTRELEASE);
-				ECHO(value_RUN2D);
-				ECHO(value_RUN1D);
+			if (readStringDescs ) {	//catalog stuff
+				FITS_SAFE_READ_STRING_COLUMN(SURVEY);
+				FITS_SAFE_READ_STRING_COLUMN(INSTRUMENT);
+				FITS_SAFE_READ_STRING_COLUMN(CHUNK);
+				FITS_SAFE_READ_STRING_COLUMN(PROGRAMNAME);
+				FITS_SAFE_READ_STRING_COLUMN(PLATERUN);
+				FITS_SAFE_READ_STRING_COLUMN(PLATEQUALITY);
+
+				FITS_SAFE_READ_STRING_COLUMN(SPECOBJID);
+				FITS_SAFE_READ_STRING_COLUMN(FLUXOBJID);
+				FITS_SAFE_READ_STRING_COLUMN(BESTOBJID);
+				FITS_SAFE_READ_STRING_COLUMN(TARGETOBJID);
+				FITS_SAFE_READ_STRING_COLUMN(PLATEID);
+				FITS_SAFE_READ_STRING_COLUMN(FIRSTRELEASE);
+				FITS_SAFE_READ_STRING_COLUMN(RUN2D);
+				FITS_SAFE_READ_STRING_COLUMN(RUN1D);
+
+				FITS_SAFE_READ_STRING_COLUMN(SOURCETYPE);
+				FITS_SAFE_READ_STRING_COLUMN(TARGETTYPE);
+				FITS_SAFE_READ_STRING_COLUMN(CLASS);
+				FITS_SAFE_READ_STRING_COLUMN(SUBCLASS);
+				FITS_SAFE_READ_STRING_COLUMN(TFILE);
+				FITS_SAFE_READ_STRING_COLUMN(ELODIE_FILENAME);
+				FITS_SAFE_READ_STRING_COLUMN(ELODIE_OBJECT);
+				FITS_SAFE_READ_STRING_COLUMN(ELODIE_SPTYPE);
+				FITS_SAFE_READ_STRING_COLUMN(CLASS_NOQSO);
+				FITS_SAFE_READ_STRING_COLUMN(SUBCLASS_NOQSO);
+				FITS_SAFE_READ_STRING_COLUMN(COMMENTS_PERSON);
+				
+				if (verbose) {		
+					ECHO(value_SURVEY);
+					ECHO(value_INSTRUMENT);
+					ECHO(value_CHUNK);
+					ECHO(value_PROGRAMNAME);
+					ECHO(value_PLATERUN);
+					ECHO(value_PLATEQUALITY);
+				
+					ECHO(value_SPECOBJID);
+					ECHO(value_FLUXOBJID);
+					ECHO(value_BESTOBJID);
+					ECHO(value_TARGETOBJID);
+					ECHO(value_PLATEID);
+					ECHO(value_FIRSTRELEASE);
+					ECHO(value_RUN2D);
+					ECHO(value_RUN1D);
+				
+					ECHO(value_SOURCETYPE);
+					ECHO(value_TARGETTYPE);
+					ECHO(value_CLASS);
+					ECHO(value_SUBCLASS);
+					ECHO(value_TFILE);
+					ECHO(value_ELODIE_FILENAME);
+					ECHO(value_ELODIE_OBJECT);
+					ECHO(value_ELODIE_SPTYPE);
+					ECHO(value_CLASS_NOQSO);
+					ECHO(value_SUBCLASS_NOQSO);
+					ECHO(value_COMMENTS_PERSON);
+				}
+			}
+
+			if (useMinRedshift && value_Z < minRedshift) continue;
+		
+			double redshift = SPEED_OF_LIGHT * value_Z;
+			//redshift is in km/s
+			//distance is in Mpc
+			double distance = redshift / HUBBLE_CONSTANT;
+			vtx[0] = (float)(distance * value_CX); 
+			vtx[1] = (float)(distance * value_CY); 
+			vtx[2] = (float)(distance * value_CZ);
+
+			if (!isnan(vtx[0]) && !isnan(vtx[1]) && !isnan(vtx[2])
+				&& vtx[0] != INFINITY && vtx[0] != -INFINITY 
+				&& vtx[1] != INFINITY && vtx[1] != -INFINITY 
+				&& vtx[2] != INFINITY && vtx[2] != -INFINITY
+			) {
+				numReadable++;	
+				fwrite(vtx, sizeof(vtx), 1, pointDestFile);
+			}
+
+			if (verbose) {
+				cout << "redshift (km/s) " << redshift << endl;
+				cout << "distance (Mpc) " << distance << endl;
 			}
 
 			if (interactive) {
@@ -283,9 +373,12 @@ struct ConvertSDSS3 {
 				}
 			}
 		}
-
+		printf("\n");
 
 		FITS_SAFE(fits_close_file(file, &status));
+		fclose(pointDestFile);
+		
+		cout << "num readable: " << numReadable << endl;
 	}
 };
 
