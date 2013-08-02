@@ -8,6 +8,7 @@ convert-sdss3			generates point file
 #include <math.h>
 #include <sys/stat.h>
 
+#include <vector>
 #include <map>
 #include <string>
 #include <sstream>
@@ -57,83 +58,82 @@ FITS_TYPE(float, TFLOAT);
 FITS_TYPE(double, TDOUBLE);
 FITS_TYPE(string, TSTRING);
 
-//general case.  check might as well be merged with the function.
-template<typename CTYPE>
-void fitsAssertColType(fitsfile *file, int colNum) {
-	int colType = 0;
-	long repeat = 0;
-	long width = 0;
-	FITS_SAFE(fits_get_coltype(file, colNum, &colType, &repeat, &width, &status));
-	//cout << "type " << colType << " vs TDOUBLE " << TDOUBLE << " vs TFLOAT " << TFLOAT << endl;
-	if (colType != FITSType<CTYPE>::type) throw Exception() << "expected FITS type " << (int)FITSType<CTYPE>::type << " but found " << colType;
-	if (repeat != 1) throw Exception() << "expected repeat to be 1 but found " << repeat;
-	if (width != sizeof(CTYPE)) throw Exception() << "expected column width to be " << sizeof(CTYPE) << " but found " << width;
-}
-
-template<typename CTYPE>
-int fitsSafeGetColumn(fitsfile *file, const char *colName) {
-	int colNum = 0;
-	FITS_SAFE(fits_get_colnum(file, CASESEN, const_cast<char*>(colName), &colNum, &status));
-	fitsAssertColType<CTYPE>(file, colNum);
-	return colNum;
-}
-
-//string specialization.  check needs to return a variable so it is merged.  i could have it always return....
-int fitsSafeGetStringColumn(fitsfile *file, const char *colName, long *width) {
-	int colNum = 0;
-	FITS_SAFE(fits_get_colnum(file, CASESEN, const_cast<char*>(colName), &colNum, &status));
+struct FITSColumn {
+	fitsfile *file;
+	const char *colName;
+	int colNum;
 	
-	typedef string CTYPE;
-	int colType = 0;
-	long repeat = 0;
-	FITS_SAFE(fits_get_coltype(file, colNum, &colType, &repeat, width, &status));
-	if (colType != FITSType<CTYPE>::type) throw Exception() << "expected FITS type " << (int)FITSType<CTYPE>::type << " but found " << colType;
-	if (*width != repeat * sizeof(char)) throw Exception() << "expected column width to be " << (repeat * sizeof(char)) << " but found " << *width;
+	FITSColumn(fitsfile *file_, const char *colName_) 
+	: file(file_), colName(colName_), colNum(0) {}
 
-	return colNum;
-}
-//generic type
+	virtual string readStr(int rowNum) = 0;
+};
+
 template<typename CTYPE>
-CTYPE fitsReadValue(fitsfile *file, int colNum, int rowNum);
+struct FITSTypedColumn : public FITSColumn {
+	FITSTypedColumn(fitsfile *file_, const char *colName_) 
+	: FITSColumn(file_, colName_) {
+		FITS_SAFE(fits_get_colnum(file, CASESEN, const_cast<char*>(colName), &colNum, &status));
+		assertColType(file, colNum);
+	}
 
-//floats have NAN-checking built in
-template<typename CTYPE>
-CTYPE fitsReadFloatValue(fitsfile *file, int colNum, int rowNum) {
-	CTYPE result = NAN;
-	CTYPE nullValue = NAN;
-	int nullResult = 0;
-	FITS_SAFE(fits_read_col(file, FITSType<CTYPE>::type, colNum, rowNum, 1, 1, &nullValue, &result, &nullResult, &status));
-	if (nullResult != 0) throw Exception() << "got nullResult " << nullResult;
-	return result;
-}
+	void assertColType(fitsfile *file, int colNum) {
+		int colType = 0;
+		long repeat = 0;
+		long width = 0;
+		FITS_SAFE(fits_get_coltype(file, colNum, &colType, &repeat, &width, &status));
+		//cout << "type " << colType << " vs TDOUBLE " << TDOUBLE << " vs TFLOAT " << TFLOAT << endl;
+		if (colType != FITSType<CTYPE>::type) throw Exception() << "expected FITS type " << (int)FITSType<CTYPE>::type << " but found " << colType;
+		if (repeat != 1) throw Exception() << "expected repeat to be 1 but found " << repeat;
+		if (width != sizeof(CTYPE)) throw Exception() << "expected column width to be " << sizeof(CTYPE) << " but found " << width;
+	}
 
-template<> float fitsReadValue<float>(fitsfile *file, int colNum, int rowNum) {
-	return fitsReadFloatValue<float>(file, colNum, rowNum);
-}
-
-template<> double fitsReadValue<double>(fitsfile *file, int colNum, int rowNum) {
-	return fitsReadFloatValue<float>(file, colNum, rowNum);
-}
-
-//strings pass around byte buffers
-string fitsReadStringValue(fitsfile *file, int colNum, int rowNum, int len) {
-
-	typedef string CTYPE;
-	char buffer[256];
-	char *result = buffer;
-	if (len >= sizeof(buffer)) throw Exception() << "found column that won't fit: needs to be " << len << " bytes";
+	CTYPE read(int rowNum) {
+		CTYPE result = CTYPE();
+		CTYPE nullValue = CTYPE();
+		int nullResult = 0;
+		FITS_SAFE(fits_read_col(file, FITSType<CTYPE>::type, colNum, rowNum, 1, 1, &nullValue, &result, &nullResult, &status));
+		if (nullResult != 0) throw Exception() << "got nullResult " << nullResult;
+		return result;
+	}
 	
-	int nullResult = 0;
-	FITS_SAFE(fits_read_col(file, FITSType<CTYPE>::type, colNum, rowNum, 1, 1, NULL, &result, &nullResult, &status));
-	if (nullResult != 0) throw Exception() << "got nullResult " << nullResult;
-	return string(buffer);
-}
+	virtual string readStr(int rowNum) {
+		ostringstream ss;
+		ss << read(rowNum);
+		return ss.str();
+	}
+};
 
-//some ugly macros I'm making too much use of
-#define FITS_SAFE_GET_COLUMN(CTYPE,COLUMN)		int colNum_##COLUMN = fitsSafeGetColumn<CTYPE>(file, #COLUMN)
-#define FITS_SAFE_READ_COLUMN(CTYPE, COLUMN)	CTYPE value_##COLUMN = fitsReadValue<CTYPE>(file, colNum_##COLUMN, rowNum);	
-#define FITS_SAFE_GET_STRING_COLUMN(COLUMN)		long len_##COLUMN = 0; int colNum_##COLUMN = fitsSafeGetStringColumn(file, #COLUMN, &len_##COLUMN);
-#define FITS_SAFE_READ_STRING_COLUMN(COLUMN)	string value_##COLUMN = fitsReadStringValue(file, colNum_##COLUMN, rowNum, len_##COLUMN);	
+struct FITSStringColumn : public FITSColumn {
+	typedef string CTYPE;
+	long width;
+	FITSStringColumn(fitsfile *file_, const char *colName_)
+	: FITSColumn(file_, colName_) {
+		FITS_SAFE(fits_get_colnum(file, CASESEN, const_cast<char*>(colName), &colNum, &status));
+		
+		int colType = 0;
+		long repeat = 0;
+		FITS_SAFE(fits_get_coltype(file, colNum, &colType, &repeat, &width, &status));
+		if (colType != FITSType<CTYPE>::type) throw Exception() << "expected FITS type " << (int)FITSType<CTYPE>::type << " but found " << colType;
+		if (width != repeat * sizeof(char)) throw Exception() << "expected column width to be " << (repeat * sizeof(char)) << " but found " << width;
+	}
+
+	CTYPE read(int rowNum) {
+		char buffer[256];
+		char *result = buffer;
+		if (width >= sizeof(buffer)) throw Exception() << "found column that won't fit: needs to be " << width << " bytes";
+		
+		int nullResult = 0;
+		FITS_SAFE(fits_read_col(file, FITSType<CTYPE>::type, colNum, rowNum, 1, 1, NULL, &result, &nullResult, &status));
+		if (nullResult != 0) throw Exception() << "got nullResult " << nullResult;
+		return string(buffer);
+
+	}
+	
+	virtual string readStr(int rowNum) {
+		return read(rowNum);
+	}
+};
 
 struct ConvertSDSS3 {
 	ConvertSDSS3() {}
@@ -180,75 +180,49 @@ struct ConvertSDSS3 {
 		brightness? color? shape?
 		catalog name? NGC_*** MS_*** or whatever other identifier?
 		*/
+		vector<FITSColumn*> columns;
 
-		FITS_SAFE_GET_COLUMN(double, CX);
-		FITS_SAFE_GET_COLUMN(double, CY);
-		FITS_SAFE_GET_COLUMN(double, CZ);
-		FITS_SAFE_GET_COLUMN(float, Z);
-		
-		//catalog stuff?
-		FITS_SAFE_GET_STRING_COLUMN(SURVEY);
-		FITS_SAFE_GET_STRING_COLUMN(INSTRUMENT);
-		FITS_SAFE_GET_STRING_COLUMN(CHUNK);
-		FITS_SAFE_GET_STRING_COLUMN(PROGRAMNAME);
-		FITS_SAFE_GET_STRING_COLUMN(PLATERUN);
-		FITS_SAFE_GET_STRING_COLUMN(PLATEQUALITY);
+		FITSTypedColumn<double> *col_CX = new FITSTypedColumn<double>(file, "CX"); columns.push_back(col_CX);
+		FITSTypedColumn<double> *col_CY = new FITSTypedColumn<double>(file, "CY"); columns.push_back(col_CY);
+		FITSTypedColumn<double> *col_CZ = new FITSTypedColumn<double>(file, "CZ"); columns.push_back(col_CZ);
+		FITSTypedColumn<float> *col_Z = new FITSTypedColumn<float>(file, "Z"); columns.push_back(col_Z);
 
-		FITS_SAFE_GET_STRING_COLUMN(SPECOBJID);
-		FITS_SAFE_GET_STRING_COLUMN(FLUXOBJID);
-		FITS_SAFE_GET_STRING_COLUMN(BESTOBJID);
-		FITS_SAFE_GET_STRING_COLUMN(TARGETOBJID);
-		FITS_SAFE_GET_STRING_COLUMN(PLATEID);
-		FITS_SAFE_GET_STRING_COLUMN(FIRSTRELEASE);
-		FITS_SAFE_GET_STRING_COLUMN(RUN2D);
-		FITS_SAFE_GET_STRING_COLUMN(RUN1D);
+		int readStringStartIndex = columns.size();
 
-		FITS_SAFE_GET_STRING_COLUMN(SOURCETYPE);
-		FITS_SAFE_GET_STRING_COLUMN(TARGETTYPE);
-		FITS_SAFE_GET_STRING_COLUMN(CLASS);
-		FITS_SAFE_GET_STRING_COLUMN(SUBCLASS);
-		FITS_SAFE_GET_STRING_COLUMN(TFILE);
-		FITS_SAFE_GET_STRING_COLUMN(ELODIE_FILENAME);
-		FITS_SAFE_GET_STRING_COLUMN(ELODIE_OBJECT);
-		FITS_SAFE_GET_STRING_COLUMN(ELODIE_SPTYPE);
-		FITS_SAFE_GET_STRING_COLUMN(CLASS_NOQSO);
-		FITS_SAFE_GET_STRING_COLUMN(SUBCLASS_NOQSO);
-		FITS_SAFE_GET_STRING_COLUMN(COMMENTS_PERSON);
+		if (readStringDescs ) {		//catalog stuff?
+			columns.push_back(new FITSStringColumn(file, "SURVEY"));
+			columns.push_back(new FITSStringColumn(file, "INSTRUMENT"));
+			columns.push_back(new FITSStringColumn(file, "CHUNK"));
+			columns.push_back(new FITSStringColumn(file, "PROGRAMNAME"));
+			columns.push_back(new FITSStringColumn(file, "PLATERUN"));
+			columns.push_back(new FITSStringColumn(file, "PLATEQUALITY"));
+
+			columns.push_back(new FITSStringColumn(file, "SPECOBJID"));
+			columns.push_back(new FITSStringColumn(file, "FLUXOBJID"));
+			columns.push_back(new FITSStringColumn(file, "BESTOBJID"));
+			columns.push_back(new FITSStringColumn(file, "TARGETOBJID"));
+			columns.push_back(new FITSStringColumn(file, "PLATEID"));
+			columns.push_back(new FITSStringColumn(file, "FIRSTRELEASE"));
+			columns.push_back(new FITSStringColumn(file, "RUN2D"));
+			columns.push_back(new FITSStringColumn(file, "RUN1D"));
+
+			columns.push_back(new FITSStringColumn(file, "SOURCETYPE"));
+			columns.push_back(new FITSStringColumn(file, "TARGETTYPE"));
+			columns.push_back(new FITSStringColumn(file, "CLASS"));
+			columns.push_back(new FITSStringColumn(file, "SUBCLASS"));
+			columns.push_back(new FITSStringColumn(file, "TFILE"));
+			columns.push_back(new FITSStringColumn(file, "ELODIE_FILENAME"));
+			columns.push_back(new FITSStringColumn(file, "ELODIE_OBJECT"));
+			columns.push_back(new FITSStringColumn(file, "ELODIE_SPTYPE"));
+			columns.push_back(new FITSStringColumn(file, "CLASS_NOQSO"));
+			columns.push_back(new FITSStringColumn(file, "SUBCLASS_NOQSO"));
+			columns.push_back(new FITSStringColumn(file, "COMMENTS_PERSON"));
+		}
 
 		if (verbose) {
-			ECHO(colNum_CX);
-			ECHO(colNum_CY);
-			ECHO(colNum_CZ);
-			ECHO(colNum_Z);
-			
-			//catalog	
-			ECHO(colNum_SURVEY);
-			ECHO(colNum_INSTRUMENT);
-			ECHO(colNum_CHUNK);
-			ECHO(colNum_PROGRAMNAME);
-			ECHO(colNum_PLATERUN);
-			ECHO(colNum_PLATEQUALITY);
-	
-			ECHO(colNum_SPECOBJID);
-			ECHO(colNum_FLUXOBJID);
-			ECHO(colNum_BESTOBJID);
-			ECHO(colNum_TARGETOBJID);
-			ECHO(colNum_PLATEID);
-			ECHO(colNum_FIRSTRELEASE);
-			ECHO(colNum_RUN2D);
-			ECHO(colNum_RUN1D);
-		
-			ECHO(colNum_SOURCETYPE);
-			ECHO(colNum_TARGETTYPE);
-			ECHO(colNum_CLASS);
-			ECHO(colNum_SUBCLASS);
-			ECHO(colNum_TFILE);
-			ECHO(colNum_ELODIE_FILENAME);
-			ECHO(colNum_ELODIE_OBJECT);
-			ECHO(colNum_ELODIE_SPTYPE);
-			ECHO(colNum_CLASS_NOQSO);
-			ECHO(colNum_SUBCLASS_NOQSO);
-			ECHO(colNum_COMMENTS_PERSON);
+			for (vector<FITSColumn*>::iterator i = columns.begin(); i != columns.end(); ++i) {
+				cout << " col num " << (*i)->colName << " = " << (*i)->colNum << endl;
+			}
 		}	
 
 		//TODO assert columns are of the type  matching what I will be reading
@@ -257,13 +231,15 @@ struct ConvertSDSS3 {
 		int numReadable = 0;
 		
 		//now cycle through rows and pick out values that we want
-		printf("processing     ");
-		fflush(stdout);
+		if (!interactive) {
+			printf("processing     ");
+			fflush(stdout);
+		}
 		time_t lasttime = -1;
 		for (int rowNum = 1; rowNum <= numRows; ++rowNum) {
 		
 			time_t thistime = time(NULL);
-			if (thistime != lasttime) {
+			if (!interactive && thistime != lasttime) {
 				lasttime = thistime;
 				double frac = (double)rowNum / (double)numRows;
 				int percent = (int)(100. * sqrt(frac));
@@ -271,75 +247,21 @@ struct ConvertSDSS3 {
 				fflush(stdout);
 			}
 
-			FITS_SAFE_READ_COLUMN(double, CX);
-			FITS_SAFE_READ_COLUMN(double, CY);
-			FITS_SAFE_READ_COLUMN(double, CZ);
-			FITS_SAFE_READ_COLUMN(float, Z);
+			double value_CX = col_CX->read(rowNum);
+			double value_CY = col_CY->read(rowNum);
+			double value_CZ = col_CZ->read(rowNum);
+			float value_Z = col_Z->read(rowNum);
 			
 			if (verbose) {
-				ECHO(value_CX);
-				ECHO(value_CY);
-				ECHO(value_CZ);
-				ECHO(value_Z);
+				cout << "CX = " << value_CX << endl;
+				cout << "CY = " << value_CY << endl;
+				cout << "CZ = " << value_CZ << endl;
+				cout << "Z = " << value_Z << endl;
 			}
 			
 			if (readStringDescs ) {	//catalog stuff
-				FITS_SAFE_READ_STRING_COLUMN(SURVEY);
-				FITS_SAFE_READ_STRING_COLUMN(INSTRUMENT);
-				FITS_SAFE_READ_STRING_COLUMN(CHUNK);
-				FITS_SAFE_READ_STRING_COLUMN(PROGRAMNAME);
-				FITS_SAFE_READ_STRING_COLUMN(PLATERUN);
-				FITS_SAFE_READ_STRING_COLUMN(PLATEQUALITY);
-
-				FITS_SAFE_READ_STRING_COLUMN(SPECOBJID);
-				FITS_SAFE_READ_STRING_COLUMN(FLUXOBJID);
-				FITS_SAFE_READ_STRING_COLUMN(BESTOBJID);
-				FITS_SAFE_READ_STRING_COLUMN(TARGETOBJID);
-				FITS_SAFE_READ_STRING_COLUMN(PLATEID);
-				FITS_SAFE_READ_STRING_COLUMN(FIRSTRELEASE);
-				FITS_SAFE_READ_STRING_COLUMN(RUN2D);
-				FITS_SAFE_READ_STRING_COLUMN(RUN1D);
-
-				FITS_SAFE_READ_STRING_COLUMN(SOURCETYPE);
-				FITS_SAFE_READ_STRING_COLUMN(TARGETTYPE);
-				FITS_SAFE_READ_STRING_COLUMN(CLASS);
-				FITS_SAFE_READ_STRING_COLUMN(SUBCLASS);
-				FITS_SAFE_READ_STRING_COLUMN(TFILE);
-				FITS_SAFE_READ_STRING_COLUMN(ELODIE_FILENAME);
-				FITS_SAFE_READ_STRING_COLUMN(ELODIE_OBJECT);
-				FITS_SAFE_READ_STRING_COLUMN(ELODIE_SPTYPE);
-				FITS_SAFE_READ_STRING_COLUMN(CLASS_NOQSO);
-				FITS_SAFE_READ_STRING_COLUMN(SUBCLASS_NOQSO);
-				FITS_SAFE_READ_STRING_COLUMN(COMMENTS_PERSON);
-				
-				if (verbose) {		
-					ECHO(value_SURVEY);
-					ECHO(value_INSTRUMENT);
-					ECHO(value_CHUNK);
-					ECHO(value_PROGRAMNAME);
-					ECHO(value_PLATERUN);
-					ECHO(value_PLATEQUALITY);
-				
-					ECHO(value_SPECOBJID);
-					ECHO(value_FLUXOBJID);
-					ECHO(value_BESTOBJID);
-					ECHO(value_TARGETOBJID);
-					ECHO(value_PLATEID);
-					ECHO(value_FIRSTRELEASE);
-					ECHO(value_RUN2D);
-					ECHO(value_RUN1D);
-				
-					ECHO(value_SOURCETYPE);
-					ECHO(value_TARGETTYPE);
-					ECHO(value_CLASS);
-					ECHO(value_SUBCLASS);
-					ECHO(value_TFILE);
-					ECHO(value_ELODIE_FILENAME);
-					ECHO(value_ELODIE_OBJECT);
-					ECHO(value_ELODIE_SPTYPE);
-					ECHO(value_CLASS_NOQSO);
-					ECHO(value_SUBCLASS_NOQSO);
-					ECHO(value_COMMENTS_PERSON);
+				for (vector<FITSColumn*>::iterator i = columns.begin() + readStringStartIndex; i != columns.end(); ++i) {
+					cout << (*i)->colName << " = " << (*i)->readStr(rowNum) << endl;
 				}
 			}
 
@@ -373,7 +295,9 @@ struct ConvertSDSS3 {
 				}
 			}
 		}
-		printf("\n");
+		if (!interactive) {
+			printf("\n");
+		}
 
 		FITS_SAFE(fits_close_file(file, &status));
 		fclose(pointDestFile);
@@ -388,6 +312,7 @@ void showhelp() {
 	<< "options:" << endl
 	<< "	--verbose	output values" << endl
 	<< "	--wait		wait for keypress after each entry.  'q' stops" << endl
+	<<"		--read-desc	reads string descriptions" << endl
 	<< "	--min-redshift <cz> 	specify minimum redshift" << endl
 	;
 }
@@ -406,6 +331,8 @@ int main(int argc, char **argv) {
 		} else if (!strcmp(argv[i], "--min-redshift") && i < argc-1) {
 			useMinRedshift = true;
 			minRedshift = atof(argv[++i]);
+		} else if (!strcasecmp(argv[i], "--read-desc")) {
+			readStringDescs  = true;
 		} else {
 			showhelp();
 			return 0;
