@@ -78,7 +78,7 @@ function refreshPanelSize() {
 		panelCloseButton.appendTo(document.body);	
 	} else {
 		panel.css('width', '200px');
-		panel.css('height', '320px');
+		panel.css('height', '330px');
 		if (panelCloseButton) {
 			panelCloseButton.remove();
 			panelCloseButton = undefined;
@@ -466,7 +466,7 @@ function initCallbacks() {
 	});
 }
 
-function init() {
+function init(done) {
 	try {
 		gl = GL.init(canvas);
 	} catch (e) {
@@ -488,6 +488,21 @@ function init() {
 	GL.view.zNear = 1e-5;
 	GL.view.zFar = 5000;
 
+
+	//init texture
+	galaxyTex = new GL.Texture2D({
+		flipY : true,
+		generateMipmap : true,
+		magFilter : gl.LINEAR,
+		minFilter : gl.LINEAR_MIPMAP_LINEAR,
+		url : 'galaxy.png',
+		onload : function() {
+			init2(done);
+		}
+	});
+}
+
+function init2(done) {
 	//create shaders
 
 	pointShader = new GL.ShaderProgram({
@@ -506,15 +521,6 @@ function init() {
 		uniforms : {spriteWidth:1./16.}
 	});
 	
-	//init texture
-	galaxyTex = new GL.Texture2D({
-		flipY : true,
-		generateMipmap : true,
-		magFilter : gl.LINEAR,
-		minFilter : gl.LINEAR_MIPMAP_LINEAR,
-		url : 'galaxy.png'
-	});
-
 	//scene objs
 
 	selected = new Highlight();
@@ -528,6 +534,8 @@ function init() {
 		
 	resize();
 	refreshDistance();
+
+	done();
 }
 
 function findObject(ident) {
@@ -652,79 +660,80 @@ $(document).ready(function() {
 	targetElem = $('<div>').appendTo(panel);
 	descElem = $('<div>').appendTo(panel);
 
-	init();
+	init(function() {
+		$.each([
+			{title:'2MRS', url:'2mrs.f32', source:'http://tdc-www.cfa.harvard.edu/2mrs/'},
+			{title:'6dF GS', url:'6dfgs.f32', source:'http://www.aao.gov.au/6dFGS/'},
+			{title:'sdss3-dr9', url:'sdss3-dr9.f32', source:'http://www.sdss3.org/dr9/data_access/bulk.php'}
+		], function(k,v) {
+			var sceneObj;
+			fileRequest({
+				title:v.title,
+				url:v.url,
+				source:v.source,
+				load:function(arrayBuffer, input) {
+					
+					var pointVtxBuf = new GL.ArrayBuffer({
+						data:arrayBuffer
+					});
 
-	$.each([
-		{title:'2MRS', url:'2mrs.f32', source:'http://tdc-www.cfa.harvard.edu/2mrs/'},
-		{title:'6dF GS', url:'6dfgs.f32', source:'http://www.aao.gov.au/6dFGS/'}
-	], function(k,v) {
-		var sceneObj;
-		fileRequest({
-			title:v.title,
-			url:v.url,
-			source:v.source,
-			load:function(arrayBuffer, input) {
-				
-				var pointVtxBuf = new GL.ArrayBuffer({
-					data:arrayBuffer
-				});
+					var dataSet = {
+						title:v.title,
+						arrayBuffer:arrayBuffer
+					};
+					dataSets.push(dataSet);
+					dataSetsByName[v.title] = dataSet;
 
-				var dataSet = {
-					title:v.title,
-					arrayBuffer:arrayBuffer
-				};
-				dataSets.push(dataSet);
-				dataSetsByName[v.title] = dataSet;
-
-				sceneObj = new GL.SceneObject({
-					mode : gl.POINTS,
-					attrs : {
-						vertex : pointVtxBuf
-					},
-					shader : pointShader,
-					blend : [gl.SRC_ALPHA, gl.ONE],
-					texs : [galaxyTex]
-				});
-				sceneObj.arrayBuffer = arrayBuffer;
-				sceneObj.hidden = v.title != '2MRS';
-				if (sceneObj.hidden) {
-					input.removeAttr('checked');
-				} else {
-					input.attr('checked', 'checked');
-				}
-				
-				dataSet.sceneObj = sceneObj;
-	
-				//start off the render loop:
-				var ondraw;
-				ondraw = function() {
-					GL.draw();
-					doUpdate();
-					requestAnimFrame(ondraw);
-				};
-				ondraw();
-
-				//I only have search data for 2mrs right now
-				if (v.title == '2MRS') {
-					//substring 1 removes the preface ?
-					var urlkeys = {};
-					var search = $('<a>', {href:location.href}).get(0).search;
-					search = search.substring(1);
-					if (search.length) {
-						search = search.split('&');
-						$.each(search, function(i,v) {
-							v = v.split('=');
-							var value = decodeURI(v[1].replace(/\+/g,' '));
-							urlkeys[v[0]] = value;
-						});
-						if (urlkeys.obj) findObject(urlkeys.obj);
+					sceneObj = new GL.SceneObject({
+						mode : gl.POINTS,
+						attrs : {
+							vertex : pointVtxBuf
+						},
+						shader : pointShader,
+						blend : [gl.SRC_ALPHA, gl.ONE],
+						texs : [galaxyTex]
+					});
+					sceneObj.arrayBuffer = arrayBuffer;
+					sceneObj.hidden = v.title != '2MRS';
+					if (sceneObj.hidden) {
+						input.removeAttr('checked');
+					} else {
+						input.attr('checked', 'checked');
 					}
+					
+					dataSet.sceneObj = sceneObj;
+		
+					//start off the render loop:
+					var ondraw;
+					ondraw = function() {
+						GL.draw();
+						doUpdate();
+						requestAnimFrame(ondraw);
+					};
+					ondraw();
+
+					//I only have search data for 2mrs right now
+					if (v.title == '2MRS') {
+						//substring 1 removes the preface ?
+						var urlkeys = {};
+						var search = $('<a>', {href:location.href}).get(0).search;
+						search = search.substring(1);
+						if (search.length) {
+							search = search.split('&');
+							$.each(search, function(i,v) {
+								v = v.split('=');
+								var value = decodeURI(v[1].replace(/\+/g,' '));
+								urlkeys[v[0]] = value;
+							});
+							if (urlkeys.obj) findObject(urlkeys.obj);
+						}
+					}
+				},
+				toggle:function(enabled) {
+					sceneObj.hidden = !enabled;
 				}
-			},
-			toggle:function(enabled) {
-				sceneObj.hidden = !enabled;
-			}
-		}).appendTo(fileRequestDiv);
+			}).appendTo(fileRequestDiv);
+		});
 	});
 })
 
