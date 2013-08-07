@@ -63,7 +63,7 @@ double maxAvgDensityDist = 0;
 Stat angleDifference;
 Stat redshiftDifference;
 
-bool testMerge(const vec3f &a, const vec3f &b) {
+bool testMerge(const vec3d &a, const vec3d &b) {
 #if 0
 	//radial distance in Mpc
 	double distA = a.len();	
@@ -91,7 +91,7 @@ bool testMerge(const vec3f &a, const vec3f &b) {
 	vec3d cb = b - c;
 	vec3d ab = b - a;
 
-	double radialAB = dot(ab, unitC); 
+	double radialAB = vec3d::dot(ab, unitC); 
 	double transverseAB = (ab - radialAB * unitC).len();
 
 	double avgDist = c.len();
@@ -253,7 +253,7 @@ int main(int argc, char **argv) {
 		for (vector<vec3f*>::iterator iv = c->vtxs.begin(); iv != c->vtxs.end(); ++iv) {
 			const vec3f &v = **iv; 
 			vec3d d = (vec3d)v - center;
-			double radial = dot(d, unitC);
+			double radial = vec3d::dot(d, unitC);
 			double transverse = (d - radial * unitC).len();
 			double absRadial = fabs(radial);
 			n++;
@@ -269,7 +269,7 @@ int main(int argc, char **argv) {
 			for (vector<vec3f*>::iterator iv = c->vtxs.begin(); iv != c->vtxs.end(); ++iv) {
 				vec3f &v = **iv; 
 				vec3d d = (vec3d)v - center;
-				double radial = dot(d, unitC);
+				double radial = vec3d::dot(d, unitC);
 				vec3d transverse = d - radial * unitC;
 				//re-stretch radial component
 				radial *= radialSquashScalar;

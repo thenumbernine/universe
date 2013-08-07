@@ -34,6 +34,56 @@
 template<int DIM, typename T>
 class _vec;
 
+template<typename T>
+class _vec<2,T> {
+public:
+	T x, y;
+
+	typedef T type;
+	int dim() const { return 2; }
+
+	_vec() : x(T()), y(T()) {}
+	_vec(T _v) : x(_v), y(_v) {}
+	_vec(T _x, T _y) : x(_x), y(_y) {}
+	_vec(const T *v) : x(v[0]), y(v[1]) {}
+};
+
+template<typename T>
+_vec<2,T> operator+(const _vec<2,T> &a, const _vec<2,T> &b) { return _vec<2,T>(a.x + b.x, a.y + b.y); }
+
+template<typename T, typename U>
+_vec<2,T> &operator+=(_vec<2,T> &u, const _vec<2,U> &v) { u.x += v.x; u.y += v.y; return u; } 
+
+template<typename T>
+_vec<2,T> operator-(const _vec<2,T> &a, const _vec<2,T> &b) { return _vec<2,T>(a.x - b.x, a.y - b.y); }
+
+template<typename U, typename V>
+_vec<2,U> operator*(const _vec<2,U> &u, const V &v) { return _vec<2,U>(u.x + v, u.y + v); }
+
+template<typename U, typename V>
+_vec<2,U> operator*(const U &u, const _vec<2,V> &v) { return _vec<2,U>(u + v.x, u + v.y); }
+
+template<typename U, typename V>
+_vec<2,U> &operator*=(_vec<2,U> &u, const V &v) { u.x *= v; u.y *= v; return u; }
+
+template<typename U, typename V>
+_vec<2,U> &operator/=(_vec<2,U> &u, const V &v) { u.x /= v; u.y /= v; return u; }
+
+template<typename T>
+std::ostream &operator<<(std::ostream &o, const _vec<2,T> &v) {
+	return o << v.x << ", " << v.y;
+}
+
+typedef _vec<2,char> vec2c;
+typedef _vec<2,unsigned char> vec2uc;
+typedef _vec<2,short> vec2s;
+typedef _vec<2,unsigned short> vec2us;
+typedef _vec<2,int> vec2i;
+typedef _vec<2,unsigned int> vec2ui;
+typedef _vec<2,float> vec2f;
+typedef _vec<2,double> vec2d;
+
+
 /**
  * This is the class used to represent 3D vectors
  */
@@ -61,7 +111,7 @@ public:
 	//auto-type-cast between vectors of the same size
 	template<typename U> operator _vec<3,U>() const { return _vec<3,U>((U)x, (U)y, (U)z); }
 	//auto-type-cast between vectors of the same type
-	template<int DIM2> operator _vec<DIM2,T>() const { assert(DIM2 <= 3); return *(_vec<DIM2,T>*)this; }
+	template<int DIM2> operator _vec<DIM2,T>() const { assert(DIM2 >= dim()); return *(_vec<DIM2,T>*)this; }
 	//auto-type-cast from vector to its pointer.  seems this once caused some problems. . . 
 	REPEAT_TYPECAST_WITH_CONST(T*, return &x)
 
@@ -71,9 +121,11 @@ public:
 	//subset access
 	ADD_VECTOR_SUBSET_ACCESS()
 
+	//static methods
+	template<typename U, typename V> static U dot(const _vec<3,U> &u, const _vec<3,V> &v) { return u.x*(U)v.x + u.y*(U)v.y + u.z*(U)v.z; }
+	
 	//member methods:
-	template<typename U> T dot(const _vec<3,U> &v) const { return x*(T)v.x + y*(T)v.y + z*(T)v.z; }
-	T lenSq() const { return dot(*this); }
+	T lenSq() const { return dot(*this, *this); }
 	double len() const { return (double)sqrt((double)lenSq()); }
 	_vec &normalize() { *this /= len(); return *this; }
 	
@@ -92,7 +144,22 @@ template<typename T>
 _vec<3,T> operator+(const _vec<3,T> &a, const _vec<3,T> &b) { return _vec<3,T>(a.x + b.x, a.y + b.y, a.z + b.z); }
 
 template<typename T, typename U>
-_vec<3,T> operator*(const _vec<3,T> &a, const U &b) { return _vec<3,T>(a.x + b, a.y + b, a.z + b); }
+_vec<3,T> &operator+=(_vec<3,T> &u, const _vec<3,U> &v) { u.x += v.x; u.y += v.y; u.z += v.z; return u; } 
+
+template<typename T>
+_vec<3,T> operator-(const _vec<3,T> &a, const _vec<3,T> &b) { return _vec<3,T>(a.x - b.x, a.y - b.y, a.z - b.z); }
+
+template<typename U, typename V>
+_vec<3,U> operator*(const _vec<3,U> &u, const V &v) { return _vec<3,U>(u.x + v, u.y + v, u.z + v); }
+
+template<typename U, typename V>
+_vec<3,U> operator*(const U &u, const _vec<3,V> &v) { return _vec<3,U>(u + v.x, u + v.y, u + v.z); }
+
+template<typename U, typename V>
+_vec<3,U> &operator*=(_vec<3,U> &u, const V &v) { u.x *= v; u.y *= v; u.z *= v; return u; }
+
+template<typename U, typename V>
+_vec<3,U> &operator/=(_vec<3,U> &u, const V &v) { u.x /= v; u.y /= v; u.z /= v; return u; }
 
 template<typename T>
 std::ostream &operator<<(std::ostream &o, const _vec<3,T> &v) {

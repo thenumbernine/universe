@@ -14,9 +14,9 @@ ALL =	\
 	gettotalstats \
 	genoctree \
 	show-still \
-	genisos
-#	flatten-clusters
-#	mark-clusters
+	genisos	\
+	flatten-clusters	\
+	mark-clusters
 #	show
 
 all: $(ALL)

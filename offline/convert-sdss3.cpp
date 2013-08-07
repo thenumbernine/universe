@@ -280,18 +280,18 @@ struct ConvertSDSS3 {
 				fflush(stdout);
 			}
 
-			//galaxies only for now
-			string value_CLASS = col_CLASS->read(rowNum);
-			if (value_CLASS != "GALAXY") continue;
-
 			double value_CX = col_CX->read(rowNum);
 			double value_CY = col_CY->read(rowNum);
 			double value_CZ = col_CZ->read(rowNum);
 			float value_Z = col_Z->read(rowNum);
+			string value_CLASS = col_CLASS->read(rowNum);
 
 			for (vector<IFITSTrackBehavior*>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
 				(*i)->track(rowNum);
 			}
+			
+			//galaxies only for now
+			if (value_CLASS != "GALAXY") continue;
 			
 			if (verbose) {
 				cout << "CX = " << value_CX << endl;
@@ -307,6 +307,7 @@ struct ConvertSDSS3 {
 			}
 
 			if (useMinRedshift && value_Z < minRedshift) continue;
+			
 		
 			double redshift = SPEED_OF_LIGHT * value_Z;
 			//redshift is in km/s
