@@ -102,7 +102,7 @@ for b = (4/3 pi nBar_gal r_link^3)^1/3 = (4/3 pi nBar_gal)^1/3 r_link
 		//redshift (z)
 		vec3d unitA = a * (1. / distA);
 		vec3d unitB = b * (1. / distB);
-		double cosOmega = dot(unitA, unitB);
+		double cosOmega = vec3d::dot(unitA, unitB);
 		if (cosOmega < -1.) cosOmega = -1.;
 		if (cosOmega > 1.) cosOmega = 1.;
 		double omega = acos(cosOmega);
@@ -155,14 +155,16 @@ struct MergeTest_PowerSpectrumPaper {
 		return pow(4./3.*M_PI*avgDensity*densityCutoff + 1./(rTransverseMax*rTransverseMax*rTransverseMax), -1./3.);
 	}
 
-	bool operator()(const vec3f &a, const vec3f &b) {
+	bool operator()(const vec3f &a_, const vec3f &b_) {
+		vec3d a(a_);
+		vec3d b(b_);
 		vec3d c = (a + b) * .5;
 		vec3d unitC = vec3d(c).normalize();
 		vec3d ca = a - c;
 		vec3d cb = b - c;
 		vec3d ab = b - a;
 
-		double radialAB = dot(ab, unitC); 
+		double radialAB = vec3d::dot(ab, unitC); 
 		double transverseAB = (ab - radialAB * unitC).len();
 		++distanceCount;
 		radialDifference.accum(radialAB, distanceCount);
@@ -327,7 +329,7 @@ int main(int argc, char **argv) {
 				}
 
 				if (mergeDest != -1) {
-					links.push_back(vec2i(va - vtxs, mergeDest));
+					links.push_back(vec2i((int)(va - vtxs), mergeDest));
 					
 					//then merge all points in ca and cb
 					ca->vtxs.insert(ca->vtxs.end(), cb->vtxs.begin(), cb->vtxs.end());
