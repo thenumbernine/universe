@@ -190,7 +190,7 @@ struct ConvertSDSS3 {
 				int colNum = 0;
 				char colName[256];
 				bzero(colName, sizeof(colName));
-				fits_get_colname(file, CASESEN, "*", colName, &colNum, &status);
+				fits_get_colname(file, CASESEN, (char *)"*", colName, &colNum, &status);
 				if (status == COL_NOT_FOUND) break;
 				if (status != 0 && status != COL_NOT_UNIQUE) throw Exception() << fitsGetError(status);
 				cout << colNum << "\t" << colName << endl;

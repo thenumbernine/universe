@@ -64,7 +64,7 @@ list<string> getDirFileNames(const string &dir) {
 	dp = opendir(dir.c_str());
 	if (!dp) throw Exception() << "failed to open dir " << dir;
 	
-	while (pent = readdir(dp)) {
+	while ((pent = readdir(dp))) {
 		const char *filename = pent->d_name;
 		if (filename[0] != '.') {
 			destList.push_back(filename);

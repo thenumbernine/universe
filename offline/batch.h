@@ -40,7 +40,7 @@ public:
 	~CritSec() { unlock(); }
 	void lock() { success = m.lock(); }
 	void unlock() { success = m.unlock(); }
-	bool trylock() { success = m.trylock(); }
+	bool trylock() { success = m.trylock(); return success; }
 	bool fail() { return !success; }
 };
 
