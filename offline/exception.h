@@ -13,7 +13,7 @@ protected:
 public:
 	Exception() throw() { }
 	Exception(const Exception &t) throw() { s << t.s.str(); }
-	Exception &operator=(const Exception &t) throw() { s << t.s.str(); }
+	Exception &operator=(const Exception &t) throw() { s << t.s.str(); return *this; }
 	virtual ~Exception() throw() {};
 
 	virtual const char *what() const throw() { 

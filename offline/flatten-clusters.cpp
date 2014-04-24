@@ -100,8 +100,7 @@ bool testMerge(const vec3d &a, const vec3d &b) {
 	//avgDensity is a function of space ...
 	const double overdensity = 200.;
 	const double rTransverseMax = 5.;	//used for sdss at least
-	return sqrt((radialAB * radialAB / 100. + transverseAB * transverseAB)
-		<= pow(4./3.*M_PI*avgDensity*(1.+overdensity) + 1./(rTransverseMax*rTransverseMax*rTransverseMax), -1./3.));
+	return sqrt(radialAB * radialAB / 100. + transverseAB * transverseAB) <= pow(4./3.*M_PI*avgDensity*(1.+overdensity) + 1./(rTransverseMax*rTransverseMax*rTransverseMax), -1./3.);
 #endif
 }
 

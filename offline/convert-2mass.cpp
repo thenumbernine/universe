@@ -157,7 +157,7 @@ void process(const char *srcfilename, const char *dstfilename) {
 		if (strlen(line) == sizeof(line)-1) throw Exception() << "line buffer overflow";
 		
 		if (VERBOSE) {
-			printf("got length %d line %s\n", strlen(line), line);
+			printf("got length %ld line %s\n", strlen(line), line);
 		}
 		numEntries++;
 		
