@@ -24,40 +24,6 @@ _gaq.push(['_trackPageview']);
 })();
 </script>
 
-		<script id='point-vsh' type='x-shader/x-vertex'>
-attribute vec3 vertex;
-uniform mat4 mvMat;
-uniform mat4 projMat;
-uniform float spriteWidth;
-uniform float screenWidth;
-void main() {
-	vec4 eyePos = mvMat * vec4(vertex, 1.);
-	gl_Position = projMat * eyePos;
-	gl_PointSize = spriteWidth*screenWidth/gl_Position.w;
-}
-		</script>
-		<script id='point-fsh' type='x-shader/x-fragment'>
-precision mediump float;
-uniform sampler2D tex;
-void main() {
-	float z = gl_FragCoord.z;
-	float v = 1. / (z * z);
-	gl_FragColor = texture2D(tex, gl_PointCoord);
-	gl_FragColor *= gl_FragColor;
-	gl_FragColor *= v;
-}
-		</script>
-		<script id='select-fsh' type='x-shader/x-fragment'>
-precision mediump float;
-uniform vec3 color;
-void main() {
-	vec2 absDelta = abs(gl_PointCoord - .5);
-	float dist = max(absDelta.x, absDelta.y);
-	if (dist < .4) discard;
-	gl_FragColor = vec4(color, 1.); 
-}
-		</script>
-
 		<style type='text/css'>
 
 body {

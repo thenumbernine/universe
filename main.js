@@ -330,7 +330,7 @@ function universeUpdateHover() {
 	var mouseDirX = viewFwdX + tanFovY * (viewRightX * aspectRatio * mxf + viewUpX * myf);
 	var mouseDirY = viewFwdY + tanFovY * (viewRightY * aspectRatio * mxf + viewUpY * myf);
 	var mouseDirZ = viewFwdZ + tanFovY * (viewRightZ * aspectRatio * mxf + viewUpZ * myf);
-	var mouseDirLen = Math.sqrt(mouseDirX * mouseDirX + mouseDirY * mouseDirY + mouseDirZ * mouseDirZ);
+	var mouseDirLength = Math.sqrt(mouseDirX * mouseDirX + mouseDirY * mouseDirY + mouseDirZ * mouseDirZ);
 /* mouse line debugging * /
 	hover.index = 3088;
 	hover.sceneObj.hidden = false;
@@ -354,7 +354,6 @@ function universeUpdateHover() {
 			var viewToPointZ = pointZ - viewZ;
 
 			var viewToPointLength = Math.sqrt(viewToPointX * viewToPointX + viewToPointY * viewToPointY + viewToPointZ * viewToPointZ);
-			var mouseDirLength = Math.sqrt(mouseDirX * mouseDirX + mouseDirY * mouseDirY + mouseDirZ * mouseDirZ);
 			var viewToPointDotMouseDir = viewToPointX * mouseDirX + viewToPointY * mouseDirY + viewToPointZ * mouseDirZ;
 			
 			var dot = viewToPointDotMouseDir / (mouseDirLength * viewToPointLength); 
@@ -506,8 +505,30 @@ function init2(done) {
 	//create shaders
 
 	pointShader = new GL.ShaderProgram({
-		vertexCodeID : 'point-vsh',
-		fragmentCodeID : 'point-fsh',
+		vertexPrecision : 'best',
+		vertexCode : mlstr(function(){/*
+attribute vec3 vertex;
+uniform mat4 mvMat;
+uniform mat4 projMat;
+uniform float spriteWidth;
+uniform float screenWidth;
+void main() {
+	vec4 eyePos = mvMat * vec4(vertex, 1.);
+	gl_Position = projMat * eyePos;
+	gl_PointSize = spriteWidth*screenWidth/gl_Position.w;
+}
+*/}),
+		fragmentPrecision : 'best',
+		fragmentCode : mlstr(function(){/*
+uniform sampler2D tex;
+void main() {
+	float z = gl_FragCoord.z;
+	float v = 1. / (z * z);
+	gl_FragColor = texture2D(tex, gl_PointCoord);
+	gl_FragColor *= gl_FragColor;
+	gl_FragColor *= v;
+}
+*/}),
 		uniforms : {
 			tex : 0, 
 			spriteWidth : 1./4.,
@@ -516,8 +537,29 @@ function init2(done) {
 	});
 
 	selectedShader = new GL.ShaderProgram({
-		vertexCodeID : 'point-vsh',
-		fragmentCodeID : 'select-fsh',
+		vertexPrecision : 'best',
+		vertexCode : mlstr(function(){/*
+attribute vec3 vertex;
+uniform mat4 mvMat;
+uniform mat4 projMat;
+uniform float spriteWidth;
+uniform float screenWidth;
+void main() {
+	vec4 eyePos = mvMat * vec4(vertex, 1.);
+	gl_Position = projMat * eyePos;
+	gl_PointSize = spriteWidth*screenWidth/gl_Position.w;
+}
+*/}),
+		fragmentPrecision : 'best',
+		fragmentCode : mlstr(function(){/*
+uniform vec3 color;
+void main() {
+	vec2 absDelta = abs(gl_PointCoord - .5);
+	float dist = max(absDelta.x, absDelta.y);
+	if (dist < .4) discard;
+	gl_FragColor = vec4(color, 1.); 
+}
+*/}),
 		uniforms : {spriteWidth:1./16.}
 	});
 	
