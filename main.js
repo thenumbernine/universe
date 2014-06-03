@@ -68,7 +68,8 @@ function refreshPanelSize() {
 				css:{
 					position:'absolute',
 					top:'10px',
-					left:'300px'
+					left:'300px',
+					zIndex:1
 				},
 				click:function() {
 					closeSidePanel();

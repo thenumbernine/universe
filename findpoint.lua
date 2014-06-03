@@ -1,4 +1,3 @@
-#!/usr/bin/env /home/chrisup3/bin/wsapi.cgi
 module(..., package.seeall)
 
 local json = require 'dkjson'
