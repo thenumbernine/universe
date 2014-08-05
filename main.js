@@ -18,10 +18,12 @@ function Highlight() {
 	this.index = undefined;	//which index
 	this.arrayBuf = new Float32Array(3);
 	this.vtxBuf = new GL.ArrayBuffer({
+		context : gl,
 		data : this.arrayBuf,
 		usage : gl.DYNAMIC_DRAW
 	});
 	this.sceneObj = new GL.SceneObject({
+		scene : renderer.scene,
 		mode : gl.POINTS,
 		attrs : {
 			vertex : this.vtxBuf
@@ -283,7 +285,7 @@ function universeMouseRotate(dx, dy) {
 	quat.setAxisAngle(tmpQ, [-dy, -dx, 0], rotAngle);
 	//mat4.translate(renderer.scene.mvMat, renderer.scene.mvMat, [10*dx/canvas.width, -10*dy/canvas.height, 0]);
 
-	//put tmpQ into the frame of GL.view.angle, so we can rotate the view vector by it
+	//put tmpQ into the frame of renderer.view.angle, so we can rotate the view vector by it
 	//  lastMouseRot = renderer.view.angle-1 * tmpQ * renderer.view.angle
 	// now newViewAngle = renderer.view.angle * tmpQ = lastMouseRot * renderer.view.angle
 	// therefore lastMouseRot is the global transform equivalent of the local transform of tmpQ
@@ -470,7 +472,7 @@ function initCallbacks() {
 function init(done) {
 	try {
 		renderer = new GL.CanvasRenderer({canvas:canvas});
-		gl = renderer.gl;
+		gl = renderer.context;
 	} catch (e) {
 		panel.remove();
 		$(canvas).remove();
@@ -493,6 +495,7 @@ function init(done) {
 
 	//init texture
 	galaxyTex = new GL.Texture2D({
+		context : gl,
 		flipY : true,
 		generateMipmap : true,
 		magFilter : gl.LINEAR,
@@ -508,6 +511,7 @@ function init2(done) {
 	//create shaders
 
 	pointShader = new GL.ShaderProgram({
+		context : gl,
 		vertexPrecision : 'best',
 		vertexCode : mlstr(function(){/*
 attribute vec3 vertex;
@@ -540,6 +544,7 @@ void main() {
 	});
 
 	selectedShader = new GL.ShaderProgram({
+		context : gl,
 		vertexPrecision : 'best',
 		vertexCode : mlstr(function(){/*
 attribute vec3 vertex;
@@ -719,7 +724,8 @@ $(document).ready(function() {
 				load:function(arrayBuffer, input) {
 					
 					var pointVtxBuf = new GL.ArrayBuffer({
-						data:arrayBuffer
+						context : gl,
+						data : arrayBuffer
 					});
 
 					var dataSet = {
@@ -730,6 +736,7 @@ $(document).ready(function() {
 					dataSetsByName[v.title] = dataSet;
 
 					sceneObj = new GL.SceneObject({
+						scene : renderer.scene,
 						mode : gl.POINTS,
 						attrs : {
 							vertex : pointVtxBuf
