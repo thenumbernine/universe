@@ -1,6 +1,7 @@
 //populated in init
 var canvas;
 var gl;
+var renderer;
 var panel, panelIsOpen;
 var distanceElem;
 var targetElem;
@@ -104,9 +105,9 @@ function doRefreshDistance() {
 	var centerZ = selected.arrayBuf[2];
 
 	if (d === undefined) {
-		var dx = GL.view.pos[0] - centerX; 
-		var dy = GL.view.pos[1] - centerY; 
-		var dz = GL.view.pos[2] - centerZ; 
+		var dx = renderer.view.pos[0] - centerX; 
+		var dy = renderer.view.pos[1] - centerY; 
+		var dz = renderer.view.pos[2] - centerZ; 
 		var d2 = dx * dx + dy * dy + dz * dz;
 		d = Math.sqrt(d2);
 	}
@@ -250,9 +251,9 @@ var tmpQ;
 
 function rescaleViewPos(scale) {
 	if (selected.index !== undefined) {
-		vec3.sub(tmpV, GL.view.pos, selected.arrayBuf);
+		vec3.sub(tmpV, renderer.view.pos, selected.arrayBuf);
 	} else {
-		vec3.copy(tmpV, GL.view.pos);
+		vec3.copy(tmpV, renderer.view.pos);
 	}
 	var oldlen = vec3.length(tmpV);
 	var len = oldlen * scale;
@@ -261,9 +262,9 @@ function rescaleViewPos(scale) {
 	scale = len / oldlen;
 	vec3.scale(tmpV, tmpV, scale);
 	if (selected.index !== undefined) {
-		vec3.add(GL.view.pos, selected.arrayBuf, tmpV);
+		vec3.add(renderer.view.pos, selected.arrayBuf, tmpV);
 	} else {
-		vec3.copy(GL.view.pos, tmpV);
+		vec3.copy(renderer.view.pos, tmpV);
 	}
 	refreshDistance();
 }
@@ -280,14 +281,14 @@ function universeMouseRotate(dx, dy) {
 	
 	var rotAngle = Math.PI / 180 * .01 * Math.sqrt(dx*dx + dy*dy);
 	quat.setAxisAngle(tmpQ, [-dy, -dx, 0], rotAngle);
-	//mat4.translate(GL.mvMat, GL.mvMat, [10*dx/canvas.width, -10*dy/canvas.height, 0]);
+	//mat4.translate(renderer.scene.mvMat, renderer.scene.mvMat, [10*dx/canvas.width, -10*dy/canvas.height, 0]);
 
 	//put tmpQ into the frame of GL.view.angle, so we can rotate the view vector by it
-	//  lastMouseRot = GL.view.angle-1 * tmpQ * GL.view.angle
-	// now newViewAngle = GL.view.angle * tmpQ = lastMouseRot * GL.view.angle
+	//  lastMouseRot = renderer.view.angle-1 * tmpQ * renderer.view.angle
+	// now newViewAngle = renderer.view.angle * tmpQ = lastMouseRot * renderer.view.angle
 	// therefore lastMouseRot is the global transform equivalent of the local transform of tmpQ
-	quat.mul(lastMouseRot, GL.view.angle, tmpQ);
-	quat.conjugate(tmpQ, GL.view.angle);
+	quat.mul(lastMouseRot, renderer.view.angle, tmpQ);
+	quat.conjugate(tmpQ, renderer.view.angle);
 	quat.mul(lastMouseRot, lastMouseRot, tmpQ);
 
 	applyLastMouseRot();
@@ -307,27 +308,27 @@ function universeUpdateHover() {
 	var bestIndex;
 
 	var bestX, bestY, bestZ;
-	var viewX = GL.view.pos[0];
-	var viewY = GL.view.pos[1];
-	var viewZ = GL.view.pos[2];
+	var viewX = renderer.view.pos[0];
+	var viewY = renderer.view.pos[1];
+	var viewZ = renderer.view.pos[2];
 	//fast axis extraction from quaternions.  z is negative'd to get the fwd dir
-	//I should make a method out of this ... so should glmatrix.net ...
-	var viewFwdX = -2 * (GL.view.angle[0] * GL.view.angle[2] + GL.view.angle[3] * GL.view.angle[1]); 
-	var viewFwdY = -2 * (GL.view.angle[1] * GL.view.angle[2] - GL.view.angle[3] * GL.view.angle[0]); 
-	var viewFwdZ = -(1 - 2 * (GL.view.angle[0] * GL.view.angle[0] + GL.view.angle[1] * GL.view.angle[1])); 
-	var viewRightX = 1 - 2 * (GL.view.angle[1] * GL.view.angle[1] + GL.view.angle[2] * GL.view.angle[2]); 
-	var viewRightY = 2 * (GL.view.angle[0] * GL.view.angle[1] + GL.view.angle[2] * GL.view.angle[3]); 
-	var viewRightZ = 2 * (GL.view.angle[0] * GL.view.angle[2] - GL.view.angle[3] * GL.view.angle[1]); 
-	var viewUpX = 2 * (GL.view.angle[0] * GL.view.angle[1] - GL.view.angle[3] * GL.view.angle[2]);
-	var viewUpY = 1 - 2 * (GL.view.angle[0] * GL.view.angle[0] + GL.view.angle[2] * GL.view.angle[2]);
-	var viewUpZ = 2 * (GL.view.angle[1] * GL.view.angle[2] + GL.view.angle[3] * GL.view.angle[0]);
+	//TODO make use of my added vec3.quatXYZAxis functions in gl-util.js
+	var viewFwdX = -2 * (renderer.view.angle[0] * renderer.view.angle[2] + renderer.view.angle[3] * renderer.view.angle[1]); 
+	var viewFwdY = -2 * (renderer.view.angle[1] * renderer.view.angle[2] - renderer.view.angle[3] * renderer.view.angle[0]); 
+	var viewFwdZ = -(1 - 2 * (renderer.view.angle[0] * renderer.view.angle[0] + renderer.view.angle[1] * renderer.view.angle[1])); 
+	var viewRightX = 1 - 2 * (renderer.view.angle[1] * renderer.view.angle[1] + renderer.view.angle[2] * renderer.view.angle[2]); 
+	var viewRightY = 2 * (renderer.view.angle[0] * renderer.view.angle[1] + renderer.view.angle[2] * renderer.view.angle[3]); 
+	var viewRightZ = 2 * (renderer.view.angle[0] * renderer.view.angle[2] - renderer.view.angle[3] * renderer.view.angle[1]); 
+	var viewUpX = 2 * (renderer.view.angle[0] * renderer.view.angle[1] - renderer.view.angle[3] * renderer.view.angle[2]);
+	var viewUpY = 1 - 2 * (renderer.view.angle[0] * renderer.view.angle[0] + renderer.view.angle[2] * renderer.view.angle[2]);
+	var viewUpZ = 2 * (renderer.view.angle[1] * renderer.view.angle[2] + renderer.view.angle[3] * renderer.view.angle[0]);
 	
 	var aspectRatio = canvas.width / canvas.height;
 	var mxf = mouse.xf * 2 - 1;
 	var myf = 1 - mouse.yf * 2;
 	//why is fwd that much further away?  how does 
 	
-	var tanFovY = Math.tan(GL.view.fovY * Math.PI / 360);
+	var tanFovY = Math.tan(renderer.view.fovY * Math.PI / 360);
 	var mouseDirX = viewFwdX + tanFovY * (viewRightX * aspectRatio * mxf + viewUpX * myf);
 	var mouseDirY = viewFwdY + tanFovY * (viewRightY * aspectRatio * mxf + viewUpY * myf);
 	var mouseDirZ = viewFwdZ + tanFovY * (viewRightZ * aspectRatio * mxf + viewUpZ * myf);
@@ -468,7 +469,8 @@ function initCallbacks() {
 
 function init(done) {
 	try {
-		gl = GL.init(canvas);
+		renderer = new GL.CanvasRenderer({canvas:canvas});
+		gl = renderer.gl;
 	} catch (e) {
 		panel.remove();
 		$(canvas).remove();
@@ -480,13 +482,13 @@ function init(done) {
 	tmpV = vec3.create();
 	tmpQ = quat.create();	
 
-	GL.onfps = function(fps) {
+	renderer.onfps = function(fps) {
 		fpsElem.text(fps.toFixed(2) + " fps");
 	}
 
-	GL.view.pos[2] = 60;
-	GL.view.zNear = 1e-5;
-	GL.view.zFar = 5000;
+	renderer.view.pos[2] = 60;
+	renderer.view.zNear = 1e-5;
+	renderer.view.zFar = 5000;
 
 
 	//init texture
@@ -749,7 +751,7 @@ $(document).ready(function() {
 					//start off the render loop:
 					var ondraw;
 					ondraw = function() {
-						GL.draw();
+						renderer.draw();
 						doUpdate();
 						requestAnimFrame(ondraw);
 					};
@@ -792,27 +794,27 @@ function resize() {
 	selectedShader.setUniform('screenWidth', canvas.width);
 	gl.useProgram(null);
 
-	GL.resize();
+	renderer.resize();
 }
 
 function applyLastMouseRot() {
 	//if (lastMouseRot[3] == 1) return false;
 	
-	vec3.sub(tmpV, GL.view.pos, selected.arrayBuf);
+	vec3.sub(tmpV, renderer.view.pos, selected.arrayBuf);
 	var posDist = vec3.length(tmpV);
 	vec3.transformQuat(tmpV, tmpV, lastMouseRot);
 	vec3.normalize(tmpV, tmpV);
 	vec3.scale(tmpV, tmpV, posDist);
 	if (selected.index !== undefined) {
-		vec3.add(GL.view.pos, selected.arrayBuf, tmpV);
+		vec3.add(renderer.view.pos, selected.arrayBuf, tmpV);
 	} else {
-		vec3.copy(GL.view.pos, tmpV);
+		vec3.copy(renderer.view.pos, tmpV);
 	}
 	
 	//RHS apply so it is relative to current view 
-	//newViewAngle := GL.view.angle * tmpQ
-	quat.mul(GL.view.angle, lastMouseRot, GL.view.angle);
-	quat.normalize(GL.view.angle, GL.view.angle);
+	//newViewAngle := renderer.view.angle * tmpQ
+	quat.mul(renderer.view.angle, lastMouseRot, renderer.view.angle);
+	quat.normalize(renderer.view.angle, renderer.view.angle);
 
 	return true;
 }
@@ -820,12 +822,12 @@ function applyLastMouseRot() {
 function lookAtSelected() {
 	if (selected.index === undefined) return false;
 	
-	var viewX = GL.view.pos[0], viewY = GL.view.pos[1], viewZ = GL.view.pos[2];
+	var viewX = renderer.view.pos[0], viewY = renderer.view.pos[1], viewZ = renderer.view.pos[2];
 	var pointX = selected.arrayBuf[0], pointY = selected.arrayBuf[1], pointZ = selected.arrayBuf[2];
 	var viewToSelX = pointX - viewX, viewToSelY = pointY - viewY, viewToSelZ = pointZ - viewZ;
-	var viewFwdX = -2 * (GL.view.angle[0] * GL.view.angle[2] + GL.view.angle[3] * GL.view.angle[1]); 
-	var viewFwdY = -2 * (GL.view.angle[1] * GL.view.angle[2] - GL.view.angle[3] * GL.view.angle[0]); 
-	var viewFwdZ = -(1 - 2 * (GL.view.angle[0] * GL.view.angle[0] + GL.view.angle[1] * GL.view.angle[1])); 
+	var viewFwdX = -2 * (renderer.view.angle[0] * renderer.view.angle[2] + renderer.view.angle[3] * renderer.view.angle[1]); 
+	var viewFwdY = -2 * (renderer.view.angle[1] * renderer.view.angle[2] - renderer.view.angle[3] * renderer.view.angle[0]); 
+	var viewFwdZ = -(1 - 2 * (renderer.view.angle[0] * renderer.view.angle[0] + renderer.view.angle[1] * renderer.view.angle[1])); 
 	var viewToSelInvLen = 1 / Math.sqrt(viewToSelX * viewToSelX + viewToSelY * viewToSelY + viewToSelZ * viewToSelZ);
 	viewToSelX *= viewToSelInvLen; viewToSelY *= viewToSelInvLen; viewToSelZ *= viewToSelInvLen;
 	var viewFwdInvLen = 1 / Math.sqrt(viewFwdX * viewFwdX + viewFwdY * viewFwdY + viewFwdZ * viewFwdZ);
@@ -845,8 +847,8 @@ function lookAtSelected() {
 	var sinTheta = Math.sin(theta);
 	var lookQuat = [axisX * sinTheta, axisY * sinTheta, axisZ * sinTheta, cosTheta];
 
-	quat.mul(GL.view.angle, lookQuat, GL.view.angle);
-	quat.normalize(GL.view.angle, GL.view.angle);
+	quat.mul(renderer.view.angle, lookQuat, renderer.view.angle);
+	quat.normalize(renderer.view.angle, renderer.view.angle);
 	
 	return true;
 }
