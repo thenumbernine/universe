@@ -1,7 +1,7 @@
 //populated in init
 var canvas;
 var gl;
-var renderer;
+var glutil;
 var panel, panelIsOpen;
 var distanceElem;
 var targetElem;
@@ -17,13 +17,11 @@ function Highlight() {
 	this.set = undefined;	//which set this belongs to
 	this.index = undefined;	//which index
 	this.arrayBuf = new Float32Array(3);
-	this.vtxBuf = new GL.ArrayBuffer({
-		context : gl,
+	this.vtxBuf = new glutil.ArrayBuffer({
 		data : this.arrayBuf,
 		usage : gl.DYNAMIC_DRAW
 	});
-	this.sceneObj = new GL.SceneObject({
-		scene : renderer.scene,
+	this.sceneObj = new glutil.SceneObject({
 		mode : gl.POINTS,
 		attrs : {
 			vertex : this.vtxBuf
@@ -107,9 +105,9 @@ function doRefreshDistance() {
 	var centerZ = selected.arrayBuf[2];
 
 	if (d === undefined) {
-		var dx = renderer.view.pos[0] - centerX; 
-		var dy = renderer.view.pos[1] - centerY; 
-		var dz = renderer.view.pos[2] - centerZ; 
+		var dx = glutil.view.pos[0] - centerX; 
+		var dy = glutil.view.pos[1] - centerY; 
+		var dz = glutil.view.pos[2] - centerZ; 
 		var d2 = dx * dx + dy * dy + dz * dz;
 		d = Math.sqrt(d2);
 	}
@@ -253,9 +251,9 @@ var tmpQ;
 
 function rescaleViewPos(scale) {
 	if (selected.index !== undefined) {
-		vec3.sub(tmpV, renderer.view.pos, selected.arrayBuf);
+		vec3.sub(tmpV, glutil.view.pos, selected.arrayBuf);
 	} else {
-		vec3.copy(tmpV, renderer.view.pos);
+		vec3.copy(tmpV, glutil.view.pos);
 	}
 	var oldlen = vec3.length(tmpV);
 	var len = oldlen * scale;
@@ -264,9 +262,9 @@ function rescaleViewPos(scale) {
 	scale = len / oldlen;
 	vec3.scale(tmpV, tmpV, scale);
 	if (selected.index !== undefined) {
-		vec3.add(renderer.view.pos, selected.arrayBuf, tmpV);
+		vec3.add(glutil.view.pos, selected.arrayBuf, tmpV);
 	} else {
-		vec3.copy(renderer.view.pos, tmpV);
+		vec3.copy(glutil.view.pos, tmpV);
 	}
 	refreshDistance();
 }
@@ -283,14 +281,14 @@ function universeMouseRotate(dx, dy) {
 	
 	var rotAngle = Math.PI / 180 * .01 * Math.sqrt(dx*dx + dy*dy);
 	quat.setAxisAngle(tmpQ, [-dy, -dx, 0], rotAngle);
-	//mat4.translate(renderer.scene.mvMat, renderer.scene.mvMat, [10*dx/canvas.width, -10*dy/canvas.height, 0]);
+	//mat4.translate(glutil.scene.mvMat, glutil.scene.mvMat, [10*dx/canvas.width, -10*dy/canvas.height, 0]);
 
-	//put tmpQ into the frame of renderer.view.angle, so we can rotate the view vector by it
-	//  lastMouseRot = renderer.view.angle-1 * tmpQ * renderer.view.angle
-	// now newViewAngle = renderer.view.angle * tmpQ = lastMouseRot * renderer.view.angle
+	//put tmpQ into the frame of glutil.view.angle, so we can rotate the view vector by it
+	//  lastMouseRot = glutil.view.angle-1 * tmpQ * glutil.view.angle
+	// now newViewAngle = glutil.view.angle * tmpQ = lastMouseRot * glutil.view.angle
 	// therefore lastMouseRot is the global transform equivalent of the local transform of tmpQ
-	quat.mul(lastMouseRot, renderer.view.angle, tmpQ);
-	quat.conjugate(tmpQ, renderer.view.angle);
+	quat.mul(lastMouseRot, glutil.view.angle, tmpQ);
+	quat.conjugate(tmpQ, glutil.view.angle);
 	quat.mul(lastMouseRot, lastMouseRot, tmpQ);
 
 	applyLastMouseRot();
@@ -310,27 +308,27 @@ function universeUpdateHover() {
 	var bestIndex;
 
 	var bestX, bestY, bestZ;
-	var viewX = renderer.view.pos[0];
-	var viewY = renderer.view.pos[1];
-	var viewZ = renderer.view.pos[2];
+	var viewX = glutil.view.pos[0];
+	var viewY = glutil.view.pos[1];
+	var viewZ = glutil.view.pos[2];
 	//fast axis extraction from quaternions.  z is negative'd to get the fwd dir
 	//TODO make use of my added vec3.quatXYZAxis functions in gl-util.js
-	var viewFwdX = -2 * (renderer.view.angle[0] * renderer.view.angle[2] + renderer.view.angle[3] * renderer.view.angle[1]); 
-	var viewFwdY = -2 * (renderer.view.angle[1] * renderer.view.angle[2] - renderer.view.angle[3] * renderer.view.angle[0]); 
-	var viewFwdZ = -(1 - 2 * (renderer.view.angle[0] * renderer.view.angle[0] + renderer.view.angle[1] * renderer.view.angle[1])); 
-	var viewRightX = 1 - 2 * (renderer.view.angle[1] * renderer.view.angle[1] + renderer.view.angle[2] * renderer.view.angle[2]); 
-	var viewRightY = 2 * (renderer.view.angle[0] * renderer.view.angle[1] + renderer.view.angle[2] * renderer.view.angle[3]); 
-	var viewRightZ = 2 * (renderer.view.angle[0] * renderer.view.angle[2] - renderer.view.angle[3] * renderer.view.angle[1]); 
-	var viewUpX = 2 * (renderer.view.angle[0] * renderer.view.angle[1] - renderer.view.angle[3] * renderer.view.angle[2]);
-	var viewUpY = 1 - 2 * (renderer.view.angle[0] * renderer.view.angle[0] + renderer.view.angle[2] * renderer.view.angle[2]);
-	var viewUpZ = 2 * (renderer.view.angle[1] * renderer.view.angle[2] + renderer.view.angle[3] * renderer.view.angle[0]);
+	var viewFwdX = -2 * (glutil.view.angle[0] * glutil.view.angle[2] + glutil.view.angle[3] * glutil.view.angle[1]); 
+	var viewFwdY = -2 * (glutil.view.angle[1] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[0]); 
+	var viewFwdZ = -(1 - 2 * (glutil.view.angle[0] * glutil.view.angle[0] + glutil.view.angle[1] * glutil.view.angle[1])); 
+	var viewRightX = 1 - 2 * (glutil.view.angle[1] * glutil.view.angle[1] + glutil.view.angle[2] * glutil.view.angle[2]); 
+	var viewRightY = 2 * (glutil.view.angle[0] * glutil.view.angle[1] + glutil.view.angle[2] * glutil.view.angle[3]); 
+	var viewRightZ = 2 * (glutil.view.angle[0] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[1]); 
+	var viewUpX = 2 * (glutil.view.angle[0] * glutil.view.angle[1] - glutil.view.angle[3] * glutil.view.angle[2]);
+	var viewUpY = 1 - 2 * (glutil.view.angle[0] * glutil.view.angle[0] + glutil.view.angle[2] * glutil.view.angle[2]);
+	var viewUpZ = 2 * (glutil.view.angle[1] * glutil.view.angle[2] + glutil.view.angle[3] * glutil.view.angle[0]);
 	
-	var aspectRatio = canvas.width / canvas.height;
+	var aspectRatio = glutil.canvas.width / glutil.canvas.height;
 	var mxf = mouse.xf * 2 - 1;
 	var myf = 1 - mouse.yf * 2;
 	//why is fwd that much further away?  how does 
 	
-	var tanFovY = Math.tan(renderer.view.fovY * Math.PI / 360);
+	var tanFovY = Math.tan(glutil.view.fovY * Math.PI / 360);
 	var mouseDirX = viewFwdX + tanFovY * (viewRightX * aspectRatio * mxf + viewUpX * myf);
 	var mouseDirY = viewFwdY + tanFovY * (viewRightY * aspectRatio * mxf + viewUpY * myf);
 	var mouseDirZ = viewFwdZ + tanFovY * (viewRightZ * aspectRatio * mxf + viewUpZ * myf);
@@ -448,7 +446,7 @@ function initCallbacks() {
 	var touchHoverSet = undefined;
 	var touchHoverIndex = undefined;
 	mouse = new Mouse3D({
-		pressObj : canvas,
+		pressObj : glutil.canvas,
 		mousedown : universeMouseDown,
 		move : universeMouseRotate,
 		zoom : universeZoom,
@@ -471,8 +469,8 @@ function initCallbacks() {
 
 function init(done) {
 	try {
-		renderer = new GL.CanvasRenderer({canvas:canvas});
-		gl = renderer.context;
+		glutil = new GLUtil({canvas:canvas});
+		gl = glutil.context;
 	} catch (e) {
 		panel.remove();
 		$(canvas).remove();
@@ -484,18 +482,17 @@ function init(done) {
 	tmpV = vec3.create();
 	tmpQ = quat.create();	
 
-	renderer.onfps = function(fps) {
+	glutil.onfps = function(fps) {
 		fpsElem.text(fps.toFixed(2) + " fps");
 	}
 
-	renderer.view.pos[2] = 60;
-	renderer.view.zNear = 1e-5;
-	renderer.view.zFar = 5000;
+	glutil.view.pos[2] = 60;
+	glutil.view.zNear = 1e-5;
+	glutil.view.zFar = 5000;
 
 
 	//init texture
-	galaxyTex = new GL.Texture2D({
-		context : gl,
+	galaxyTex = new glutil.Texture2D({
 		flipY : true,
 		generateMipmap : true,
 		magFilter : gl.LINEAR,
@@ -510,8 +507,7 @@ function init(done) {
 function init2(done) {
 	//create shaders
 
-	pointShader = new GL.ShaderProgram({
-		context : gl,
+	pointShader = new glutil.ShaderProgram({
 		vertexPrecision : 'best',
 		vertexCode : mlstr(function(){/*
 attribute vec3 vertex;
@@ -539,12 +535,11 @@ void main() {
 		uniforms : {
 			tex : 0, 
 			spriteWidth : 1./4.,
-			screenWidth : canvas.width
+			screenWidth : glutil.canvas.width
 		}
 	});
 
-	selectedShader = new GL.ShaderProgram({
-		context : gl,
+	selectedShader = new glutil.ShaderProgram({
 		vertexPrecision : 'best',
 		vertexCode : mlstr(function(){/*
 attribute vec3 vertex;
@@ -723,8 +718,7 @@ $(document).ready(function() {
 				source:v.source,
 				load:function(arrayBuffer, input) {
 					
-					var pointVtxBuf = new GL.ArrayBuffer({
-						context : gl,
+					var pointVtxBuf = new glutil.ArrayBuffer({
 						data : arrayBuffer
 					});
 
@@ -735,8 +729,7 @@ $(document).ready(function() {
 					dataSets.push(dataSet);
 					dataSetsByName[v.title] = dataSet;
 
-					sceneObj = new GL.SceneObject({
-						scene : renderer.scene,
+					sceneObj = new glutil.SceneObject({
 						mode : gl.POINTS,
 						attrs : {
 							vertex : pointVtxBuf
@@ -758,7 +751,7 @@ $(document).ready(function() {
 					//start off the render loop:
 					var ondraw;
 					ondraw = function() {
-						renderer.draw();
+						glutil.draw();
 						doUpdate();
 						requestAnimFrame(ondraw);
 					};
@@ -790,38 +783,38 @@ $(document).ready(function() {
 })
 
 function resize() {
-	canvas.width = window.innerWidth;
-	canvas.height = window.innerHeight;
+	glutil.canvas.width = window.innerWidth;
+	glutil.canvas.height = window.innerHeight;
 
 	refreshPanelSize();
 
 	gl.useProgram(pointShader.obj);
-	pointShader.setUniform('screenWidth', canvas.width);
+	pointShader.setUniform('screenWidth', glutil.canvas.width);
 	gl.useProgram(selectedShader.obj);
-	selectedShader.setUniform('screenWidth', canvas.width);
+	selectedShader.setUniform('screenWidth', glutil.canvas.width);
 	gl.useProgram(null);
 
-	renderer.resize();
+	glutil.resize();
 }
 
 function applyLastMouseRot() {
 	//if (lastMouseRot[3] == 1) return false;
 	
-	vec3.sub(tmpV, renderer.view.pos, selected.arrayBuf);
+	vec3.sub(tmpV, glutil.view.pos, selected.arrayBuf);
 	var posDist = vec3.length(tmpV);
 	vec3.transformQuat(tmpV, tmpV, lastMouseRot);
 	vec3.normalize(tmpV, tmpV);
 	vec3.scale(tmpV, tmpV, posDist);
 	if (selected.index !== undefined) {
-		vec3.add(renderer.view.pos, selected.arrayBuf, tmpV);
+		vec3.add(glutil.view.pos, selected.arrayBuf, tmpV);
 	} else {
-		vec3.copy(renderer.view.pos, tmpV);
+		vec3.copy(glutil.view.pos, tmpV);
 	}
 	
 	//RHS apply so it is relative to current view 
-	//newViewAngle := renderer.view.angle * tmpQ
-	quat.mul(renderer.view.angle, lastMouseRot, renderer.view.angle);
-	quat.normalize(renderer.view.angle, renderer.view.angle);
+	//newViewAngle := glutil.view.angle * tmpQ
+	quat.mul(glutil.view.angle, lastMouseRot, glutil.view.angle);
+	quat.normalize(glutil.view.angle, glutil.view.angle);
 
 	return true;
 }
@@ -829,12 +822,12 @@ function applyLastMouseRot() {
 function lookAtSelected() {
 	if (selected.index === undefined) return false;
 	
-	var viewX = renderer.view.pos[0], viewY = renderer.view.pos[1], viewZ = renderer.view.pos[2];
+	var viewX = glutil.view.pos[0], viewY = glutil.view.pos[1], viewZ = glutil.view.pos[2];
 	var pointX = selected.arrayBuf[0], pointY = selected.arrayBuf[1], pointZ = selected.arrayBuf[2];
 	var viewToSelX = pointX - viewX, viewToSelY = pointY - viewY, viewToSelZ = pointZ - viewZ;
-	var viewFwdX = -2 * (renderer.view.angle[0] * renderer.view.angle[2] + renderer.view.angle[3] * renderer.view.angle[1]); 
-	var viewFwdY = -2 * (renderer.view.angle[1] * renderer.view.angle[2] - renderer.view.angle[3] * renderer.view.angle[0]); 
-	var viewFwdZ = -(1 - 2 * (renderer.view.angle[0] * renderer.view.angle[0] + renderer.view.angle[1] * renderer.view.angle[1])); 
+	var viewFwdX = -2 * (glutil.view.angle[0] * glutil.view.angle[2] + glutil.view.angle[3] * glutil.view.angle[1]); 
+	var viewFwdY = -2 * (glutil.view.angle[1] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[0]); 
+	var viewFwdZ = -(1 - 2 * (glutil.view.angle[0] * glutil.view.angle[0] + glutil.view.angle[1] * glutil.view.angle[1])); 
 	var viewToSelInvLen = 1 / Math.sqrt(viewToSelX * viewToSelX + viewToSelY * viewToSelY + viewToSelZ * viewToSelZ);
 	viewToSelX *= viewToSelInvLen; viewToSelY *= viewToSelInvLen; viewToSelZ *= viewToSelInvLen;
 	var viewFwdInvLen = 1 / Math.sqrt(viewFwdX * viewFwdX + viewFwdY * viewFwdY + viewFwdZ * viewFwdZ);
@@ -854,8 +847,8 @@ function lookAtSelected() {
 	var sinTheta = Math.sin(theta);
 	var lookQuat = [axisX * sinTheta, axisY * sinTheta, axisZ * sinTheta, cosTheta];
 
-	quat.mul(renderer.view.angle, lookQuat, renderer.view.angle);
-	quat.normalize(renderer.view.angle, renderer.view.angle);
+	quat.mul(glutil.view.angle, lookQuat, glutil.view.angle);
+	quat.normalize(glutil.view.angle, glutil.view.angle);
 	
 	return true;
 }
