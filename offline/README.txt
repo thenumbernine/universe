@@ -29,7 +29,7 @@ USAGE:
 1C) convert-6dfgs 
 	converts datasets/6dfsgs/source/* to datasets/6dfgs/points/*.f32
 1D) convert-sdss3
-	converts datasets/sdss3/source/specObj-dr9.fits to datasets/sdss3/points/*.f32
+	converts datasets/sdss3/source/specObj-dr10.fits to datasets/sdss3/points/*.f32
 2) getstats --force --all
 	reads datasets/<set>/points/*.f32 data 
 	writes datasets/<set>/stats/*.stats containing the number of points and the min/max/avg/stddev x/y/z
@@ -52,3 +52,4 @@ USAGE:
 	reads datasets/<set>/stats/total.stats and datasets/<set>/points/*.f32
 	writes datasets/<set>/octree/node*.f32, containing all points within the leaf node specified by the filename 
 	
+

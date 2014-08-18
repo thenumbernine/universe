@@ -1,7 +1,13 @@
+#include <SDL/SDL.h>
+#ifdef __WINDOWS__
 #include <GL/glew.h>
 #include <GL/wglew.h>
-#include <SDL/SDL.h>
 #include <GL/gl.h>
+#endif
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#include <OpenGL/glext.h>
+#endif
 #include "vec.h"
 
 #include <string>
@@ -148,8 +154,9 @@ struct RenderBase {
 		SDL_Surface *screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 32, SDL_OPENGL | SDL_RESIZABLE);
 		SDL_WM_SetCaption("2MASS All Sky Survey", NULL);
 
+#ifdef __WINDOWS__
 		if (glewInit() != GLEW_OK) throw Exception() << "failed to init GLEW";
-
+#endif
 		vtxBuffer = new float[3*vtxBufferCount];
 		
 		glEnableClientState(GL_VERTEX_ARRAY);

@@ -13,6 +13,7 @@ ALL =	\
 	getstats \
 	gettotalstats \
 	genoctree \
+	show \
 	show-still \
 	genisos	\
 	flatten-clusters	\

@@ -170,12 +170,14 @@ int main(int argc, char **argv) {
 			} else if (!strcmp(argv[k], "--threads") && k < argc-1) {
 				batch.setNumThreads(atoi(argv[++k]));
 			} else {
+				cout << "unknown command: " << argv[k] << endl;
 				showhelp();
 				return 0;
 			}
 		}
 	
 		if (!gotDir && !gotFile) {
+			cout << "expected a file or a dir" << endl;
 			showhelp();
 			return 0;
 		}

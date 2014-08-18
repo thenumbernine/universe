@@ -709,7 +709,7 @@ $(document).ready(function() {
 		$.each([
 			{title:'2MRS', url:'2mrs.f32', source:'http://tdc-www.cfa.harvard.edu/2mrs/'},
 			{title:'6dF GS', url:'6dfgs.f32', source:'http://www.aao.gov.au/6dFGS/'},
-			{title:'sdss3-dr9', url:'sdss3-dr9.f32', source:'http://www.sdss3.org/dr9/data_access/bulk.php'}
+			{title:'sdss3-dr10', url:'sdss3-dr10.f32', source:'http://www.sdss3.org/dr10/data_access/bulk.php'}
 		], function(k,v) {
 			var sceneObj;
 			fileRequest({

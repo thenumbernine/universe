@@ -23,6 +23,7 @@ convert-sdss3			generates point file
 using namespace std;
 
 bool verbose = false;
+bool getColumns = false;
 bool interactive = false;
 bool useMinRedshift = false;
 bool readStringDescs = false;
@@ -53,6 +54,7 @@ template<typename CTYPE> struct FITSType {};
 #define FITS_TYPE(CTYPE, FITSTYPE) \
 template<> struct FITSType<CTYPE> { enum { type = FITSTYPE }; }
 
+FITS_TYPE(int, TINT);
 FITS_TYPE(float, TFLOAT);
 FITS_TYPE(double, TDOUBLE);
 FITS_TYPE(string, TSTRING);
@@ -163,13 +165,13 @@ typedef FITSTrackBehavior<FITSStringColumn> FITSStringTrackColumn;
 struct ConvertSDSS3 {
 	ConvertSDSS3() {}
 	void operator()() {
-		const char *sourceFileName = "datasets/sdss3/source/specObj-dr9.fits";
+		const char *sourceFileName = "datasets/sdss3/source/specObj-dr10.fits";
 		const char *pointDestFileName = "datasets/sdss3/points/points.f32";
 
 		mkdir("datasets/sdss3/points", 777);
 
 		FILE *pointDestFile = fopen(pointDestFileName, "wb");
-		if (!pointDestFile) throw Exception() << "failed to open file " << pointDestFileName;
+		if (!pointDestFile) throw Exception() << "failed to open file " << pointDestFileName << " for writing";
 
 		fitsfile *file = NULL;
 
@@ -184,7 +186,7 @@ struct ConvertSDSS3 {
 		cout << "numCols: " << numCols << endl;
 		cout << "numRows: " << numRows << endl;
 
-		if (verbose) {
+		if (getColumns || verbose) {
 			int status = 0;
 			for (;;) {
 				int colNum = 0;
@@ -196,6 +198,7 @@ struct ConvertSDSS3 {
 				cout << colNum << "\t" << colName << endl;
 			}
 			cout << endl;
+			if (getColumns) return;
 		}
 
 		/*
@@ -234,14 +237,43 @@ struct ConvertSDSS3 {
 			columns.push_back(new FITSStringColumn(file, "PLATERUN"));
 			columns.push_back(new FITSStringColumn(file, "PLATEQUALITY"));
 
+			columns.push_back(new FITSTypedColumn<float>(file, "PLATESN2"));
+			columns.push_back(new FITSTypedColumn<float>(file, "DEREDSN2"));
+			columns.push_back(new FITSTypedColumn<float>(file, "LAMBDA_EFF"));
+			//columns.push_back(new FITSTypedColumn<int>(file, "BLUE_FIBER"));
+			columns.push_back(new FITSTypedColumn<float>(file, "ZOFFSET"));
+			columns.push_back(new FITSTypedColumn<float>(file, "SNTURNOFF"));
+			//columns.push_back(new FITSTypedColumn<int>(file, "NTURNOFF"));
+			/*int1 typed:
+			SPECPRIMARY
+			SPECSDSS
+			SPECLEGACY
+			SPECSEGUE
+			SPECSEGUE1
+			SPECSEGUE2
+			SPECBOSS
+			*/
+			//columns.push_back(new FITSTypedColumn<int>(file, "BOSS_SPECOBJ_ID"));
+
 			columns.push_back(new FITSStringColumn(file, "SPECOBJID"));
 			columns.push_back(new FITSStringColumn(file, "FLUXOBJID"));
 			columns.push_back(new FITSStringColumn(file, "BESTOBJID"));
 			columns.push_back(new FITSStringColumn(file, "TARGETOBJID"));
 			columns.push_back(new FITSStringColumn(file, "PLATEID"));
+			//columns.push_back(new FITSTypedColumn<int>(file, "NSPECOBS"));
+			
 			columns.push_back(new FITSStringColumn(file, "FIRSTRELEASE"));
 			columns.push_back(new FITSStringColumn(file, "RUN2D"));
 			columns.push_back(new FITSStringColumn(file, "RUN1D"));
+
+			//columns.push_back(new FITSTypedColumn<int>(file, "DESIGNID"));
+			//CX, CY, CZ
+			columns.push_back(new FITSTypedColumn<float>(file, "XFOCAL"));
+			columns.push_back(new FITSTypedColumn<float>(file, "YFOCAL"));
+			//SOURCETYPE, TARGETTYPE
+
+			//columns.push_back(new FITSTypedColumn<int>(file, "PRIMTARGET"));
+			//columns.push_back(new FITSTypedColumn<int>(file, "SECTARGET"));
 
 			columns.push_back(new FITSStringColumn(file, "TFILE"));
 			columns.push_back(new FITSStringColumn(file, "ELODIE_FILENAME"));
@@ -358,9 +390,10 @@ void showhelp() {
 	<< "options:" << endl
 	<< "	--verbose				output values" << endl
 	<< "	--wait					wait for keypress after each entry.  'q' stops" << endl
-	<<"		--read-desc				reads string descriptions" << endl
+	<< "	--read-desc				reads string descriptions" << endl
 	<< "	--min-redshift <cz> 	specify minimum redshift" << endl
 	<< "	--enum-class			enumerate all classes" << endl
+	<< "	--get-columns			print all column names" << endl
 	;
 }
 
@@ -382,6 +415,8 @@ int main(int argc, char **argv) {
 			readStringDescs  = true;
 		} else if (!strcasecmp(argv[i], "--enum-class")) {
 			trackStrings = true;
+		} else if (!strcasecmp(argv[i], "--get-columns")) {
+			getColumns = true;
 		} else {
 			showhelp();
 			return 0;
