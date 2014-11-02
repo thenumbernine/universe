@@ -8,9 +8,9 @@ universe/
 			source/	<- put the 2MASS redshift survey here.  archive is found at http://tdc-www.cfa.harvard.edu/2mrs/
 				2mrs_v240/	<- should be the only contents of the source dir
 		sdss3/
-			source/ <- put the SDSS3 DR9 2gig FITS file here.  file found at http://data.sdss3.org/sas/dr9/sdss/spectro/redux/specObj-dr9.fits
-																more instructions found at http://www.sdss3.org/dr9/data_access/bulk.php
-				specObj-dr9.fits	<- should be the only contents of the source dir
+			source/ <- put the SDSS3 DR9 2gig FITS file here.  file found at http://data.sdss3.org/sas/dr10/sdss/spectro/redux/specObj-dr10.fits
+																more instructions found at http://www.sdss3.org/dr10/data_access/bulk.php
+				specObj-dr10.fits	<- should be the only contents of the source dir
 
 USAGE:
 
