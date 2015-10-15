@@ -232,7 +232,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 					*/
 				},
 				error:function() {
-					targetElem.innerHTML("Error retrieving data");
+					targetElem.html("Error retrieving data");
 					setTimeout(function() {
 						targetElem.empty();
 					}, 3000);
