@@ -40,6 +40,7 @@ const char *colNames[NUM_COLS] = {
 	"galaxyName",
 };
 
+bool addMilkyWay = false;
 bool useMinRedshift = false;
 double minRedshift = -numeric_limits<double>::infinity();
 bool VERBOSE = false;
@@ -107,12 +108,36 @@ struct Convert2MRS {
 			if (!catalogDestFile) throw Exception() << "failed to open file " << catalogDestFileName;
 		}
 
+		char cols[NUM_COLS][32]; 
+
+		if (addMilkyWay) {
+			strncpy(cols[COL_2MASS_ID], "", sizeof(cols[COL_2MASS_ID]));
+			*cols[COL_PHOTO_CONFUSION] = 0;
+			*cols[COL_GALAXY_TYPE] = 0;
+			*cols[COL_SOURCE_OF_TYPE] = 0;
+			*cols[COL_INPUT_CATALOG] = 0;
+			*cols[COL_BIB_CODE] = 0;
+			strncpy(cols[COL_GALAXY_NAME], "Milky Way", sizeof(cols[COL_GALAXY_NAME]));
+
+			float vtx[3] = {0,0,0};
+			fwrite(vtx, sizeof(vtx), 1, pointDestFile);
+		
+			if (!writingCatalog) {
+				for (int j = 0; j < NUM_COLS; j++) {
+					int len = strlen(cols[j]);
+					if (len > colMaxLens[j]) colMaxLens[j] = len;
+				}
+			} else {
+				for (int j = 0; j < NUM_COLS; j++) {
+					fwrite(cols[j], colMaxLens[j], 1, catalogDestFile);
+				}
+			}	
+		}
+
 		while (!feof(sourceFile)) {
 			double lon, lat, redshift;
 			double k_c = NAN;
 		
-			char cols[NUM_COLS][32]; 
-
 			float vtx[3];
 			int len;
 
@@ -247,7 +272,7 @@ struct Convert2MRS {
 						}
 					}
 				}
-
+				
 				if (VERBOSE) {
 					cout << line << endl;
 					cout << "lon " << lon << endl; 
@@ -294,6 +319,7 @@ void showhelp() {
 	<< "	--catalog 	use the datasets/2mrs/catalog.spec file " << endl
 	<< "				to generate datasets/2mrs/catalog.dat" << endl
 	<< "	--min-redshift <cz> 	specify minimum redshift" << endl
+	<< "	--add-milky-way			artificially add the milky way" << endl
 	;
 }
 
@@ -312,6 +338,8 @@ int main(int argc, char **argv) {
 		} else if (!strcmp(argv[i], "--min-redshift") && i < argc-1) {
 			useMinRedshift = true;
 			minRedshift = atof(argv[++i]);
+		} else if (!strcmp(argv[i], "--add-milky-way")) {
+			addMilkyWay = true;
 		} else {
 			showhelp();
 			return 0;
