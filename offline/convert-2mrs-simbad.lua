@@ -46,12 +46,6 @@ local function querySimbad(query)
 end
 
 --print(tolua(querySimbad("select oidref,id from ident where id = 'NGC_0253'"),{indent=true})) os.exit()		-- "NGC   253"
-local oidrefs = {}
-for _,row in ipairs(querySimbad("select oidref from mesDistance").data) do
-	oidrefs[row[1]] = true
-end
-print(#table.keys(oidrefs))
-os.exit()
 
 io.stderr:write('getting cat_ids...\n')
 local entries = table()
