@@ -30,6 +30,10 @@ USAGE:
 	converts datasets/6dfsgs/source/* to datasets/6dfgs/points/*.f32
 1D) convert-sdss3
 	converts datasets/sdss3/source/specObj-dr10.fits to datasets/sdss3/points/*.f32
+1E) convert-simbad.lua
+	converts to datasets/simbad/points/points.f32
+	it only uses entries with distance information, of which there are 41876 in simbad
+	from there it only generates points for those beyond the milky way, of which there's only 6008
 2) getstats --force --all
 	reads datasets/<set>/points/*.f32 data 
 	writes datasets/<set>/stats/*.stats containing the number of points and the min/max/avg/stddev x/y/z
@@ -51,11 +55,4 @@ USAGE:
 6C) genoctree --all
 	reads datasets/<set>/stats/total.stats and datasets/<set>/points/*.f32
 	writes datasets/<set>/octree/node*.f32, containing all points within the leaf node specified by the filename 
-	
-
-
-
-Turns out using redshift alone isn't the best way to get distances.
-So I'm querying SIMBAD: http://simbad.u-strasbg.fr/simbad/
-use convert-simbad.lua instead of convert-2mrs.cpp
 

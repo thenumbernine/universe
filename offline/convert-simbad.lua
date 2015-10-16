@@ -144,9 +144,11 @@ local vtx = ffi.new('float[3]')
 local sizeofvtx = ffi.sizeof('float[3]')
 local numWritten = 0
 for _,entry in ipairs(entries) do
-	vtx[0], vtx[1], vtx[2] = table.unpack(entry.vtx)
-	ffi.C.fwrite(vtx, sizeofvtx, 1, dstfile)
-	numWritten = numWritten + 1
+	if entry.dist > .5 then	-- andromeda is .77 mpc ...
+		vtx[0], vtx[1], vtx[2] = table.unpack(entry.vtx)
+		ffi.C.fwrite(vtx, sizeofvtx, 1, dstfile)
+		numWritten = numWritten + 1
+	end
 end
 ffi.C.fclose(dstfile)
 print('wrote '..numWritten..' points')
