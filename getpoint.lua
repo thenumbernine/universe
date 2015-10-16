@@ -8,17 +8,11 @@ return {
 		local req = wsapi_request.new(env)
 		local pointIndex = req.GET and tonumber(req.GET.point)
 
-		-- TODO different catalogs based on different sets 
-		local catalogSpecs = assert(loadstring('return ' .. io.readfile('2mrs-catalog.specs')))()
-
-		local rowsize = 0
-		for _,col in pairs(catalogSpecs) do
-			rowsize = rowsize + col[2]
-		end
-		
+		local catalogSpecs, rowsize = require 'catalog_specs' '2mrs'	
+	
 		local function text()
 			if not pointIndex or pointIndex < 0 then
-				coroutine.yield('got bad point '..tostring(pointIndex)..' from request '..toLua(req))
+				coroutine.yield('got bad point '..tostring(pointIndex)..' from request '..tolua(req))
 			else
 				local results = {}
 				-- TODO use the fits file, or whatever other constant-time access method.  the rows of the text file look equal, but there's a few outliers

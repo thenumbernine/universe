@@ -8,40 +8,18 @@ return {
 		local req = wsapi_request.new(env)
 		local ident = req.GET and req.GET.ident
 		
-		-- TODO different catalogs based on different sets 
-		local catalogSpecs = assert(loadstring('return ' .. io.readfile('2mrs-catalog.specs')))()
-
-		local rowsize = 0
-		for _,col in pairs(catalogSpecs) do
-			rowsize = rowsize + col[2]
-		end
+		local catalogSpecs, rowsize = require 'catalog_specs' '2mrs'	
 
 		local function text()
 			local indexes = table()
 			--pointID is 0-based
 			if ident then
 				--local identparts = ident:split('%s+'):map(function(s) return s:lower() end)
-				local specialChars = {
-					['^']=true,
-					['$']=true,
-					['(']=true,
-					[')']=true,
-					['%']=true,
-					['.']=true,
-					['[']=true,
-					[']']=true,
-					['*']=true,
-					['+']=true,
-					['-']=true,
-					['?']=true,
-				}
-				ident = ident:gsub('.', function(c) 
-					if specialChars[c] then return '%'..c end
-					-- spaces are wildcards to work around the _-spacing in the catalog 
-					-- while you're at it, skip over leading 0's of 2nd parts of titles
-					if c == ' ' then return '.0*' end
-					return c
-				end)
+				ident = ident:gsub('[%^%$%(%)%%%.%[%]%*%+%-%?]', '%%%0')
+				-- spaces are wildcards to work around the _-spacing in the catalog 
+				-- while you're at it, skip over leading 0's of 2nd parts of titles
+				ident = ident:gsub(' ', '%.0%*')
+				ident = ident:lower()
 				-- TODO use the fits file, or whatever other constant-time access method.  the rows of the text file look equal, but there's a few outliers
 				local f = assert(io.open('2mrs-catalog.dat', 'rb'))
 				local lineno = 0
@@ -55,9 +33,9 @@ return {
 					lineno = lineno + 1
 				until false
 				f:close()
-				coroutine.yield(json.encode{indexes=indexes, ident=ident})
+				coroutine.yield(json.encode({indexes=indexes, ident=ident}, {indent=true}))
 			else
-				coroutine.yield(json.encode{ident=ident, error='failed to interpret ident parameter'})
+				coroutine.yield(json.encode({ident=ident, error='failed to interpret ident parameter'}, {indent=true}))
 			end
 		end
 		
