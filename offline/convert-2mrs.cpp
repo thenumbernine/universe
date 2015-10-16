@@ -16,6 +16,7 @@ second pass: 	convert-2mrs --catalog	generates catalog.dat using catalog.specs
 #include "exception.h"
 #include "util.h"
 #include "defs.h"
+#include "stat.h"
 
 using namespace std;
 
@@ -41,10 +42,11 @@ const char *colNames[NUM_COLS] = {
 };
 
 bool addMilkyWay = false;
-bool useMinRedshift = false;
-double minRedshift = -numeric_limits<double>::infinity();
+bool useRedshiftMinThreshold = false;
+double redshiftMinThreshold = -numeric_limits<double>::infinity();
 bool VERBOSE = false;
 bool INTERACTIVE = false;
+bool showRanges = false;
 
 struct Convert2MRS {
 	bool writingCatalog;
@@ -107,6 +109,11 @@ struct Convert2MRS {
 			catalogDestFile = fopen(catalogDestFileName, "wb");	//binary so it is byte-accurate, so i can fseek through it
 			if (!catalogDestFile) throw Exception() << "failed to open file " << catalogDestFileName;
 		}
+
+		Stat statRedshift;
+		Stat statDistance;
+		Stat statLatitude;
+		Stat statLongitude;
 
 		char cols[NUM_COLS][32]; 
 
@@ -200,7 +207,7 @@ struct Convert2MRS {
 				v = strtok(NULL, " "); if (!v) break;	//CAT_ID
 				strncpy(cols[COL_GALAXY_NAME], v, sizeof(cols[COL_GALAXY_NAME]));
 
-				if (useMinRedshift && redshift < minRedshift) continue;
+				if (useRedshiftMinThreshold && redshift < redshiftMinThreshold) continue;
 
 				//galactic latitude and longitude are in degrees
 				double rad_ra = lon * M_PI / 180.0;
@@ -259,6 +266,15 @@ struct Convert2MRS {
 					&& vtx[2] != INFINITY && vtx[2] != -INFINITY
 				) {
 					numReadable++;	
+					
+					if (showRanges) {
+						statRedshift.accum(redshift, numReadable);
+						statDistance.accum(distance, numReadable);
+						statLatitude.accum(lat, numReadable);
+						statLongitude.accum(lon, numReadable);
+					}
+
+				
 					fwrite(vtx, sizeof(vtx), 1, pointDestFile);
 				
 					if (!writingCatalog) {
@@ -307,6 +323,15 @@ struct Convert2MRS {
 			}
 			fclose(catalogSpecFile);
 		}
+	
+		if (showRanges) {
+			cout 
+			<< statRedshift.rw("redshift") << endl
+			<< statDistance.rw("distance") << endl
+			<< statLatitude.rw("latitude") << endl
+			<< statLongitude.rw("longitude") << endl
+			;
+		}
 	}
 };
 
@@ -314,10 +339,11 @@ void showhelp() {
 	cout
 	<< "usage: convert-2mrs <options>" << endl
 	<< "options:" << endl
-	<< "	--verbose	output values" << endl
-	<< "	--wait		wait for keypress after each entry.  'q' stops" << endl
-	<< "	--catalog 	use the datasets/2mrs/catalog.spec file " << endl
-	<< "				to generate datasets/2mrs/catalog.dat" << endl
+	<< "	--verbose		output values" << endl
+	<< "	--show-ranges	show ranges of certain fields" << endl
+	<< "	--wait			wait for keypress after each entry.  'q' stops" << endl
+	<< "	--catalog 		use the datasets/2mrs/catalog.spec file " << endl
+	<< "					to generate datasets/2mrs/catalog.dat" << endl
 	<< "	--min-redshift <cz> 	specify minimum redshift" << endl
 	<< "	--add-milky-way			artificially add the milky way" << endl
 	;
@@ -331,13 +357,15 @@ int main(int argc, char **argv) {
 			return 0;
 		} else if (!strcmp(argv[i], "--verbose")) {
 			VERBOSE = true;
+		} else if (!strcmp(argv[i], "--show-ranges")) {
+			showRanges = true;
 		} else if (!strcmp(argv[i], "--wait")) {
 			INTERACTIVE = true;
 		} else if (!strcmp(argv[i], "--catalog")) {
 			convert.writingCatalog = true;
 		} else if (!strcmp(argv[i], "--min-redshift") && i < argc-1) {
-			useMinRedshift = true;
-			minRedshift = atof(argv[++i]);
+			useRedshiftMinThreshold = true;
+			redshiftMinThreshold = atof(argv[++i]);
 		} else if (!strcmp(argv[i], "--add-milky-way")) {
 			addMilkyWay = true;
 		} else {

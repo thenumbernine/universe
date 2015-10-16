@@ -70,7 +70,7 @@ show-still.o: show-still.cpp
 convert-2mass: convert-2mass.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-convert-2mrs: convert-2mrs.o util.o
+convert-2mrs: convert-2mrs.o util.o stat.o
 	g++ $^ $(LDFLAGS) -o $@
 
 convert-6dfgs: convert-6dfgs.o util.o
