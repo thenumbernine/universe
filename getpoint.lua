@@ -29,7 +29,7 @@ return {
 				end
 				f:close()
 				
-				coroutine.yield(json.encode(results))
+				coroutine.yield(json.encode(results, {indent=true}))
 			end
 		end
 		
