@@ -53,3 +53,9 @@ USAGE:
 	writes datasets/<set>/octree/node*.f32, containing all points within the leaf node specified by the filename 
 	
 
+
+
+Turns out using redshift alone isn't the best way to get distances.
+So I'm querying SIMBAD: http://simbad.u-strasbg.fr/simbad/
+use convert-2mrs-simbad.lua instead of convert-2mrs ... and be prepared to wait a long time
+
