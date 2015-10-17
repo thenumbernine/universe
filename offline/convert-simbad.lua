@@ -45,17 +45,98 @@ local function querySimbad(query)
 	return data
 end
 
-local function getOnlineData()
-	local inMpc = {
-		mpc = 1,
-		kpc = .001,
-		pc = .000001,
-	}
+print(tolua(querySimbad("select top 10 rvz_type, sp_type from basic"),{indent=true}))
+os.exit()
 
+local convertToMpc = {
+	mpc = 1,
+	kpc = .001,
+	pc = .000001,
+	km = 1 / (3261563.79673 * 9460730472580.8),
+}
+
+local function addDiameters(entries)
+	-- now query diameters..
+	local diamsForOIDs = {}
+	local lastOIDMax = 0
+print('querying diameters...')
+	while true do
+		local query = "select oidref,diameter,unit,error from mesDiameter where oidref > "..lastOIDMax.." order by oidref asc"
+		local results = querySimbad(query)
+		if #results.data == 0 then break end
+		for _,row in ipairs(results.data) do
+			local oid = row[1]
+			if oid then
+				lastOIDMax = math.max(lastOIDMax, oid)
+				local unit = row[3]
+				local diam = row[2]
+				if not unit then
+					io.stderr:write('failed to find units for oid '..oidref..'\n')
+				elseif not diam then
+					io.stderr:write('failed to find diam for oid '..oidref..'\n')
+				else
+					unit = unit:trim():lower()
+					if not (unit == 'km' or unit == 'mas') then
+						io.stderr:write('unknown diameter units: '..unit)
+					else
+						if not diamsForOIDs[oid] then diamsForOIDs[oid] = table() end
+						diamsForOIDs[oid]:insert{diam=diam,unit=unit,err=err}
+					end
+				end
+			end
+		end
+	end
+
+print('sorting and applying...')
+	for oid,diamsForOID in pairs(diamsForOIDs) do
+		local _, entry = entries:find(nil, function(entry) return entry.oid == oid end)
+		if entry then
+					
+			diamsForOID = diamsForOID:sort(function(a,b)
+				if a.units ~= b.units then
+					if a.units == 'km' and b.units == 'mas' then return true end
+					if a.units == 'mas' and b.units == 'km' then return false end
+					error("shouldn't get here")
+				else
+					if a.err and b.err then
+						return a.diam < b.diam
+					elseif a.err and not b.err then
+						return true
+					elseif not a.err and b.err then
+						return false
+					else
+						return a.diam > b.diam
+					end
+				end
+			end)
+			local best = diamsForOID[1]
+
+			if best.unit == 'km' then
+				entry.diam = best.diam * convertToMpc.km
+			elseif best.unit == 'mas' then -- micro-arc-seconds
+				if entry.dist then
+					entry.diam = entry.dist * best.diam * 4.8481368e-9	-- radians per mas
+				end
+			else
+				error("shouldn't get here")
+			end
+		end
+	end
+print('done with diameters')
+end
+
+local function getOnlineData()
 	local distsForOIDs = {}
 	local lastOIDMax = 0
 	while true do
-		local results = querySimbad("select mesDistance.oidref,mesDistance.dist,mesDistance.unit,mesDistance.minus_err,mesDistance.plus_err,BASIC.main_id,BASIC.ra,BASIC.dec from mesDistance inner join BASIC on mesDistance.oidref=BASIC.oid where oidref > "..lastOIDMax.." order by oidref asc")
+		local results = querySimbad(
+			"select "
+			.."mesDistance.oidref,mesDistance.dist,mesDistance.unit,mesDistance.minus_err,mesDistance.plus_err,"
+			.."BASIC.main_id,BASIC.ra,BASIC.dec "
+			.."from mesDistance "
+			.."inner join BASIC on mesDistance.oidref=BASIC.oid "
+			.."where oidref > "..lastOIDMax.." "
+			.."order by oidref asc")
 		if #results.data == 0 then break end
 		for _,row in ipairs(results.data) do
 			local oid = row[1]
@@ -67,7 +148,7 @@ local function getOnlineData()
 					io.stderr:write('failed to find units for oid '..oidref..'\n')
 				else
 					unit = unit:trim():lower()
-					local s = inMpc[unit]
+					local s = convertToMpc[unit]
 					if not s then error("failed to convert units "..tostring(unit)) end
 					local dist = assert(row[2], "better have distance") * s
 					local min = row[4] and row[4] * s
@@ -120,6 +201,8 @@ local function getOnlineData()
 		}
 	end
 
+	addDiameters(entries)
+	
 	return entries
 end
 
@@ -168,10 +251,11 @@ print('wrote '..numGalaxiesWritten..' universe points')
 
 -- write out catalog data and spec files
 local cols = table{'id'}
-local colmaxs = table()
-for _,col in ipairs(cols) do
-	colmaxs[col] = entries:map(function(entry) return #entry[col] end):sup()
-end
+local colmaxs = cols:map(function(col)
+	return entries:map(function(entry)
+		return #tostring(entry[col])
+	end):sup(), col
+end)
 file['datasets/simbad/catalog.specs'] = cols:map(function(col)
 	return col..'='..colmaxs[col]
 end):concat'\n'
@@ -181,7 +265,7 @@ local tmp = ffi.new('char[?]', tmplen)
 for _,entry in ipairs(entries) do
 	for _,col in ipairs(cols) do
 		ffi.fill(tmp, tmplen)
-		ffi.copy(tmp, entry[col])
+		ffi.copy(tmp, tostring(entry[col]))
 		ffi.C.fwrite(tmp, colmaxs[col], 1, catalogFile)
 	end
 end
