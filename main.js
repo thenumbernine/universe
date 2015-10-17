@@ -548,7 +548,7 @@ void main() {
 */}),
 		uniforms : {
 			tex : 0, 
-			spriteWidth : 1./4.,
+			spriteWidth : 1./10.,
 			screenWidth : glutil.canvas.width
 		}
 	});
@@ -601,14 +601,16 @@ function findObject(ident) {
 	var findAnchor = $('#find');
 	findAnchor.css('color', 'grey');
 	$.ajax({
-		url:'findpoint.lua',
-		dataType:'json',
-		data:{ident:ident},
+		url : 'findpoint.lua',
+		dataType : 'json',
+		data : {
+			ident : ident,
+		},
 		success: function(results) {
 			if (results && results.indexes.length) {
 				//TODO send parameters of what sets are visible, search across requested sets
-				//NOTICE this assumes set0 is the 2MRS results, which is the only one the find and getinfo webservices are linked to
-				setSelectedGalaxy(dataSetsByName['2MRS'], results.indexes[0]);
+				//NOTICE this assumes set0 is the Simbad results, which is the only one the find and getinfo webservices are linked to
+				setSelectedGalaxy(dataSetsByName['Simbad'], results.indexes[0]);
 				findAnchor.css('color', 'cyan');
 			} else {
 				findAnchor.css('color', 'red');
@@ -755,7 +757,7 @@ $(document).ready(function() {
 						texs : [galaxyTex]
 					});
 					sceneObj.arrayBuffer = arrayBuffer;
-					sceneObj.hidden = v.title != '2MRS';
+					sceneObj.hidden = v.title != 'Simbad';
 					if (sceneObj.hidden) {
 						input.removeAttr('checked');
 					} else {
