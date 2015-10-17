@@ -6,9 +6,10 @@ return {
 	run = function(env)
 		local headers = { ["Content-type"] = "text/javascript" }
 		local req = wsapi_request.new(env)
-		local pointIndex = req.GET and tonumber(req.GET.point)
+		local dataset = req.GET and assert(tonumber(req.GET.set))
+		local pointIndex = req.GET and assert(req.GET.point)
 
-		local catalogSpecs, rowsize = require 'catalog_specs' '2mrs'	
+		local catalogSpecs, rowsize = require 'catalog_specs'(dataset)
 	
 		local function text()
 			if not pointIndex or pointIndex < 0 then
@@ -16,7 +17,7 @@ return {
 			else
 				local results = {}
 				-- TODO use the fits file, or whatever other constant-time access method.  the rows of the text file look equal, but there's a few outliers
-				local f = assert(io.open('2mrs-catalog.dat', 'rb'))
+				local f = assert(io.open(dataset..'-catalog.dat', 'rb'))
 				f:seek('set', pointIndex * rowsize)
 				for _,col in ipairs(catalogSpecs) do
 					local key, size = unpack(col)

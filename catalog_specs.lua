@@ -1,6 +1,6 @@
-return function(setname)
+return function(dataset)
 	local catalogSpecs = {}
-	for line in io.lines(setname..'-catalog.specs') do
+	for line in io.lines(dataset..'-catalog.specs') do
 		if #line > 0 then
 			local k,v = line:match'(.-)=(.*)'
 			assert(k and v, "got a bad line in the catalog: "..tostring(line))

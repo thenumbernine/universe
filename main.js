@@ -143,10 +143,13 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 		if (dataSet.title == '2MRS') {
 			targetElem.append($('<img src="loading.gif" style="padding-top:10px; padding-left:10px"/>'));
 			$.ajax({
-				url:'getpoint.lua',
-				dataType:'json',
-				data:{point:pointIndex},
-				success:function(obj) {
+				url : 'getpoint.lua',
+				dataType : 'json',
+				data : {
+					set : dataSet.title.toLower(),
+					point : pointIndex
+				},
+				success : function(obj) {
 					targetElem.empty();
 					//todo pretty up the names
 					var cols = ['_2MASS_ID', 'bibliographicCode', 'galaxyName', 'galaxyType', 'sourceOfType'];

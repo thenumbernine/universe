@@ -53,30 +53,35 @@ local function getOnlineData()
 	}
 
 	local distsForOIDs = {}
-	local results = querySimbad("select mesDistance.oidref,mesDistance.dist,mesDistance.unit,mesDistance.minus_err,mesDistance.plus_err,BASIC.main_id,BASIC.ra,BASIC.dec from mesDistance inner join BASIC on mesDistance.oidref=BASIC.oid")
-	for _,row in ipairs(results.data) do
-		local oid = row[1]
-		if oid then	
-			-- convert to common units
-			local unit = row[3]
-			if not unit then
-				io.stderr:write('failed to find units for oid '..oidref..'\n')
-			else
-				unit = unit:trim():lower()
-				local s = inMpc[unit]
-				if not s then error("failed to convert units "..tostring(unit)) end
-				local dist = assert(row[2], "better have distance") * s
-				local min = row[4] and row[4] * s
-				local max = row[5] and row[5] * s
-				local err = min and max and .5 * (math.abs(min) + math.abs(max))
-				-- just copy these in all distance entries -- so I only have to query once
-				local id = row[6]
-				local ra = tonumber(row[7])
-				local dec = tonumber(row[8])
-			
-				if ra and dec then
-					if not distsForOIDs[oid] then distsForOIDs[oid] = table() end
-					distsForOIDs[oid]:insert{dist=dist, err=err, min=min, max=max, id=id, ra=ra, dec=dec}
+	local lastOIDMax = 0
+	while true do
+		local results = querySimbad("select mesDistance.oidref,mesDistance.dist,mesDistance.unit,mesDistance.minus_err,mesDistance.plus_err,BASIC.main_id,BASIC.ra,BASIC.dec from mesDistance inner join BASIC on mesDistance.oidref=BASIC.oid where oidref > "..lastOIDMax.." order by oidref asc")
+		if #results.data == 0 then break end
+		for _,row in ipairs(results.data) do
+			local oid = row[1]
+			if oid then	
+				lastOIDMax = math.max(lastOIDMax, oid)
+				-- convert to common units
+				local unit = row[3]
+				if not unit then
+					io.stderr:write('failed to find units for oid '..oidref..'\n')
+				else
+					unit = unit:trim():lower()
+					local s = inMpc[unit]
+					if not s then error("failed to convert units "..tostring(unit)) end
+					local dist = assert(row[2], "better have distance") * s
+					local min = row[4] and row[4] * s
+					local max = row[5] and row[5] * s
+					local err = min and max and .5 * (math.abs(min) + math.abs(max))
+					-- just copy these in all distance entries -- so I only have to query once
+					local id = row[6]
+					local ra = tonumber(row[7])
+					local dec = tonumber(row[8])
+				
+					if ra and dec then
+						if not distsForOIDs[oid] then distsForOIDs[oid] = table() end
+						distsForOIDs[oid]:insert{dist=dist, err=err, min=min, max=max, id=id, ra=ra, dec=dec}
+					end
 				end
 			end
 		end
@@ -139,16 +144,23 @@ file['datasets/simbad/results.lua'] = '{\n'
 local ffi = require 'ffi'
 require 'ffi.C.stdio'
 
-local dstfile = ffi.C.fopen('datasets/simbad/points/points.f32', 'wb')
 local vtx = ffi.new('float[3]')
 local sizeofvtx = ffi.sizeof('float[3]')
-local numWritten = 0
+local galaxiesFile = ffi.C.fopen('datasets/simbad/points/galaxies.f32', 'wb')
+local milkyWayFile = ffi.C.fopen('datasets/simbad/points/milkyway.f32', 'wb')
+local numGalaxiesWritten = 0
+local numMilkyWayWritten = 0
 for _,entry in ipairs(entries) do
-	if entry.dist > .5 then	-- andromeda is .77 mpc ...
-		vtx[0], vtx[1], vtx[2] = table.unpack(entry.vtx)
-		ffi.C.fwrite(vtx, sizeofvtx, 1, dstfile)
-		numWritten = numWritten + 1
+	vtx[0], vtx[1], vtx[2] = table.unpack(entry.vtx)
+	if entry.dist > .1 then	-- andromeda is .77 mpc ... milky way is .030660137 mpc
+		ffi.C.fwrite(vtx, sizeofvtx, 1, galaxiesFile)
+		numGalaxiesWritten = numGalaxiesWritten + 1
+	else
+		ffi.C.fwrite(vtx, sizeofvtx, 1, milkyWayFile)
+		numMilkyWayWritten = numMilkyWayWritten + 1
 	end
 end
-ffi.C.fclose(dstfile)
-print('wrote '..numWritten..' points')
+ffi.C.fclose(galaxiesFile)
+ffi.C.fclose(milkyWayFile)
+print('wrote '..numMilkyWayWritten..' local galaxy points')
+print('wrote '..numGalaxiesWritten..' universe points')
