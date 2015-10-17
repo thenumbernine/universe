@@ -140,32 +140,43 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 	
 		//assumes the first set is 2MRS
 		targetElem.empty();
-		if (dataSet.title == '2MRS') {
+		if (dataSet.title == '2MRS' || dataSet.title == 'Simbad') {
 			targetElem.append($('<img src="loading.gif" style="padding-top:10px; padding-left:10px"/>'));
 			$.ajax({
 				url : 'getpoint.lua',
 				dataType : 'json',
 				data : {
-					set : dataSet.title.toLower(),
+					set : dataSet.title.toLowerCase(),
 					point : pointIndex
 				},
 				success : function(obj) {
 					targetElem.empty();
 					//todo pretty up the names
-					var cols = ['_2MASS_ID', 'bibliographicCode', 'galaxyName', 'galaxyType', 'sourceOfType'];
+					var cols;
+					if (dataSet.title == '2MRS') {
+						cols = ['_2MASS_ID', 'bibliographicCode', 'galaxyName', 'galaxyType', 'sourceOfType'];
+					} else if (dataSet.title == 'Simbad') {
+						cols = ['id'];
+					}
 					$.each(cols, function(k,col) {
 						$('<div>', {text:col+': '+obj[col]+' '}).appendTo(targetElem);
 					});
 
 					closeSidePanel();
 
-					var search = obj.galaxyName;
-					search = search.split('_');
-					for (var j = 0; j < search.length; j++) {
-						var v = parseFloat(search[j]);
-						if (v == v) search[j] = v;	//got a valid number
+					var search;
+					if (dataSet.title == '2MRS') {
+						search = obj.galaxyName;
+						search = search.split('_');
+						for (var j = 0; j < search.length; j++) {
+							var v = parseFloat(search[j]);
+							if (v == v) search[j] = v;	//got a valid number
+						}
+						search = search.join(' ');
+					} else if (dataSet.title == 'Simbad') {
+						search = obj.id;
 					}
-					search = search.join(' ');
+					console.log("searching "+search);
 					descElem.empty();
 					/*
 					$.ajax({
@@ -595,6 +606,7 @@ function findObject(ident) {
 		data:{ident:ident},
 		success: function(results) {
 			if (results && results.indexes.length) {
+				//TODO send parameters of what sets are visible, search across requested sets
 				//NOTICE this assumes set0 is the 2MRS results, which is the only one the find and getinfo webservices are linked to
 				setSelectedGalaxy(dataSetsByName['2MRS'], results.indexes[0]);
 				findAnchor.css('color', 'cyan');
@@ -713,7 +725,7 @@ $(document).ready(function() {
 			{title:'2MRS', url:'2mrs.f32', source:'http://tdc-www.cfa.harvard.edu/2mrs/'},
 			{title:'6dF GS', url:'6dfgs.f32', source:'http://www.aao.gov.au/6dFGS/'},
 			{title:'sdss3-dr10', url:'sdss3-dr10.f32', source:'http://www.sdss3.org/dr10/data_access/bulk.php'},
-			{title:'simbad', url:'simbad.f32', source:'http://simbad.u-strasbg.fr/simbad/'}
+			{title:'Simbad', url:'simbad.f32', source:'http://simbad.u-strasbg.fr/simbad/'}
 		], function(k,v) {
 			var sceneObj;
 			fileRequest({
@@ -762,7 +774,7 @@ $(document).ready(function() {
 					ondraw();
 
 					//I only have search data for 2mrs right now
-					if (v.title == '2MRS') {
+					if (v.title == '2MRS' || v.title == 'Simbad') {
 						//substring 1 removes the preface ?
 						var urlkeys = {};
 						var search = $('<a>', {href:location.href}).get(0).search;
