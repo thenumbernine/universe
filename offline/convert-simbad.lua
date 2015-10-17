@@ -144,6 +144,7 @@ file['datasets/simbad/results.lua'] = '{\n'
 local ffi = require 'ffi'
 require 'ffi.C.stdio'
 
+-- write out point files
 local vtx = ffi.new('float[3]')
 local sizeofvtx = ffi.sizeof('float[3]')
 local galaxiesFile = ffi.C.fopen('datasets/simbad/points/galaxies.f32', 'wb')
@@ -164,3 +165,25 @@ ffi.C.fclose(galaxiesFile)
 ffi.C.fclose(milkyWayFile)
 print('wrote '..numMilkyWayWritten..' local galaxy points')
 print('wrote '..numGalaxiesWritten..' universe points')
+
+-- write out catalog data and spec files
+local cols = table{'id'}
+local colmaxs = table()
+for _,col in ipairs(cols) do
+	colmaxs[col] = entries:map(function(entry) return #entry[col] end):sup()
+end
+file['datasets/simbad/catalog.specs'] = cols:map(function(col)
+	return col..'='..colmaxs[col]
+end):concat'\n'
+local catalogFile = ffi.C.fopen('datasets/simbad/catalog.dat', 'wb')
+local tmplen = colmaxs:sup()+1
+local tmp = ffi.new('char[?]', tmplen)
+for _,entry in ipairs(entries) do
+	for _,col in ipairs(cols) do
+		ffi.fill(tmp, tmplen)
+		ffi.copy(tmp, entry[col])
+		ffi.C.fwrite(tmp, colmaxs[col], 1, catalogFile)
+	end
+end
+ffi.C.fclose(catalogFile)
+
