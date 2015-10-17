@@ -45,9 +45,6 @@ local function querySimbad(query)
 	return data
 end
 
-print(tolua(querySimbad("select top 10 rvz_type, sp_type from basic"),{indent=true}))
-os.exit()
-
 local convertToMpc = {
 	mpc = 1,
 	kpc = .001,
@@ -227,27 +224,22 @@ file['datasets/simbad/results.lua'] = '{\n'
 local ffi = require 'ffi'
 require 'ffi.C.stdio'
 
+entries = entries:filter(function(entry)
+	return entry.dist > .1	-- andromeda is .77 mpc ... milky way is .030660137 mpc
+end)
+
 -- write out point files
 local vtx = ffi.new('float[3]')
 local sizeofvtx = ffi.sizeof('float[3]')
-local galaxiesFile = ffi.C.fopen('datasets/simbad/points/galaxies.f32', 'wb')
-local milkyWayFile = ffi.C.fopen('datasets/simbad/points/milkyway.f32', 'wb')
-local numGalaxiesWritten = 0
-local numMilkyWayWritten = 0
+local pointFile = ffi.C.fopen('datasets/simbad/points/points.f32', 'wb')
+local numWritten = 0
 for _,entry in ipairs(entries) do
 	vtx[0], vtx[1], vtx[2] = table.unpack(entry.vtx)
-	if entry.dist > .1 then	-- andromeda is .77 mpc ... milky way is .030660137 mpc
-		ffi.C.fwrite(vtx, sizeofvtx, 1, galaxiesFile)
-		numGalaxiesWritten = numGalaxiesWritten + 1
-	else
-		ffi.C.fwrite(vtx, sizeofvtx, 1, milkyWayFile)
-		numMilkyWayWritten = numMilkyWayWritten + 1
-	end
+	ffi.C.fwrite(vtx, sizeofvtx, 1, pointFile)
+	numWritten = numWritten + 1
 end
-ffi.C.fclose(galaxiesFile)
-ffi.C.fclose(milkyWayFile)
-print('wrote '..numMilkyWayWritten..' local galaxy points')
-print('wrote '..numGalaxiesWritten..' universe points')
+ffi.C.fclose(pointFile)
+print('wrote '..numWritten..' universe points')
 
 -- write out catalog data and spec files
 local cols = table{'id'}
