@@ -6,8 +6,8 @@ return {
 	run = function(env)
 		local headers = { ["Content-type"] = "text/javascript" }
 		local req = wsapi_request.new(env)
-		local dataset = req.GET and assert(tonumber(req.GET.set))
-		local pointIndex = req.GET and assert(req.GET.point)
+		local dataset = req.GET and assert(req.GET.set)
+		local pointIndex = req.GET and assert(tonumber(req.GET.point))
 
 		local catalogSpecs, rowsize = require 'catalog_specs'(dataset)
 	
