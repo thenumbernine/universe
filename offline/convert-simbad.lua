@@ -183,9 +183,21 @@ file['datasets/simbad/results.lua'] = '{\n'
 local ffi = require 'ffi'
 require 'ffi.C.stdio'
 
+--[[
+-- filter out points outside of our galaxy?
+-- andromeda is .77 mpc ... milky way is .030660137 mpc
 entries = entries:filter(function(entry)
-	return entry.dist > .1	-- andromeda is .77 mpc ... milky way is .030660137 mpc
+	return entry.dist > .1	
 end)
+--]]
+-- [[ filter by otype
+-- TODO dynamically update this via the get-simbad-otypedef + filter desc:lower() by 'galax' ?
+local galaxyOTypes = table{'GiC', 'LeG', 'SC?', 'SCG', 'BiC', 'G', 'bCG', 'EmG', 'AGN', 'SBG', 'H2G', 'GiP', 'Sy1', 'GrG', 'PaG', 'HzG', 'rG', 'Gr?', 'GiG', 'C?G', 'LIN', 'IG', 'LSB', 'SyG', 'G?', 'PoG', 'CGG', 'AG?', 'ClG', 'Sy2'}
+galaxyOTypes = setmetatable(galaxyOTypes:map(function(k) return true,k end), nil)
+entries = entries:filter(function(entry)
+	return galaxyOTypes[entry.otype]
+end)
+--]]
 
 -- write out point files
 local vtx = ffi.new('float[3]')
