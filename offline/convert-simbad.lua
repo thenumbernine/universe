@@ -154,9 +154,9 @@ local function getOnlineData()
 					local s = convertToMpc[unit]
 					if not s then error("failed to convert units "..tostring(unit)) end
 					local dist = assert(row[2], "better have distance") * s
-					local min = row[4] and row[4] * s
-					local max = row[5] and row[5] * s
-					local err = min and max and .5 * (math.abs(min) + math.abs(max))
+					local dist_err_min = row[4] and row[4] * s
+					local dist_err_max = row[5] and row[5] * s
+					local dist_err = dist_err_min and dist_err_max and .5 * (math.abs(dist_err_min) + math.abs(dist_err_max))
 					-- just copy these in all distance entries -- so I only have to query once
 					local id = row[6]
 					local ra = tonumber(row[7])
@@ -165,7 +165,7 @@ local function getOnlineData()
 
 					if ra and dec then
 						if not distsForOIDs[oid] then distsForOIDs[oid] = table() end
-						distsForOIDs[oid]:insert{dist=dist, err=err, min=min, max=max, id=id, otype=otype, ra=ra, dec=dec}
+						distsForOIDs[oid]:insert{dist=dist, dist_err=dist_err, oid=oid, id=id, otype=otype, ra=ra, dec=dec}
 					end
 				end
 			end
@@ -174,27 +174,22 @@ local function getOnlineData()
 
 	local entries = table()
 	for oid,distsForOID in pairs(distsForOIDs) do
-		local entry = {oid=oid}
-		entries:insert(entry)
-		
 		-- prefer entries with error over those without, pick the smallest error
 		distsForOID = distsForOID:sort(function(a,b)
-			if a.err and b.err then
-				return a.err < b.err
-			elseif a.err and not b.err then
+			if a.dist_err and b.dist_err then
+				return a.dist_err < b.dist_err
+			elseif a.dist_err and not b.dist_err then
 				return true
-			elseif not a.err and b.err then
+			elseif not a.dist_err and b.dist_err then
 				return false
 			else
 				return a.dist > b.dist
 			end
 		end)
-		local best = distsForOID[1]
-		entry.dist = best.dist
-		entry.id = best.id
-		entry.ra = best.ra
-		entry.dec = best.dec
-		
+		local entry = distsForOID[1]
+		entry.dist_err = nil	-- don't need that anymore
+		entries:insert(entry)
+
 		local rad_ra = entry.ra * math.pi / 180
 		local rad_dec = entry.dec * math.pi / 180
 		local cos_rad_dec = math.cos(rad_dec)
