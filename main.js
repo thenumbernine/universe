@@ -156,7 +156,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 					if (dataSet.title == '2MRS') {
 						cols = ['_2MASS_ID', 'bibliographicCode', 'galaxyName', 'galaxyType', 'sourceOfType'];
 					} else if (dataSet.title == 'Simbad') {
-						cols = ['id'];
+						cols = ['id', 'otype'];
 					}
 					$.each(cols, function(k,col) {
 						$('<div>', {text:col+': '+obj[col]+' '}).appendTo(targetElem);
