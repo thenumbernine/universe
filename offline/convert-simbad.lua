@@ -252,7 +252,7 @@ print('wrote '..numWritten..' universe points')
 local cols = table{'id','otype'}
 local colmaxs = cols:map(function(col)
 	return entries:map(function(entry)
-		return #tostring(entry[col])
+		return entry[col] and #tostring(entry[col]) or 0
 	end):sup(), col
 end)
 file['datasets/simbad/catalog.specs'] = cols:map(function(col)
@@ -264,7 +264,7 @@ local tmp = ffi.new('char[?]', tmplen)
 for _,entry in ipairs(entries) do
 	for _,col in ipairs(cols) do
 		ffi.fill(tmp, tmplen)
-		ffi.copy(tmp, tostring(entry[col]))
+		if entry[col] then ffi.copy(tmp, tostring(entry[col])) end
 		ffi.C.fwrite(tmp, colmaxs[col], 1, catalogFile)
 	end
 end
