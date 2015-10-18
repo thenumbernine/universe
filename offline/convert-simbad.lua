@@ -52,6 +52,10 @@ local convertToMpc = {
 	km = 1 / (3261563.79673 * 9460730472580.8),
 }
 
+--[[
+this uses mesDiameter, which has something like 3340 unique entries
+another option is to use basic.galdim_majaxis and basic.galdim_minaxis, but this is only set for about 553 entries (all but 3 also have basic.galdim_angle)
+--]]
 local function addDiameters(entries)
 	-- now query diameters..
 	local diamsForOIDs = {}
@@ -129,9 +133,11 @@ local function getOnlineData()
 		local results = querySimbad(
 			"select "
 			.."mesDistance.oidref,mesDistance.dist,mesDistance.unit,mesDistance.minus_err,mesDistance.plus_err,"
-			.."BASIC.main_id,BASIC.ra,BASIC.dec "
+			.."basic.main_id,basic.ra,basic.dec,"
+			.."otypedef.otype_shortname "
 			.."from mesDistance "
-			.."inner join BASIC on mesDistance.oidref=BASIC.oid "
+			.."inner join basic on mesDistance.oidref=basic.oid "
+			.."inner join otypedef on basic.otype=otypedef.otype "
 			.."where oidref > "..lastOIDMax.." "
 			.."order by oidref asc")
 		if #results.data == 0 then break end
@@ -155,10 +161,11 @@ local function getOnlineData()
 					local id = row[6]
 					local ra = tonumber(row[7])
 					local dec = tonumber(row[8])
-				
+					local otype = row[9]
+
 					if ra and dec then
 						if not distsForOIDs[oid] then distsForOIDs[oid] = table() end
-						distsForOIDs[oid]:insert{dist=dist, err=err, min=min, max=max, id=id, ra=ra, dec=dec}
+						distsForOIDs[oid]:insert{dist=dist, err=err, min=min, max=max, id=id, otype=otype, ra=ra, dec=dec}
 					end
 				end
 			end
@@ -242,7 +249,7 @@ ffi.C.fclose(pointFile)
 print('wrote '..numWritten..' universe points')
 
 -- write out catalog data and spec files
-local cols = table{'id'}
+local cols = table{'id','otype'}
 local colmaxs = cols:map(function(col)
 	return entries:map(function(entry)
 		return #tostring(entry[col])
