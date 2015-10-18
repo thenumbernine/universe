@@ -88,31 +88,21 @@ function refreshPanelSize() {
 	}
 }
 
-//TODO DOM updates are slow, so put in a request / interval it
+var viewDistance = undefined;
 var refreshDistanceInterval = undefined;
-var refreshDistanceValue = undefined;
-function refreshDistance(d) {
-	refreshDistanceValue = d;
+function refreshDistance() {
 	if (refreshDistanceInterval !== undefined) return;
 	refreshDistanceInterval = setInterval(doRefreshDistance, 500);
 }
 function doRefreshDistance() {
 	refreshDistanceInterval = undefined;
-	var d = refreshDistanceValue; 
 
 	var centerX = selected.arrayBuf[0];
 	var centerY = selected.arrayBuf[1];
 	var centerZ = selected.arrayBuf[2];
 
-	if (d === undefined) {
-		var dx = glutil.view.pos[0] - centerX; 
-		var dy = glutil.view.pos[1] - centerY; 
-		var dz = glutil.view.pos[2] - centerZ; 
-		var d2 = dx * dx + dy * dy + dz * dz;
-		d = Math.sqrt(d2);
-	}
 	distanceElem.empty();
-	$('<div>', {text:'Distance: '+parseFloat(d).toFixed(4)+' Mpc '}).appendTo(distanceElem);
+	$('<div>', {text:'Distance: '+parseFloat(viewDistance).toFixed(4)+' Mpc '}).appendTo(distanceElem);
 	$('<div>', {
 		text : 'Orbit Coords: '+centerX+', '+centerY+', '+centerZ+' ',
 		css : {
@@ -541,10 +531,10 @@ void main() {
 uniform sampler2D tex;
 void main() {
 	float z = gl_FragCoord.z;
-	float v = 1. / (z * z);
 	gl_FragColor = texture2D(tex, gl_PointCoord);
 	gl_FragColor *= gl_FragColor;
-	gl_FragColor *= v;
+	//float v = 1. / (z * z);
+	//gl_FragColor *= v;
 }
 */}),
 		uniforms : {
@@ -578,7 +568,7 @@ void main() {
 	gl_FragColor = vec4(color, 1.); 
 }
 */}),
-		uniforms : {spriteWidth:1./16.}
+		uniforms : {spriteWidth:1./10./2.}
 	});
 	
 	//scene objs
@@ -588,6 +578,79 @@ void main() {
 	hover.sceneObj.uniforms.color = [0,1,0];
 	hover.sceneObj.hidden = true;
 	hover.stayHidden = false;
+
+	//coordinate chart overlay
+
+//	var vertexes = [];
+//	var thetaDivs = 100;
+//	var radiusDivs = 4;
+//	var largeThetaDivs = 6;
+//	var height = 1;
+//	var maxRadius = 2;
+//	for (var thetaIndex = 0; thetaIndex < thetaDivs; ++thetaIndex) {
+//		var th1 = 2*Math.PI*thetaIndex/thetaDivs;
+//		var th2 = 2*Math.PI*(thetaIndex+1)/thetaDivs;
+//		for (var radiusIndex = 1; radiusIndex <= radiusDivs; ++radiusIndex) {
+//			var radius = maxRadius * radiusIndex / radiusDivs;
+//			vertexes.push(radius*Math.cos(th1));
+//			vertexes.push(radius*Math.sin(th1));
+//			vertexes.push(-height);
+//			vertexes.push(radius*Math.cos(th2));
+//			vertexes.push(radius*Math.sin(th2));
+//			vertexes.push(-height);
+//			vertexes.push(radius*Math.cos(th1));
+//			vertexes.push(radius*Math.sin(th1));
+//			vertexes.push(height);
+//			vertexes.push(radius*Math.cos(th2));
+//			vertexes.push(radius*Math.sin(th2));
+//			vertexes.push(height);
+//		}
+//	}
+//	for (var thetaIndex = 0; thetaIndex < largeThetaDivs; ++thetaIndex) {
+//		var theta = 2*Math.PI*thetaIndex/largeThetaDivs;
+//		vertexes.push(maxRadius*Math.cos(theta));
+//		vertexes.push(maxRadius*Math.sin(theta));
+//		vertexes.push(-height);
+//		vertexes.push(0);
+//		vertexes.push(0);
+//		vertexes.push(-height);
+//		vertexes.push(maxRadius*Math.cos(theta));
+//		vertexes.push(maxRadius*Math.sin(theta));
+//		vertexes.push(height);
+//		vertexes.push(0);
+//		vertexes.push(0);
+//		vertexes.push(height);
+//		vertexes.push(maxRadius*Math.cos(theta));
+//		vertexes.push(maxRadius*Math.sin(theta));
+//		vertexes.push(-height);
+//		vertexes.push(maxRadius*Math.cos(theta));
+//		vertexes.push(maxRadius*Math.sin(theta));
+//		vertexes.push(height);
+//	}
+//
+//	var gridObj = new glutil.SceneObject({
+//		mode : gl.LINES,
+//		attrs : {
+//			vertex : new glutil.ArrayBuffer({data : vertexes})
+//		},
+//		shader : new glutil.ShaderProgram({
+//			vertexPrecision : 'best',
+//			vertexCode : mlstr(function(){/*
+//attribute vec3 vertex;
+//uniform mat4 mvMat;
+//uniform mat4 projMat;
+//void main() {
+//	gl_Position = projMat * (mvMat * vec4(vertex, 1.));
+//}
+//*/}),
+//			fragmentPrecision : 'best',
+//			fragmentCode : mlstr(function(){/*
+//void main() {
+//	gl_FragColor = vec4(1., 1., 1., 1.);
+//}
+//*/})
+//		})
+//	});
 
 	//draw
 	initCallbacks();
@@ -879,12 +942,32 @@ function update() {
 	updateInterval = requestAnimFrame(doUpdate);
 }
 */
+var spriteWidth;
 function doUpdate() {
 	//updateInterval = undefined;
 	var selRes = lookAtSelected();
 	var rotRes = applyLastMouseRot();
 	universeUpdateHover();
 	//if (!selRes && !rotRes) return;
+
+	var centerX = selected.arrayBuf[0];
+	var centerY = selected.arrayBuf[1];
+	var centerZ = selected.arrayBuf[2];
+
+	var dx = glutil.view.pos[0] - centerX; 
+	var dy = glutil.view.pos[1] - centerY; 
+	var dz = glutil.view.pos[2] - centerZ; 
+	var d2 = dx * dx + dy * dy + dz * dz;
+	var newViewDistance = Math.sqrt(d2);
+	if (newViewDistance != viewDistance) {
+		viewDistance = newViewDistance;
+		spriteWidth = .02*Math.sqrt(viewDistance);
+		gl.useProgram(pointShader.obj);
+		pointShader.setUniform('spriteWidth', spriteWidth);
+		gl.useProgram(selectedShader.obj);
+		selectedShader.setUniform('spriteWidth', spriteWidth);
+		gl.useProgram(null);
+	}
 
 	//update();
 }
