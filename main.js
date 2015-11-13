@@ -13,6 +13,9 @@ var selectedShader;
 var selected, hover;
 var galaxyTex;
 
+var gridObj;
+var gridScale = undefined;
+
 function Highlight() {
 	this.set = undefined;	//which set this belongs to
 	this.index = undefined;	//which index
@@ -109,6 +112,7 @@ function doRefreshDistance() {
 			width : 200
 		}
 	}).appendTo(distanceElem);
+	$('<div>', {text : 'Grid Size: '+gridScale+' Mpc'}).appendTo(distanceElem);
 }
 
 function setSelectedGalaxy(dataSet, pointIndex) {
@@ -581,76 +585,87 @@ void main() {
 
 	//coordinate chart overlay
 
-//	var vertexes = [];
-//	var thetaDivs = 100;
-//	var radiusDivs = 4;
-//	var largeThetaDivs = 6;
-//	var height = 1;
-//	var maxRadius = 2;
-//	for (var thetaIndex = 0; thetaIndex < thetaDivs; ++thetaIndex) {
-//		var th1 = 2*Math.PI*thetaIndex/thetaDivs;
-//		var th2 = 2*Math.PI*(thetaIndex+1)/thetaDivs;
-//		for (var radiusIndex = 1; radiusIndex <= radiusDivs; ++radiusIndex) {
-//			var radius = maxRadius * radiusIndex / radiusDivs;
-//			vertexes.push(radius*Math.cos(th1));
-//			vertexes.push(radius*Math.sin(th1));
-//			vertexes.push(-height);
-//			vertexes.push(radius*Math.cos(th2));
-//			vertexes.push(radius*Math.sin(th2));
-//			vertexes.push(-height);
-//			vertexes.push(radius*Math.cos(th1));
-//			vertexes.push(radius*Math.sin(th1));
-//			vertexes.push(height);
-//			vertexes.push(radius*Math.cos(th2));
-//			vertexes.push(radius*Math.sin(th2));
-//			vertexes.push(height);
-//		}
-//	}
-//	for (var thetaIndex = 0; thetaIndex < largeThetaDivs; ++thetaIndex) {
-//		var theta = 2*Math.PI*thetaIndex/largeThetaDivs;
-//		vertexes.push(maxRadius*Math.cos(theta));
-//		vertexes.push(maxRadius*Math.sin(theta));
-//		vertexes.push(-height);
-//		vertexes.push(0);
-//		vertexes.push(0);
-//		vertexes.push(-height);
-//		vertexes.push(maxRadius*Math.cos(theta));
-//		vertexes.push(maxRadius*Math.sin(theta));
-//		vertexes.push(height);
-//		vertexes.push(0);
-//		vertexes.push(0);
-//		vertexes.push(height);
-//		vertexes.push(maxRadius*Math.cos(theta));
-//		vertexes.push(maxRadius*Math.sin(theta));
-//		vertexes.push(-height);
-//		vertexes.push(maxRadius*Math.cos(theta));
-//		vertexes.push(maxRadius*Math.sin(theta));
-//		vertexes.push(height);
-//	}
-//
-//	var gridObj = new glutil.SceneObject({
-//		mode : gl.LINES,
-//		attrs : {
-//			vertex : new glutil.ArrayBuffer({data : vertexes})
-//		},
-//		shader : new glutil.ShaderProgram({
-//			vertexPrecision : 'best',
-//			vertexCode : mlstr(function(){/*
-//attribute vec3 vertex;
-//uniform mat4 mvMat;
-//uniform mat4 projMat;
-//void main() {
-//	gl_Position = projMat * (mvMat * vec4(vertex, 1.));
-//}
-//*/}),
-//			fragmentPrecision : 'best',
-//			fragmentCode : mlstr(function(){/*
-//void main() {
-//	gl_FragColor = vec4(1., 1., 1., 1.);
-//}
-//*/})
-//		})
-//	});
+	var vertexes = [];
+	var thetaDivs = 100;
+	var radiusDivs = 2;
+	var largeThetaDivs = 6;
+	var maxRadius = 1;
+	var zDivs = 2;
+	var zMin = -.5;
+	var zMax = .5;
+	for (var zIndex = 0; zIndex < zDivs; ++zIndex) {
+		var z = zIndex / (zDivs-1) * (zMax - zMin) + zMin;
+		var z2 = z + (zMax - zMin) / (zDivs-1);
+		for (var thetaIndex = 0; thetaIndex < thetaDivs; ++thetaIndex) {
+			var th1 = 2*Math.PI*thetaIndex/thetaDivs;
+			var th2 = 2*Math.PI*(thetaIndex+1)/thetaDivs;
+			for (var radiusIndex = 1; radiusIndex <= radiusDivs; ++radiusIndex) {
+				var radius = maxRadius * radiusIndex / radiusDivs;
+				vertexes.push(radius*Math.cos(th1));
+				vertexes.push(radius*Math.sin(th1));
+				vertexes.push(z);
+				vertexes.push(radius*Math.cos(th2));
+				vertexes.push(radius*Math.sin(th2));
+				vertexes.push(z);
+			}
+		}
+		if (zIndex < zDivs - 1) {
+			for (var thetaIndex = 0; thetaIndex < largeThetaDivs; ++thetaIndex) {
+				var theta = 2*Math.PI*thetaIndex/largeThetaDivs;
+				vertexes.push(maxRadius*Math.cos(theta));
+				vertexes.push(maxRadius*Math.sin(theta));
+				vertexes.push(z);
+				vertexes.push(0);
+				vertexes.push(0);
+				vertexes.push(z);
+				vertexes.push(maxRadius*Math.cos(theta));
+				vertexes.push(maxRadius*Math.sin(theta));
+				vertexes.push(z2);
+				vertexes.push(0);
+				vertexes.push(0);
+				vertexes.push(z2);
+				vertexes.push(maxRadius*Math.cos(theta));
+				vertexes.push(maxRadius*Math.sin(theta));
+				vertexes.push(z);
+				vertexes.push(maxRadius*Math.cos(theta));
+				vertexes.push(maxRadius*Math.sin(theta));
+				vertexes.push(z2);
+			}
+		}
+	}
+
+	gridObj = new glutil.SceneObject({
+		parent : null,
+		mode : gl.LINES,
+		blend : [gl.SRC_ALPHA, gl.ONE],
+		pos : [0,0,0],
+		attrs : {
+			vertex : new glutil.ArrayBuffer({data : vertexes})
+		},
+		shader : new glutil.ShaderProgram({
+			vertexPrecision : 'best',
+			vertexCode : mlstr(function(){/*
+attribute vec3 vertex;
+uniform mat4 mvMat;
+uniform mat4 projMat;
+uniform float scale;
+void main() {
+	gl_Position = projMat * (mvMat * vec4(scale * vertex, 1.));
+}
+*/}),
+			fragmentPrecision : 'best',
+			fragmentCode : mlstr(function(){/*
+uniform float alpha;
+void main() {
+	gl_FragColor = vec4(1., 1., 1., alpha);
+}
+*/})
+		}),
+		uniforms : {
+			scale : 1,
+			alpha : 1
+		}
+	});
 
 	//draw
 	initCallbacks();
@@ -834,6 +849,44 @@ $(document).ready(function() {
 					var ondraw;
 					ondraw = function() {
 						glutil.draw();
+			
+						if (selected.index !== undefined) { 
+							gridObj.pos[0] = selected.arrayBuf[0];
+							gridObj.pos[1] = selected.arrayBuf[1];
+							gridObj.pos[2] = selected.arrayBuf[2];
+						}
+						//draw fades between various grids depending on where the view scale is
+						var newGridScale = (1 << parseInt(Math.log2(viewDistance * 1024))) / 1024;
+						if (newGridScale != gridScale) {
+							gridFadeOutSize = gridScale;
+							gridFadeOutTime = Date.now();
+							gridFadeInSize = newGridScale;
+							gridFadeInTime = Date.now();
+							gridScale = newGridScale;
+						}
+						var gridFadeTime = 1000;
+						var gridAlpha = .4;
+						if (gridFadeOutSize !== undefined) {
+							var alpha = gridAlpha * (1 - (Date.now() - gridFadeOutTime) / gridFadeTime);
+							if (alpha > 0) {
+								gridObj.draw({
+									uniforms : {
+										scale : gridFadeOutSize,
+										alpha : alpha
+									}
+								});
+							}
+						}
+						if (gridFadeInSize !== undefined) {
+							var alpha = gridAlpha * Math.min(1, (Date.now() - gridFadeInTime) / gridFadeTime);
+							gridObj.draw({
+								uniforms : {
+									scale : gridFadeInSize,
+									alpha : alpha
+								}
+							});
+						}
+						
 						doUpdate();
 						requestAnimFrame(ondraw);
 					};
