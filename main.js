@@ -110,7 +110,7 @@ function doRefreshDistance() {
 
 	distanceElem.text(parseFloat(viewDistance).toFixed(4));
 	orbitCoordsElem.text(centerX+', '+centerY+', '+centerZ);
-	gridSizeElem.text(gridScale >= 1 ? gridScale : '');
+	gridSizeElem.text(gridScale >= 1 ? (gridScale + ' Mpc') : '');
 }
 
 function setSelectedGalaxy(dataSet, pointIndex) {
@@ -872,7 +872,7 @@ $(document).ready(function() {
 							gridObj.pos[2] = selected.arrayBuf[2];
 						}
 						//draw fades between various grids depending on where the view scale is
-						var newGridScale = Math.max(1, (1 << parseInt(Math.log2(viewDistance * 1024))) / 1024);
+						var newGridScale = (1 << parseInt(Math.log2(viewDistance * 1024))) / 1024;
 						if (newGridScale != gridScale) {
 							gridFadeOutSize = gridScale;
 							gridFadeOutTime = Date.now();
