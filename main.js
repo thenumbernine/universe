@@ -870,7 +870,7 @@ $(document).ready(function() {
 							gridFadeInTime = Date.now();
 							gridScale = newGridScale;
 						}
-						if (showGrid) {
+						if (showGrid && gridScale >= 1) {
 							var gridFadeTime = 1000;
 							if (gridFadeOutSize !== undefined) {
 								var alpha = gridAlpha * (1 - (Date.now() - gridFadeOutTime) / gridFadeTime);
