@@ -4,6 +4,8 @@ var gl;
 var glutil;
 var panel, panelIsOpen;
 var distanceElem;
+var orbitCoordsElem;
+var gridSizeElem;
 var targetElem;
 var descElem;
 var fpsElem;
@@ -14,6 +16,8 @@ var selected, hover;
 var galaxyTex;
 
 var gridObj;
+var gridAlpha = .25;
+var showGrid = false;
 var gridScale = undefined;
 
 function Highlight() {
@@ -104,15 +108,9 @@ function doRefreshDistance() {
 	var centerY = selected.arrayBuf[1];
 	var centerZ = selected.arrayBuf[2];
 
-	distanceElem.empty();
-	$('<div>', {text:'Distance: '+parseFloat(viewDistance).toFixed(4)+' Mpc '}).appendTo(distanceElem);
-	$('<div>', {
-		text : 'Orbit Coords: '+centerX+', '+centerY+', '+centerZ+' ',
-		css : {
-			width : 200
-		}
-	}).appendTo(distanceElem);
-	$('<div>', {text : 'Grid Size: '+gridScale+' Mpc'}).appendTo(distanceElem);
+	distanceElem.text(parseFloat(viewDistance).toFixed(4));
+	orbitCoordsElem.text(centerX+', '+centerY+', '+centerZ);
+	gridSizeElem.text(gridScale);
 }
 
 function setSelectedGalaxy(dataSet, pointIndex) {
@@ -795,11 +793,19 @@ $(document).ready(function() {
 
 	fpsElem = $('#fps');
 
-	var fileRequestDiv = $('<div>').appendTo(panel);
+	var fileRequestDiv = $('#sources');
 	
-	distanceElem = $('<div>', {css:{paddingRight:20}}).appendTo(panel);
-	targetElem = $('<div>').appendTo(panel);
-	descElem = $('<div>').appendTo(panel);
+	distanceElem = $('#distance');
+	orbitCoordsElem = $('#orbitcoords');
+	gridSizeElem = $('#gridsize');
+	$('#showgrid')
+		.prop('checked', showGrid)
+		.bind('change', function(e) {
+			showGrid = e.target.checked;
+		});
+
+	targetElem = $('#target');
+	descElem = $('#desc');
 
 	init(function() {
 		$.each([
@@ -849,7 +855,7 @@ $(document).ready(function() {
 					var ondraw;
 					ondraw = function() {
 						glutil.draw();
-			
+		
 						if (selected.index !== undefined) { 
 							gridObj.pos[0] = selected.arrayBuf[0];
 							gridObj.pos[1] = selected.arrayBuf[1];
@@ -864,29 +870,30 @@ $(document).ready(function() {
 							gridFadeInTime = Date.now();
 							gridScale = newGridScale;
 						}
-						var gridFadeTime = 1000;
-						var gridAlpha = .4;
-						if (gridFadeOutSize !== undefined) {
-							var alpha = gridAlpha * (1 - (Date.now() - gridFadeOutTime) / gridFadeTime);
-							if (alpha > 0) {
+						if (showGrid) {
+							var gridFadeTime = 1000;
+							if (gridFadeOutSize !== undefined) {
+								var alpha = gridAlpha * (1 - (Date.now() - gridFadeOutTime) / gridFadeTime);
+								if (alpha > 0) {
+									gridObj.draw({
+										uniforms : {
+											scale : gridFadeOutSize,
+											alpha : alpha
+										}
+									});
+								}
+							}
+							if (gridFadeInSize !== undefined) {
+								var alpha = gridAlpha * Math.min(1, (Date.now() - gridFadeInTime) / gridFadeTime);
 								gridObj.draw({
 									uniforms : {
-										scale : gridFadeOutSize,
+										scale : gridFadeInSize,
 										alpha : alpha
 									}
 								});
 							}
 						}
-						if (gridFadeInSize !== undefined) {
-							var alpha = gridAlpha * Math.min(1, (Date.now() - gridFadeInTime) / gridFadeTime);
-							gridObj.draw({
-								uniforms : {
-									scale : gridFadeInSize,
-									alpha : alpha
-								}
-							});
-						}
-						
+
 						doUpdate();
 						requestAnimFrame(ondraw);
 					};
