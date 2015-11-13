@@ -110,7 +110,7 @@ function doRefreshDistance() {
 
 	distanceElem.text(parseFloat(viewDistance).toFixed(4));
 	orbitCoordsElem.text(centerX+', '+centerY+', '+centerZ);
-	gridSizeElem.text(gridScale);
+	gridSizeElem.text(gridScale >= 1 ? gridScale : '');
 }
 
 function setSelectedGalaxy(dataSet, pointIndex) {
@@ -129,9 +129,110 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 		var z = dataSet.arrayBuffer[i++];
 		selected.setPos(x,y,z);
 		refreshDistance();
-	
+
+		var buildWikiPage = function(obj) {
+			//todo pretty up the names
+			var cols;
+			if (dataSet.title == '2MRS') {
+				cols = ['_2MASS_ID', 'bibliographicCode', 'galaxyName', 'galaxyType', 'sourceOfType'];
+			} else if (dataSet.title == 'Simbad') {
+				cols = ['id', 'otype'];
+				obj.otype = otypeDescs[obj.otype] || obj.otype;
+			}
+			$.each(cols, function(k,col) {
+				$('<div>', {text:col+': '+obj[col]+' '}).appendTo(targetElem);
+			});
+
+			closeSidePanel();
+
+			var search;
+			if (dataSet.title == '2MRS') {
+				search = obj.galaxyName;
+				search = search.split('_');
+				for (var j = 0; j < search.length; j++) {
+					var v = parseFloat(search[j]);
+					if (v == v) search[j] = v;	//got a valid number
+				}
+				search = search.join(' ');
+			} else if (dataSet.title == 'Simbad') {
+				search = obj.id;
+			}
+			
+			//console.log("searching "+search);
+			descElem.empty();
+			/*
+			$.ajax({
+				url:'http://en.wikipedia.org/w/api.php',
+				dataType:'jsonp',
+				data:{action:'query', titles:search, format:'json', prop:'revisions'},
+				cache:true,
+				success:function(response) {
+					console.log(response);
+			*/
+					$.ajax({
+						url:'http://en.wikipedia.org/w/api.php',
+						dataType:'jsonp',
+						data:{action:'parse', page:search, format:'json', prop:'text'},
+						cache:true,
+						success:function(response) {
+							//console.log(response);
+							var parse = response.parse;
+							if (!parse) return; 
+							var title = parse.title
+							if (!title) return; 
+							var text = parse.text;
+							if (!text) return;
+							text = text['*'];
+							if (!text) return;
+							lastTitle = title;
+							lastText = text;
+							$('<br><br>').appendTo(descElem);
+							$('<a>', {
+								text:'Wikipedia:', 
+								href:'http://www.wikipedia.org',
+								css:{
+									fontSize:'10pt'
+								}
+							})	.attr('target', '_blank')
+								.appendTo(descElem);
+							$('<h2>', {text:title}).appendTo(descElem);
+							var textDiv = $('<div>').html(text).appendTo(descElem);
+							$('a', textDiv).each(function() {
+								var href = $(this).attr('href');
+								if (href[0] == '#') {
+									//http://stackoverflow.com/questions/586024/disabling-links-with-jquery
+									$(this).after($(this).text());
+									$(this).remove();
+									return;
+								}
+								if (href[0] == '/') {
+									$(this).attr('href', 'http://en.wikipedia.org'+href);
+								}
+								$(this).attr('target', '_blank');
+							});
+
+
+							panelIsOpen = true;
+							refreshPanelSize();
+						},
+						error:function() {
+							descElem.innerHTML("Error retrieving data");
+							setTimeout(function() {
+								descElem.empty();
+							}, 3000);
+						}
+					});
+			/*
+				}
+			});
+			*/
+		};
+
 		//assumes the first set is 2MRS
 		targetElem.empty();
+		//if (dataSet.title == 'Simbad') {
+		//	buildWikiPage(simbadCatalog[pointIndex]);	//for local json support.  this file is 1mb, so i'm not going to use that online.
+		//} else
 		if (dataSet.title == '2MRS' || dataSet.title == 'Simbad') {
 			targetElem.append($('<img src="loading.gif" style="padding-top:10px; padding-left:10px"/>'));
 			$.ajax({
@@ -143,100 +244,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 				},
 				success : function(obj) {
 					targetElem.empty();
-					//todo pretty up the names
-					var cols;
-					if (dataSet.title == '2MRS') {
-						cols = ['_2MASS_ID', 'bibliographicCode', 'galaxyName', 'galaxyType', 'sourceOfType'];
-					} else if (dataSet.title == 'Simbad') {
-						cols = ['id', 'otype'];
-						obj.otype = otypeDescs[obj.otype] || obj.otype;
-					}
-					$.each(cols, function(k,col) {
-						$('<div>', {text:col+': '+obj[col]+' '}).appendTo(targetElem);
-					});
-
-					closeSidePanel();
-
-					var search;
-					if (dataSet.title == '2MRS') {
-						search = obj.galaxyName;
-						search = search.split('_');
-						for (var j = 0; j < search.length; j++) {
-							var v = parseFloat(search[j]);
-							if (v == v) search[j] = v;	//got a valid number
-						}
-						search = search.join(' ');
-					} else if (dataSet.title == 'Simbad') {
-						search = obj.id;
-					}
-					console.log("searching "+search);
-					descElem.empty();
-					/*
-					$.ajax({
-						url:'http://en.wikipedia.org/w/api.php',
-						dataType:'jsonp',
-						data:{action:'query', titles:search, format:'json', prop:'revisions'},
-						cache:true,
-						success:function(response) {
-							console.log(response);
-					*/
-							$.ajax({
-								url:'http://en.wikipedia.org/w/api.php',
-								dataType:'jsonp',
-								data:{action:'parse', page:search, format:'json', prop:'text'},
-								cache:true,
-								success:function(response) {
-									//console.log(response);
-									var parse = response.parse;
-									if (!parse) return; 
-									var title = parse.title
-									if (!title) return; 
-									var text = parse.text;
-									if (!text) return;
-									text = text['*'];
-									if (!text) return;
-									lastTitle = title;
-									lastText = text;
-									$('<br><br>').appendTo(descElem);
-									$('<a>', {
-										text:'Wikipedia:', 
-										href:'http://www.wikipedia.org',
-										css:{
-											fontSize:'10pt'
-										}
-									})	.attr('target', '_blank')
-										.appendTo(descElem);
-									$('<h2>', {text:title}).appendTo(descElem);
-									var textDiv = $('<div>').html(text).appendTo(descElem);
-									$('a', textDiv).each(function() {
-										var href = $(this).attr('href');
-										if (href[0] == '#') {
-											//http://stackoverflow.com/questions/586024/disabling-links-with-jquery
-											$(this).after($(this).text());
-											$(this).remove();
-											return;
-										}
-										if (href[0] == '/') {
-											$(this).attr('href', 'http://en.wikipedia.org'+href);
-										}
-										$(this).attr('target', '_blank');
-									});
-
-
-									panelIsOpen = true;
-									refreshPanelSize();
-								},
-								error:function() {
-									descElem.innerHTML("Error retrieving data");
-									setTimeout(function() {
-										descElem.empty();
-									}, 3000);
-								}
-							});
-					/*
-						}
-					});
-					*/
+					buildWikiPage(obj);
 				},
 				error:function() {
 					targetElem.html("Error retrieving data");
@@ -311,6 +319,7 @@ function universeZoom(zoomChange) {
 
 function universeUpdateHover() {
 	var bestDist = Infinity;
+	var bestDot = 0;
 	var bestDataSet;
 	var bestIndex;
 
@@ -368,8 +377,9 @@ function universeUpdateHover() {
 			var dot = viewToPointDotMouseDir / (mouseDirLength * viewToPointLength); 
 			if (dot > .99) {
 				var dist = viewToPointLength;
-				if (dist < bestDist) {
+				if (dist < bestDist && dot > bestDot) {
 					bestDist = dist;
+					bestDot = dot;
 					bestX = pointX;
 					bestY = pointY;
 					bestZ = pointZ;
@@ -862,7 +872,7 @@ $(document).ready(function() {
 							gridObj.pos[2] = selected.arrayBuf[2];
 						}
 						//draw fades between various grids depending on where the view scale is
-						var newGridScale = (1 << parseInt(Math.log2(viewDistance * 1024))) / 1024;
+						var newGridScale = Math.max(1, (1 << parseInt(Math.log2(viewDistance * 1024))) / 1024);
 						if (newGridScale != gridScale) {
 							gridFadeOutSize = gridScale;
 							gridFadeOutTime = Date.now();

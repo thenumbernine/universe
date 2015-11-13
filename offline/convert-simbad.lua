@@ -234,3 +234,11 @@ for _,entry in ipairs(entries) do
 end
 ffi.C.fclose(catalogFile)
 
+local json = require 'dkjson'
+file['datasets/simbad/catalog.json'] = json.encode(setmetatable(entries:map(function(entry)
+	local result = {}
+	for _,col in ipairs(cols) do
+		result[col] = entry[col]
+	end
+	return result
+end),nil),{indent=true})
