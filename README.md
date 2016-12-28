@@ -2,6 +2,8 @@
 
 ![](https://cdn.rawgit.com/thenumbernine/universe/master/images/screenshot.jpg)
 
+![](https://cdn.rawgit.com/thenumbernine/universe/master/images/screenshot-sdss3-dr12.jpg)
+
 Datasets:
 - 2MASS
 - 2MRS
