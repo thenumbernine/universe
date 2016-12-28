@@ -184,7 +184,7 @@ file['datasets/simbad/results.lua'] = '{\n'
 	.. entries:map(function(entry) return tolua(entry)..',\n' end):concat() .. '}\n'
 
 local ffi = require 'ffi'
-require 'ffi.C.stdio'
+require 'ffi.c.stdio'
 
 --[[
 -- filter out points outside of our galaxy?
