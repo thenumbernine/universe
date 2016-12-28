@@ -189,8 +189,8 @@ print'filtering galaxies...'
 local ffi = require 'ffi'
 require 'ffi.c.stdio'
 
---[[
--- filter out points outside of our galaxy?
+-- [[
+-- filter out points inside of our galaxy?
 -- andromeda is .77 mpc ... milky way is .030660137 mpc
 entries = entries:filter(function(entry)
 	return entry.dist > .1	

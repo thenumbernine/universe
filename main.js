@@ -263,7 +263,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 var mouse;
 var tmpV;
 var tmpQ;
-
+var maxDist = 4100;
 function rescaleViewPos(scale) {
 	if (selected.index !== undefined) {
 		vec3.sub(tmpV, glutil.view.pos, selected.arrayBuf);
@@ -273,7 +273,7 @@ function rescaleViewPos(scale) {
 	var oldlen = vec3.length(tmpV);
 	var len = oldlen * scale;
 	if (len < 1e-5) len = 1e-5;
-	if (len > 1200) len = 1200;
+	if (len > maxDist) len = maxDist;
 	scale = len / oldlen;
 	vec3.scale(tmpV, tmpV, scale);
 	if (selected.index !== undefined) {
@@ -821,8 +821,8 @@ $(document).ready(function() {
 		$.each([
 			{title:'2MRS', url:'2mrs.f32', source:'http://tdc-www.cfa.harvard.edu/2mrs/'},
 			{title:'6dF GS', url:'6dfgs.f32', source:'http://www.aao.gov.au/6dFGS/'},
-			{title:'sdss3-dr10', url:'sdss3-dr10.f32', source:'http://www.sdss3.org/dr10/data_access/bulk.php'},
-			{title:'Simbad', url:'simbad.f32', source:'http://simbad.u-strasbg.fr/simbad/'}
+			{title:'SDSS3-DR12', url:'sdss3-dr12.f32', source:'http://www.sdss3.org/dr12/'},
+			{title:'SIMBAD', url:'simbad.f32', source:'http://simbad.u-strasbg.fr/simbad/'}
 		], function(k,v) {
 			var sceneObj;
 			fileRequest({
