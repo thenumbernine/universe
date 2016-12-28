@@ -1,6 +1,5 @@
-#!/usr/bin/env lua -lluarocks.require
+#!/usr/bin/env lua
 require 'ext'
-local querySimbad = require 'query-simbad'
 
 local convertToMpc = {
 	mpc = 1,
@@ -14,6 +13,7 @@ this uses mesDiameter, which has something like 3340 unique entries
 another option is to use basic.galdim_majaxis and basic.galdim_minaxis, but this is only set for about 553 entries (all but 3 also have basic.galdim_angle)
 --]]
 local function addDiameters(entries)
+	local querySimbad = require 'query-simbad'
 	-- now query diameters..
 	local diamsForOIDs = {}
 	local lastOIDMax = 0
@@ -84,6 +84,7 @@ print('done with diameters')
 end
 
 local function getOnlineData()
+	local querySimbad = require 'query-simbad'
 	local distsForOIDs = {}
 	local lastOIDMax = 0
 	while true do
@@ -96,6 +97,7 @@ local function getOnlineData()
 			.."inner join basic on mesDistance.oidref=basic.oid "
 			.."inner join otypedef on basic.otype=otypedef.otype "
 			.."where oidref > "..lastOIDMax.." "
+			.."and mesDistance.dist is not null "	-- there are 2 null distance entries.  out of a few hundred thousand.  hmm.
 			.."order by oidref asc")
 		if #results.data == 0 then break end
 		for _,row in ipairs(results.data) do
@@ -177,6 +179,7 @@ end
 
 local entries = getOfflineData() or getOnlineData()
 
+os.execute('mkdir -p datasets/simbad')	-- should mkdir be implicit in file writing?  should the file object have a mkdir operation?
 file['datasets/simbad/results.lua'] = '{\n'
 	.. entries:map(function(entry) return tolua(entry)..',\n' end):concat() .. '}\n'
 
@@ -192,8 +195,17 @@ end)
 --]]
 -- [[ filter by otype
 -- TODO dynamically update this via the get-simbad-otypedef + filter desc:lower() by 'galax' ?
-local galaxyOTypes = table{'GiC', 'LeG', 'SC?', 'SCG', 'BiC', 'G', 'bCG', 'EmG', 'AGN', 'SBG', 'H2G', 'GiP', 'Sy1', 'GrG', 'PaG', 'HzG', 'rG', 'Gr?', 'GiG', 'C?G', 'LIN', 'IG', 'LSB', 'SyG', 'G?', 'PoG', 'CGG', 'AG?', 'ClG', 'Sy2'}
-galaxyOTypes = setmetatable(galaxyOTypes:map(function(k) return true,k end), nil)
+local json = require 'dkjson'
+local galaxyOTypes = table.map(
+	json.decode(
+		assert(file['../otypedescs.js'], "please regenerate your ../otypedescs.js with get-simbad-otypesdescs.lua")
+		:match('.-=(.*)')
+	), function(v,k,t)
+		v = v:lower()
+		if v:find('galaxy',1,true) or v:find('galaxies',1,true) then
+			return true,k
+		end
+	end)
 entries = entries:filter(function(entry)
 	return galaxyOTypes[entry.otype]
 end)
