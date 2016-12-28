@@ -34,6 +34,7 @@ USAGE:
 	converts to datasets/simbad/points/points.f32
 	it only uses entries with distance information, of which there are 41876 in simbad
 	from there it only generates points for those beyond the milky way, of which there's only 6008
+	and get-simbad-otypedescs.lua to write ../otypedescs.js and populate the otypeDescs array 
 2) getstats --force --all
 	reads datasets/<set>/points/*.f32 data 
 	writes datasets/<set>/stats/*.stats containing the number of points and the min/max/avg/stddev x/y/z
