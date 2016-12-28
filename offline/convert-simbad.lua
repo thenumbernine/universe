@@ -161,6 +161,10 @@ local function getOnlineData()
 
 	addDiameters(entries)
 	
+	os.execute('mkdir -p datasets/simbad')	-- should mkdir be implicit in file writing?  should the file object have a mkdir operation?
+	file['datasets/simbad/results.lua'] = '{\n'
+		.. entries:map(function(entry) return tolua(entry)..',\n' end):concat() .. '}\n'
+
 	return entries
 end
 
@@ -177,11 +181,10 @@ local function getOfflineData()
 	return entries
 end
 
+print'reading data...'
 local entries = getOfflineData() or getOnlineData()
 
-os.execute('mkdir -p datasets/simbad')	-- should mkdir be implicit in file writing?  should the file object have a mkdir operation?
-file['datasets/simbad/results.lua'] = '{\n'
-	.. entries:map(function(entry) return tolua(entry)..',\n' end):concat() .. '}\n'
+print'filtering galaxies...'
 
 local ffi = require 'ffi'
 require 'ffi.c.stdio'
@@ -211,10 +214,12 @@ entries = entries:filter(function(entry)
 end)
 --]]
 
+print'writing out point file...'
 -- write out point files
 local vtx = ffi.new('float[3]')
 local sizeofvtx = ffi.sizeof('float[3]')
-local pointFile = ffi.C.fopen('datasets/simbad/points/points.f32', 'wb')
+os.execute('mkdir -p datasets/simbad/points')
+local pointFile = assert(ffi.C.fopen('datasets/simbad/points/points.f32', 'wb'))
 local numWritten = 0
 for _,entry in ipairs(entries) do
 	vtx[0], vtx[1], vtx[2] = table.unpack(entry.vtx)
@@ -224,6 +229,7 @@ end
 ffi.C.fclose(pointFile)
 print('wrote '..numWritten..' universe points')
 
+print'writing out catalog spec file...'
 -- write out catalog data and spec files
 local cols = table{'id','otype'}
 local colmaxs = cols:map(function(col)
@@ -234,7 +240,7 @@ end)
 file['datasets/simbad/catalog.specs'] = cols:map(function(col)
 	return col..'='..colmaxs[col]
 end):concat'\n'
-local catalogFile = ffi.C.fopen('datasets/simbad/catalog.dat', 'wb')
+local catalogFile = assert(ffi.C.fopen('datasets/simbad/catalog.dat', 'wb'))
 local tmplen = colmaxs:sup()+1
 local tmp = ffi.new('char[?]', tmplen)
 for _,entry in ipairs(entries) do
@@ -246,6 +252,7 @@ for _,entry in ipairs(entries) do
 end
 ffi.C.fclose(catalogFile)
 
+print'writing out catalog json file...'
 local json = require 'dkjson'
 file['datasets/simbad/catalog.json'] = json.encode(setmetatable(entries:map(function(entry)
 	local result = {}
@@ -254,3 +261,5 @@ file['datasets/simbad/catalog.json'] = json.encode(setmetatable(entries:map(func
 	end
 	return result
 end),nil),{indent=true})
+
+print'done!'

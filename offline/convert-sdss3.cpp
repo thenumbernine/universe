@@ -173,7 +173,7 @@ typedef FITSTrackBehavior<FITSStringColumn> FITSStringTrackColumn;
 struct ConvertSDSS3 {
 	ConvertSDSS3() {}
 	void operator()() {
-		const char *sourceFileName = "datasets/sdss3/source/specObj-dr10.fits";
+		const char *sourceFileName = "datasets/sdss3/source/specObj-dr12.fits";
 		const char *pointDestFileName = "datasets/sdss3/points/points.f32";
 
 		mkdir("datasets/sdss3/points", 777);
