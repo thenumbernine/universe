@@ -199,6 +199,13 @@ end)
 -- [[ filter by otype
 -- TODO dynamically update this via the get-simbad-otypedef + filter desc:lower() by 'galax' ?
 local json = require 'dkjson'
+if not io.fileexists('../otypedescs.js') then
+	print("couldn't find ../otypedescs.js, trying to rebuild it...")
+	os.execute("lua get-simbad-otypedescs.lua")
+	if not io.fileexists('../otypedescs.js') then
+		error("still couldn't find ../otypedescs.js -- something must be wrong")
+	end
+end
 local galaxyOTypes = table.map(
 	json.decode(
 		assert(file['../otypedescs.js'], "please regenerate your ../otypedescs.js with get-simbad-otypesdescs.lua")
