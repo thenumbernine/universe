@@ -135,7 +135,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 			var cols;
 			if (dataSet.title == '2MRS') {
 				cols = ['_2MASS_ID', 'bibliographicCode', 'galaxyName', 'galaxyType', 'sourceOfType'];
-			} else if (dataSet.title == 'Simbad') {
+			} else if (dataSet.title == 'SIMBAD') {
 				cols = ['id', 'otype'];
 				obj.otype = otypeDescs[obj.otype] || obj.otype;
 			}
@@ -154,7 +154,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 					if (v == v) search[j] = v;	//got a valid number
 				}
 				search = search.join(' ');
-			} else if (dataSet.title == 'Simbad') {
+			} else if (dataSet.title == 'SIMBAD') {
 				search = obj.id;
 			}
 			
@@ -233,7 +233,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 		//if (dataSet.title == 'Simbad') {
 		//	buildWikiPage(simbadCatalog[pointIndex]);	//for local json support.  this file is 1mb, so i'm not going to use that online.
 		//} else
-		if (dataSet.title == '2MRS' || dataSet.title == 'Simbad') {
+		if (dataSet.title == '2MRS' || dataSet.title == 'SIMBAD') {
 			targetElem.append($('<img src="loading.gif" style="padding-top:10px; padding-left:10px"/>'));
 			$.ajax({
 				url : 'getpoint.lua',
@@ -852,7 +852,7 @@ $(document).ready(function() {
 						texs : [galaxyTex]
 					});
 					sceneObj.arrayBuffer = arrayBuffer;
-					sceneObj.hidden = v.title != 'Simbad';
+					sceneObj.hidden = v.title != 'SIMBAD';
 					if (sceneObj.hidden) {
 						input.removeAttr('checked');
 					} else {
@@ -910,7 +910,7 @@ $(document).ready(function() {
 					ondraw();
 
 					//I only have search data for 2mrs right now
-					if (v.title == '2MRS' || v.title == 'Simbad') {
+					if (v.title == '2MRS' || v.title == 'SIMBAD') {
 						//substring 1 removes the preface ?
 						var urlkeys = {};
 						var search = $('<a>', {href:location.href}).get(0).search;
