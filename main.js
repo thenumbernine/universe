@@ -772,6 +772,8 @@ function fileRequest(args) {
 
 $(document).ready(function() {
 
+	var initDataSet = $.url().param('dataset') || 'SIMBAD';
+
 	$(['loading.gif']).preload();
 	
 	panel = $('#panel');
@@ -852,7 +854,7 @@ $(document).ready(function() {
 						texs : [galaxyTex]
 					});
 					sceneObj.arrayBuffer = arrayBuffer;
-					sceneObj.hidden = v.title != 'SIMBAD';
+					sceneObj.hidden = v.title != initDataSet;
 					if (sceneObj.hidden) {
 						input.removeAttr('checked');
 					} else {
