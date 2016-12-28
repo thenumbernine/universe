@@ -772,7 +772,7 @@ function fileRequest(args) {
 
 $(document).ready(function() {
 
-	var initDataSet = $.url().param('dataset') || 'SIMBAD';
+	var initDataSet = $.url().param('dataset') || '2MRS';
 
 	$(['loading.gif']).preload();
 	

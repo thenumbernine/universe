@@ -12,9 +12,9 @@ Datasets:
 
 GET parameters:
 	?dataset= specifies the initial dataset:
-		2MRS
+		2MRS		(default)
 		6dF GS
 		SDSS3-DR12
-		SIMBAD (default)
+		SIMBAD 
 
 Check it out at http://christopheremoore.net/universe
