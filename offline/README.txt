@@ -26,14 +26,23 @@ USAGE:
 			uses datasets/2mrs/catalog.specs with datasets/2mrs/source/2mrs_v240/catalog/2mrs_1175_done.dat
 				to create datasets/2mrs/catalog.dat
 1C) convert-6dfgs 
-	converts datasets/6dfsgs/source/* to datasets/6dfgs/points/*.f32
+	converts datasets/6dfgs/source/* to datasets/6dfgs/points/*.f32
+	then copy datasets/6dfgs/points/points.f32 to ../6dfgs.f32 
+
 1D) convert-sdss3
 	converts datasets/sdss3/source/specObj-dr12.fits to datasets/sdss3/points/*.f32
+	then copy datasets/sdss3/points/points.f32 to ../sdss3-dr12.f32
+
 1E) convert-simbad.lua
 	converts to datasets/simbad/points/points.f32
 	it only uses entries with distance information, of which there are 41876 in simbad
 	from there it only generates points for those beyond the milky way, of which there's only 6008
 	and get-simbad-otypedescs.lua to write ../otypedescs.js and populate the otypeDescs array 
+	then copy:
+		datasets/simbad/points/points.f32 to ../simbad.f32
+		datasets/simbad/catalog.dat to ../simbad-catalog.dat
+		datasets/simbad/catalog.specs to ../simbad-catalog.specs
+
 2) getstats --force --all
 	reads datasets/<set>/points/*.f32 data 
 	writes datasets/<set>/stats/*.stats containing the number of points and the min/max/avg/stddev x/y/z
