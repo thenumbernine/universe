@@ -20,7 +20,7 @@ return {
 				local f = assert(io.open(dataset..'-catalog.dat', 'rb'))
 				f:seek('set', pointIndex * rowsize)
 				for _,col in ipairs(catalogSpecs) do
-					local key, size = unpack(col)
+					local key, size = table.unpack(col)
 					size = tonumber(size)
 					local value = f:read(size):match('[^%z]*')	-- trim \0's 
 					if not value then
@@ -37,4 +37,3 @@ return {
 		return 200, headers, coroutine.wrap(text)
 	end
 }
-
