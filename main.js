@@ -725,49 +725,67 @@ args:
 */
 function fileRequest(args) {
 	var div = $('<div>');
-	var loading = $('<span>', {text:'Loading '+args.title}).appendTo(div);
-	var progress = $('<progress>').attr('max', '100').attr('value', '0').appendTo(div);
-	
-	var xhr = new XMLHttpRequest();
-	xhr.open('GET', args.url, true);
-	xhr.responseType = 'arraybuffer';
-	xhr.onprogress = function(e) {
-		if (e.total) {
-			progress.attr('value', parseInt(e.loaded / e.total * 100));
-		}
-	};
-	xhr.onload = function(e) {
-		progress.attr('value', '100');
+	var loading = $('<span>', {text:args.title});
 
-		var input = $('<input>', {
-			type:'checkbox',
-			checked:'checked',
-			change:function(e) {
-				args.toggle(e.target.checked);
-			}
-		}).insertBefore(div);
-		var anchor = $('<a>', {
-			text:args.title, 
-			href:args.source
-		})	.attr('target', '_blank')
-			.insertBefore(div);
-		$('<br>').insertBefore(div);
-		div.remove();
-
-		var arrayBuffer = this.response;
-		var data = new DataView(arrayBuffer);
+	var downloadAnchor;
+	var download = function() {
+		downloadAnchor.remove();
+		var progress = $('<progress>').attr('max', '100').attr('value', '0').appendTo(div);
 		
-		var floatBuffer = new Float32Array(data.byteLength / Float32Array.BYTES_PER_ELEMENT);
-		var len = floatBuffer.length;
-		for (var j = 0; j < len; ++j) {
-			floatBuffer[j] = data.getFloat32(j * Float32Array.BYTES_PER_ELEMENT, true);
-		}
+		var xhr = new XMLHttpRequest();
+		xhr.open('GET', args.url, true);
+		xhr.responseType = 'arraybuffer';
+		xhr.onprogress = function(e) {
+			if (e.total) {
+				progress.attr('value', parseInt(e.loaded / e.total * 100));
+			}
+		};
+		xhr.onload = function(e) {
+			progress.attr('value', '100');
 
-		args.load(floatBuffer, input, anchor);
+			var input = $('<input>', {
+				type:'checkbox',
+				checked:'checked',
+				change:function(e) {
+					args.toggle(e.target.checked);
+				}
+			}).insertBefore(div);
+			var anchor = $('<a>', {
+				text:args.title, 
+				href:args.source
+			})	.attr('target', '_blank')
+				.insertBefore(div);
+			$('<br>').insertBefore(div);
+			div.remove();
+
+			var arrayBuffer = this.response;
+			var data = new DataView(arrayBuffer);
+			
+			var floatBuffer = new Float32Array(data.byteLength / Float32Array.BYTES_PER_ELEMENT);
+			var len = floatBuffer.length;
+			for (var j = 0; j < len; ++j) {
+				floatBuffer[j] = data.getFloat32(j * Float32Array.BYTES_PER_ELEMENT, true);
+			}
+
+			args.load(floatBuffer, input, anchor);
+		};
+		xhr.send();
 	};
-	xhr.send();
-
-	return div;
+	
+	downloadAnchor = $('<a>', {
+		click : function() {
+			download();
+		}
+	});
+	
+	downloadAnchor.appendTo(div);
+	$('<img>', {
+		src : 'download.png'
+	}).appendTo(downloadAnchor);
+	
+	loading.appendTo(div);
+	
+	return {div:div, download:download};
 }
 
 $(document).ready(function() {
@@ -827,7 +845,7 @@ $(document).ready(function() {
 			{title:'SIMBAD', url:'simbad.f32', source:'http://simbad.u-strasbg.fr/simbad/'}
 		], function(k,v) {
 			var sceneObj;
-			fileRequest({
+			var request = fileRequest({
 				title:v.title,
 				url:v.url,
 				source:v.source,
@@ -931,7 +949,9 @@ $(document).ready(function() {
 				toggle:function(enabled) {
 					sceneObj.hidden = !enabled;
 				}
-			}).appendTo(fileRequestDiv);
+			});
+			request.div.appendTo(fileRequestDiv);
+			if (k == 0) request.download();
 		});
 	});
 })
