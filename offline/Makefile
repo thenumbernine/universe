@@ -1,14 +1,15 @@
-#CPPFLAGS= -O3 -I../libs
-CPPFLAGS= -g -O0 -I../libs
+#CPPFLAGS= -O3 -I../libs -fPIC
+CPPFLAGS= -g -O0 -I../libs -fPIC
 
-#LDFLAGS = -lpthread
-LDFLAGS = -g -O0 -lpthread
+#LDFLAGS = -lpthread -fPIC
+LDFLAGS = -g -O0 -lpthread -fPIC
 
 ALL =	\
 	convert-2mass \
 	convert-2mrs \
 	convert-6dfgs \
 	convert-sdss3 \
+	convert-gaia \
 	genvolume \
 	getstats \
 	gettotalstats \
@@ -31,6 +32,9 @@ convert-6dfgs.o: convert-6dfgs.cpp
 	g++ $(CPPFLAGS) -c $^ -o $@ 
 
 convert-sdss3.o: convert-sdss3.cpp
+	g++ $(CPPFLAGS) -c $^ -o $@
+
+convert-gaia.o: convert-gaia.cpp
 	g++ $(CPPFLAGS) -c $^ -o $@
 
 util.o: util.cpp
@@ -77,6 +81,9 @@ convert-6dfgs: convert-6dfgs.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
 convert-sdss3: convert-sdss3.o util.o
+	g++ $^ $(LDFLAGS) -lcfitsio -o $@
+
+convert-gaia: convert-gaia.o stat.o util.o
 	g++ $^ $(LDFLAGS) -lcfitsio -o $@
 
 genvolume: 	genvolume.o stat.o util.o

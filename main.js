@@ -842,7 +842,8 @@ $(document).ready(function() {
 			{title:'2MRS', url:'2mrs.f32', source:'http://tdc-www.cfa.harvard.edu/2mrs/'},
 			{title:'6dF GS', url:'6dfgs.f32', source:'http://www.aao.gov.au/6dFGS/'},
 			{title:'SDSS3-DR12', url:'sdss3-dr12.f32', source:'http://www.sdss3.org/dr12/'},
-			{title:'SIMBAD', url:'simbad.f32', source:'http://simbad.u-strasbg.fr/simbad/'}
+			{title:'SIMBAD', url:'simbad.f32', source:'http://simbad.u-strasbg.fr/simbad/'}/*,
+			{title:'Gaia stars', url:'gaia.f32', source:'http://sci.esa.int/gaia/'}*/
 		], function(k,v) {
 			var sceneObj;
 			var request = fileRequest({

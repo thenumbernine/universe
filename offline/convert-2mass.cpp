@@ -150,7 +150,7 @@ void process(const char *srcfilename, const char *dstfilename) {
 		double ra, dec;
 		double j_m, h_m, k_m, dist_opt;
 		double rad_dec, rad_ra;
-		double r = 0,rDensity = 0;
+		double r = 0, rDensity = 0;
 		float vtx[3];
 		char line[4096];	
 		if (!fgets(line, sizeof(line), srcfile)) break;
@@ -476,4 +476,3 @@ int main(int argc, char **argv) {
 	double deltaTime = profile("batch", batch);
 	cout << (deltaTime / (double)totalFiles) << " seconds per file" << endl;
 }
-
