@@ -8,8 +8,12 @@ universe/
 			source/	<- put the 2MASS redshift survey here.  archive is found at http://tdc-www.cfa.harvard.edu/2mrs/
 				2mrs_v240/	<- should be the only contents of the source dir
 		sdss3/
-			source/ <- put the SDSS3 DR9 2gig FITS file here.  file found at http://data.sdss3.org/sas/dr12/sdss/spectro/redux/specObj-dr12.fits
-				specObj-dr12.fits	<- should be the only contents of the source dir
+			source/ <- put the SDSS3 DR14 5-gigabyte FITS file here.  file found at http://data.sdss3.org/sas/dr14/sdss/spectro/redux/specObj-dr14.fits
+				specObj-dr14.fits	<- should be the only contents of the source dir
+		gaia/
+			source/	<- put the FITS file here, should be found at http://gea.esac.esa.int/archive/ adql form with the query...
+						"select source_id, ra, dec, parallax from gaiadr1.gaia_source where parallax is not null order by source_id asc"
+				results.fits
 
 USAGE:
 
@@ -30,8 +34,8 @@ USAGE:
 	then copy datasets/6dfgs/points/points.f32 to ../6dfgs.f32 
 
 1D) convert-sdss3
-	converts datasets/sdss3/source/specObj-dr12.fits to datasets/sdss3/points/*.f32
-	then copy datasets/sdss3/points/points.f32 to ../sdss3-dr12.f32
+	converts datasets/sdss3/source/specObj-dr14.fits to datasets/sdss3/points/*.f32
+	then copy datasets/sdss3/points/points.f32 to ../sdss3-dr14.f32
 
 1E) convert-simbad.lua
 	converts to datasets/simbad/points/points.f32
@@ -42,6 +46,10 @@ USAGE:
 		datasets/simbad/points/points.f32 to ../simbad.f32
 		datasets/simbad/catalog.dat to ../simbad-catalog.dat
 		datasets/simbad/catalog.specs to ../simbad-catalog.specs
+
+1F) convert-gaia
+	converts datasets/gaia/source/results.fits to converts datasets/gaia/points/*.f32
+
 
 2) getstats --force --all
 	reads datasets/<set>/points/*.f32 data 

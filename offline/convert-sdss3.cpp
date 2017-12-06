@@ -12,6 +12,7 @@ convert-sdss3			generates point file
 #include <map>
 #include <string>
 #include <sstream>
+#include <memory>
 #include <limits>
 
 #include "fitsio.h"
@@ -173,7 +174,7 @@ typedef FITSTrackBehavior<FITSStringColumn> FITSStringTrackColumn;
 struct ConvertSDSS3 {
 	ConvertSDSS3() {}
 	void operator()() {
-		const char *sourceFileName = "datasets/sdss3/source/specObj-dr12.fits";
+		const char *sourceFileName = "datasets/sdss3/source/specObj-dr14.fits";
 		const char *pointDestFileName = "datasets/sdss3/points/points.f32";
 
 		mkdir("datasets", 0775);
@@ -221,146 +222,146 @@ struct ConvertSDSS3 {
 		brightness? color? shape?
 		catalog name? NGC_*** MS_*** or whatever other identifier?
 		*/
-		vector<FITSColumn*> columns;
-		vector<IFITSTrackBehavior *> trackColumns;
+		vector<std::shared_ptr<FITSColumn>> columns;
+		vector<std::shared_ptr<IFITSTrackBehavior>> trackColumns;
 	
 		int readStringStartIndex = columns.size();
 			
 		if (readStringDescs) {		//catalog stuff?
-			columns.push_back(new FITSStringColumn(file, "SURVEY"));
-			columns.push_back(new FITSStringColumn(file, "INSTRUMENT"));
-			columns.push_back(new FITSStringColumn(file, "CHUNK"));
-			columns.push_back(new FITSStringColumn(file, "PROGRAMNAME"));
-			columns.push_back(new FITSStringColumn(file, "PLATERUN"));
-			columns.push_back(new FITSStringColumn(file, "PLATEQUALITY"));
-			columns.push_back(new FITSTypedColumn<float>(file, "PLATESN2"));
-			columns.push_back(new FITSTypedColumn<float>(file, "DEREDSN2"));
-			columns.push_back(new FITSTypedColumn<float>(file, "LAMBDA_EFF"));
-			columns.push_back(new FITSTypedColumn<int>(file, "BLUEFIBER"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ZOFFSET"));
-			columns.push_back(new FITSTypedColumn<float>(file, "SNTURNOFF"));
-			columns.push_back(new FITSTypedColumn<int>(file, "NTURNOFF"));
-			columns.push_back(new FITSTypedColumn<bool>(file, "SPECPRIMARY"));
-			columns.push_back(new FITSTypedColumn<bool>(file, "SPECSDSS"));
-			columns.push_back(new FITSTypedColumn<bool>(file, "SPECLEGACY"));
-			columns.push_back(new FITSTypedColumn<bool>(file, "SPECSEGUE"));
-			columns.push_back(new FITSTypedColumn<bool>(file, "SPECSEGUE1"));
-			columns.push_back(new FITSTypedColumn<bool>(file, "SPECSEGUE2"));
-			columns.push_back(new FITSTypedColumn<bool>(file, "SPECBOSS"));
-			columns.push_back(new FITSTypedColumn<int>(file, "BOSS_SPECOBJ_ID"));
-			columns.push_back(new FITSStringColumn(file, "SPECOBJID"));
-			columns.push_back(new FITSStringColumn(file, "FLUXOBJID"));
-			columns.push_back(new FITSStringColumn(file, "BESTOBJID"));
-			columns.push_back(new FITSStringColumn(file, "TARGETOBJID"));
-			columns.push_back(new FITSStringColumn(file, "PLATEID"));
-			columns.push_back(new FITSTypedColumn<short>(file, "NSPECOBS"));
-			columns.push_back(new FITSStringColumn(file, "FIRSTRELEASE"));
-			columns.push_back(new FITSStringColumn(file, "RUN2D"));
-			columns.push_back(new FITSStringColumn(file, "RUN1D"));
-			columns.push_back(new FITSTypedColumn<int>(file, "DESIGNID"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "SURVEY"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "INSTRUMENT"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "CHUNK"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "PROGRAMNAME"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "PLATERUN"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "PLATEQUALITY"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "PLATESN2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "DEREDSN2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "LAMBDA_EFF"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "BLUEFIBER"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ZOFFSET"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "SNTURNOFF"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "NTURNOFF"));
+			columns.push_back(std::make_shared<FITSTypedColumn<bool>>(file, "SPECPRIMARY"));
+			columns.push_back(std::make_shared<FITSTypedColumn<bool>>(file, "SPECSDSS"));
+			columns.push_back(std::make_shared<FITSTypedColumn<bool>>(file, "SPECLEGACY"));
+			columns.push_back(std::make_shared<FITSTypedColumn<bool>>(file, "SPECSEGUE"));
+			columns.push_back(std::make_shared<FITSTypedColumn<bool>>(file, "SPECSEGUE1"));
+			columns.push_back(std::make_shared<FITSTypedColumn<bool>>(file, "SPECSEGUE2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<bool>>(file, "SPECBOSS"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "BOSS_SPECOBJ_ID"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "SPECOBJID"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "FLUXOBJID"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "BESTOBJID"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "TARGETOBJID"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "PLATEID"));
+			columns.push_back(std::make_shared<FITSTypedColumn<short>>(file, "NSPECOBS"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "FIRSTRELEASE"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "RUN2D"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "RUN1D"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "DESIGNID"));
 		}
-		FITSTypedColumn<double> *col_CX = new FITSTypedColumn<double>(file, "CX"); columns.push_back(col_CX);
-		FITSTypedColumn<double> *col_CY = new FITSTypedColumn<double>(file, "CY"); columns.push_back(col_CY);
-		FITSTypedColumn<double> *col_CZ = new FITSTypedColumn<double>(file, "CZ"); columns.push_back(col_CZ);
+		std::shared_ptr<FITSTypedColumn<double>> col_CX = std::make_shared<FITSTypedColumn<double>>(file, "CX"); columns.push_back(col_CX);
+		std::shared_ptr<FITSTypedColumn<double>> col_CY = std::make_shared<FITSTypedColumn<double>>(file, "CY"); columns.push_back(col_CY);
+		std::shared_ptr<FITSTypedColumn<double>> col_CZ = std::make_shared<FITSTypedColumn<double>>(file, "CZ"); columns.push_back(col_CZ);
 		if (readStringDescs) {
-			columns.push_back(new FITSTypedColumn<float>(file, "XFOCAL"));
-			columns.push_back(new FITSTypedColumn<float>(file, "YFOCAL"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "XFOCAL"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "YFOCAL"));
 		}
-		FITSStringTrackColumn *col_SOURCETYPE = new FITSStringTrackColumn(file, "SOURCETYPE"); columns.push_back(col_SOURCETYPE);
-		FITSStringTrackColumn *col_TARGETTYPE = new FITSStringTrackColumn(file, "TARGETTYPE"); columns.push_back(col_TARGETTYPE);
+		std::shared_ptr<FITSStringTrackColumn> col_SOURCETYPE = std::make_shared<FITSStringTrackColumn>(file, "SOURCETYPE"); columns.push_back(col_SOURCETYPE);
+		std::shared_ptr<FITSStringTrackColumn> col_TARGETTYPE = std::make_shared<FITSStringTrackColumn>(file, "TARGETTYPE"); columns.push_back(col_TARGETTYPE);
 		if (readStringDescs) {
-			columns.push_back(new FITSTypedColumn<int>(file, "PRIMTARGET"));
-			columns.push_back(new FITSTypedColumn<int>(file, "SECTARGET"));
-			columns.push_back(new FITSTypedColumn<int>(file, "LEGACY_TARGET1"));
-			columns.push_back(new FITSTypedColumn<int>(file, "LEGACY_TARGET2"));
-			columns.push_back(new FITSTypedColumn<long long>(file, "SPECIAL_TARGET1"));
-			columns.push_back(new FITSTypedColumn<long long>(file, "SPECIAL_TARGET2"));
-			columns.push_back(new FITSTypedColumn<int>(file, "SEGUE1_TARGET1"));
-			columns.push_back(new FITSTypedColumn<int>(file, "SEGUE1_TARGET2"));
-			columns.push_back(new FITSTypedColumn<int>(file, "SEGUE2_TARGET1"));
-			columns.push_back(new FITSTypedColumn<int>(file, "SEGUE2_TARGET2"));
-			columns.push_back(new FITSTypedColumn<int>(file, "MARVELS_TARGET1"));
-			columns.push_back(new FITSTypedColumn<int>(file, "MARVELS_TARGET2"));
-			columns.push_back(new FITSTypedColumn<long long>(file, "BOSS_TARGET1"));
-			columns.push_back(new FITSTypedColumn<long long>(file, "BOSS_TARGET2"));
-			columns.push_back(new FITSTypedColumn<long long>(file, "ANCILLARY_TARGET1"));
-			columns.push_back(new FITSTypedColumn<long long>(file, "ANCILLARY_TARGET2"));
-			columns.push_back(new FITSTypedColumn<short>(file, "SPECTROGRAPHID"));
-			columns.push_back(new FITSTypedColumn<int>(file, "PLATE"));
-			columns.push_back(new FITSTypedColumn<int>(file, "TILE"));
-			columns.push_back(new FITSTypedColumn<int>(file, "MJD"));
-			columns.push_back(new FITSTypedColumn<int>(file, "FIBERID"));
-			//columns.push_back(new FITSTypedColumn<int[5]>(file, "OBJID"));
-			columns.push_back(new FITSTypedColumn<double>(file, "PLUG_RA"));
-			columns.push_back(new FITSTypedColumn<double>(file, "PLUG_DEC"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "PRIMTARGET"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "SECTARGET"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "LEGACY_TARGET1"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "LEGACY_TARGET2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<long long>>(file, "SPECIAL_TARGET1"));
+			columns.push_back(std::make_shared<FITSTypedColumn<long long>>(file, "SPECIAL_TARGET2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "SEGUE1_TARGET1"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "SEGUE1_TARGET2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "SEGUE2_TARGET1"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "SEGUE2_TARGET2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "MARVELS_TARGET1"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "MARVELS_TARGET2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<long long>>(file, "BOSS_TARGET1"));
+			columns.push_back(std::make_shared<FITSTypedColumn<long long>>(file, "BOSS_TARGET2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<long long>>(file, "ANCILLARY_TARGET1"));
+			columns.push_back(std::make_shared<FITSTypedColumn<long long>>(file, "ANCILLARY_TARGET2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<short>>(file, "SPECTROGRAPHID"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "PLATE"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "TILE"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "MJD"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "FIBERID"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<int[5]>>(file, "OBJID"));
+			columns.push_back(std::make_shared<FITSTypedColumn<double>>(file, "PLUG_RA"));
+			columns.push_back(std::make_shared<FITSTypedColumn<double>>(file, "PLUG_DEC"));
 		}
-		FITSStringTrackColumn *col_CLASS = new FITSStringTrackColumn(file, "CLASS"); columns.push_back(col_CLASS);
-		FITSStringTrackColumn *col_SUBCLASS = new FITSStringTrackColumn(file, "SUBCLASS"); columns.push_back(col_SUBCLASS);
-		FITSTypedColumn<float> *col_Z = new FITSTypedColumn<float>(file, "Z"); columns.push_back(col_Z);
+		std::shared_ptr<FITSStringTrackColumn> col_CLASS = std::make_shared<FITSStringTrackColumn>(file, "CLASS"); columns.push_back(col_CLASS);
+		std::shared_ptr<FITSStringTrackColumn> col_SUBCLASS = std::make_shared<FITSStringTrackColumn>(file, "SUBCLASS"); columns.push_back(col_SUBCLASS);
+		std::shared_ptr<FITSTypedColumn<float>> col_Z = std::make_shared<FITSTypedColumn<float>>(file, "Z"); columns.push_back(col_Z);
 		if (readStringDescs) {
-			columns.push_back(new FITSTypedColumn<float>(file, "Z_ERR"));
-			columns.push_back(new FITSTypedColumn<float>(file, "RCHI2"));
-			columns.push_back(new FITSTypedColumn<int>(file, "DOF"));
-			columns.push_back(new FITSTypedColumn<float>(file, "RCHI2DIFF"));
-			columns.push_back(new FITSStringColumn(file, "TFILE"));
-			//columns.push_back(new FITSTypedColumn<float[10]>(file, "TCOLUMN"));
-			columns.push_back(new FITSTypedColumn<int>(file, "NPOLY"));
-			columns.push_back(new FITSStringColumn(file, "TFILE"));
-			//columns.push_back(new FITSTypedColumn<float[10]>(file, "THETA"));
-			columns.push_back(new FITSTypedColumn<float>(file, "VDISP"));
-			columns.push_back(new FITSTypedColumn<float>(file, "VDISP_ERR"));
-			columns.push_back(new FITSTypedColumn<float>(file, "VDISPZ"));
-			columns.push_back(new FITSTypedColumn<float>(file, "VDISPZ_ERR"));
-			columns.push_back(new FITSTypedColumn<int>(file, "VDISPDOF"));
-			columns.push_back(new FITSTypedColumn<float>(file, "VDISPCHI2"));
-			columns.push_back(new FITSTypedColumn<float>(file, "VDISPNPIX"));
-			columns.push_back(new FITSTypedColumn<float>(file, "WAVEMIN"));
-			columns.push_back(new FITSTypedColumn<float>(file, "WAVEMAX"));
-			columns.push_back(new FITSTypedColumn<float>(file, "WCOVERAGE"));
-			columns.push_back(new FITSTypedColumn<int>(file, "ZWARNING"));
-			columns.push_back(new FITSTypedColumn<float>(file, "SN_MEDIAN_ALL"));
-			//columns.push_back(new FITSTypedColumn<float[5]>(file, "SN_MEDIAN"));
-			columns.push_back(new FITSTypedColumn<float>(file, "CHI68P"));
-			//columns.push_back(new FITSTypedColumn<float[10]>(file, "FRACNSIGMA"));
-			//columns.push_back(new FITSTypedColumn<float[10]>(file, "FRACNSIGHI"));
-			//columns.push_back(new FITSTypedColumn<float[10]>(file, "FRACNSIGLO"));
-			//columns.push_back(new FITSTypedColumn<float[5]>(file, "SPECTROFLUX"));
-			//columns.push_back(new FITSTypedColumn<float[5]>(file, "SPECTROFLUX_IVAR"));
-			//columns.push_back(new FITSTypedColumn<float[5]>(file, "SPECTROSYNFLUX"));
-			//columns.push_back(new FITSTypedColumn<float[5]>(file, "SPECTROSYNFLUX_IVAR"));
-			//columns.push_back(new FITSTypedColumn<float[5]>(file, "SPECTROSKYFLUX"));
-			columns.push_back(new FITSTypedColumn<int>(file, "ANYANDMASK"));
-			columns.push_back(new FITSTypedColumn<int>(file, "ANYORMASK"));
-			columns.push_back(new FITSTypedColumn<float>(file, "SPEC1_G"));
-			columns.push_back(new FITSTypedColumn<float>(file, "SPEC1_R"));
-			columns.push_back(new FITSTypedColumn<float>(file, "SPEC1_I"));
-			columns.push_back(new FITSTypedColumn<float>(file, "SPEC2_G"));
-			columns.push_back(new FITSTypedColumn<float>(file, "SPEC2_R"));
-			columns.push_back(new FITSTypedColumn<float>(file, "SPEC2_I"));
-			columns.push_back(new FITSStringColumn(file, "ELODIE_FILENAME"));
-			columns.push_back(new FITSStringColumn(file, "ELODIE_OBJECT"));
-			columns.push_back(new FITSStringColumn(file, "ELODIE_SPTYPE"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ELODIE_BV"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ELODIE_TEFF"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ELODIE_LOGG"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ELODIE_FEH"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ELODIE_Z"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ELODIE_Z_ERR"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ELODIE_Z_MODELERR"));
-			columns.push_back(new FITSTypedColumn<float>(file, "ELODIE_RCHI2"));
-			columns.push_back(new FITSTypedColumn<int>(file, "ELODIE_DOF"));
-			columns.push_back(new FITSTypedColumn<float>(file, "Z_NOQSO"));
-			columns.push_back(new FITSTypedColumn<float>(file, "Z_ERR_NOQSO"));
-			columns.push_back(new FITSTypedColumn<int>(file, "ZWARNING_NOQSO"));
-			columns.push_back(new FITSStringColumn(file, "CLASS_NOQSO"));
-			columns.push_back(new FITSStringColumn(file, "SUBCLASS_NOQSO"));
-			columns.push_back(new FITSTypedColumn<float>(file, "RCHI2DIFF_NOQSO"));
-			columns.push_back(new FITSTypedColumn<float>(file, "Z_PERSON"));
-			columns.push_back(new FITSTypedColumn<int>(file, "CLASS_PERSON"));
-			columns.push_back(new FITSTypedColumn<int>(file, "Z_CONF_PERSON"));
-			columns.push_back(new FITSStringColumn(file, "COMMENTS_PERSON"));
-			//columns.push_back(new FITSTypedColumn<float[5]>(file, "CALIBFLUX"));
-			//columns.push_back(new FITSTypedColumn<float[5]>(file, "CALIBFLUX_IVAR"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "Z_ERR"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "RCHI2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "DOF"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "RCHI2DIFF"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "TFILE"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[10]>>(file, "TCOLUMN"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "NPOLY"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "TFILE"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[10]>>(file, "THETA"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "VDISP"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "VDISP_ERR"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "VDISPZ"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "VDISPZ_ERR"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "VDISPDOF"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "VDISPCHI2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "VDISPNPIX"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "WAVEMIN"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "WAVEMAX"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "WCOVERAGE"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "ZWARNING"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "SN_MEDIAN_ALL"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[5]>>(file, "SN_MEDIAN"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "CHI68P"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[10]>>(file, "FRACNSIGMA"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[10]>>(file, "FRACNSIGHI"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[10]>>(file, "FRACNSIGLO"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[5]>>(file, "SPECTROFLUX"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[5]>>(file, "SPECTROFLUX_IVAR"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[5]>>(file, "SPECTROSYNFLUX"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[5]>>(file, "SPECTROSYNFLUX_IVAR"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[5]>>(file, "SPECTROSKYFLUX"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "ANYANDMASK"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "ANYORMASK"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "SPEC1_G"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "SPEC1_R"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "SPEC1_I"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "SPEC2_G"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "SPEC2_R"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "SPEC2_I"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "ELODIE_FILENAME"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "ELODIE_OBJECT"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "ELODIE_SPTYPE"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ELODIE_BV"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ELODIE_TEFF"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ELODIE_LOGG"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ELODIE_FEH"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ELODIE_Z"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ELODIE_Z_ERR"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ELODIE_Z_MODELERR"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "ELODIE_RCHI2"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "ELODIE_DOF"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "Z_NOQSO"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "Z_ERR_NOQSO"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "ZWARNING_NOQSO"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "CLASS_NOQSO"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "SUBCLASS_NOQSO"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "RCHI2DIFF_NOQSO"));
+			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "Z_PERSON"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "CLASS_PERSON"));
+			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "Z_CONF_PERSON"));
+			columns.push_back(std::make_shared<FITSStringColumn>(file, "COMMENTS_PERSON"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[5]>>(file, "CALIBFLUX"));
+			//columns.push_back(std::make_shared<FITSTypedColumn<float[5]>>(file, "CALIBFLUX_IVAR"));
 		}
 
 		if (trackStrings) {
@@ -372,7 +373,7 @@ struct ConvertSDSS3 {
 
 
 		if (verbose) {
-			for (vector<FITSColumn*>::iterator i = columns.begin(); i != columns.end(); ++i) {
+			for (vector<std::shared_ptr<FITSColumn>>::iterator i = columns.begin(); i != columns.end(); ++i) {
 				cout << " col num " << (*i)->colName << " = " << (*i)->colNum << endl;
 			}
 		}	
@@ -404,8 +405,9 @@ struct ConvertSDSS3 {
 			double value_CZ = col_CZ->read(rowNum);
 			float value_Z = col_Z->read(rowNum);
 			string value_CLASS = col_CLASS->read(rowNum);
+			//TODO also use value_OBJTYPE & col_OBJTYPE?
 
-			for (vector<IFITSTrackBehavior*>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
+			for (vector<std::shared_ptr<IFITSTrackBehavior>>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
 				(*i)->track(rowNum);
 			}
 			
@@ -420,7 +422,7 @@ struct ConvertSDSS3 {
 			}
 			
 			if (readStringDescs ) {	//catalog stuff
-				for (vector<FITSColumn*>::iterator i = columns.begin() + readStringStartIndex; i != columns.end(); ++i) {
+				for (vector<std::shared_ptr<FITSColumn>>::iterator i = columns.begin() + readStringStartIndex; i != columns.end(); ++i) {
 					cout << (*i)->colName << " = " << (*i)->readStr(rowNum) << endl;
 				}
 			}
@@ -460,7 +462,7 @@ struct ConvertSDSS3 {
 			printf("\n");
 		}
 
-		for (vector<IFITSTrackBehavior*>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
+		for (vector<std::shared_ptr<IFITSTrackBehavior>>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
 			(*i)->printAll();
 		}
 
