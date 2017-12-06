@@ -80,7 +80,7 @@ convert-2mrs: convert-2mrs.o util.o stat.o
 convert-6dfgs: convert-6dfgs.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-convert-sdss3: convert-sdss3.o util.o
+convert-sdss3: convert-sdss3.o stat.o util.o
 	g++ $^ $(LDFLAGS) -lcfitsio -o $@
 
 convert-gaia: convert-gaia.o stat.o util.o

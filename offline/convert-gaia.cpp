@@ -16,9 +16,9 @@ convert-gaia			generates point file
 #include <sstream>
 #include <limits>
 
-#include "stat.h"
 #include "fitsio.h"
 
+#include "stat.h"
 #include "exception.h"
 #include "util.h"
 #include "defs.h"

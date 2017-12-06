@@ -17,6 +17,7 @@ convert-sdss3			generates point file
 
 #include "fitsio.h"
 
+#include "stat.h"
 #include "exception.h"
 #include "util.h"
 #include "defs.h"
@@ -32,6 +33,7 @@ bool useMinRedshift = false;
 bool readStringDescs = false;
 bool trackStrings = false;
 bool omitWrite = false;
+bool showRanges = false;
 
 //notice: "Visualization of large scale structure from the Sloan Digital Sky Survey" by M U SubbaRao, M A Aragón-Calvo, H W Chen, J M Quashnock, A S Szalay and D G York in New Journal of Physics
 // samples redshift from 0.01 < z < 0.11
@@ -389,6 +391,14 @@ struct ConvertSDSS3 {
 			}
 		}	
 
+		//non spherical
+		Stat stat_cx, stat_cy, stat_cz;
+		
+		//spherical
+		Stat stat_ra, stat_dec;
+		
+		Stat stat_z;
+
 		//TODO assert columns are of the type  matching what I will be reading
 
 		int numReadable = 0;
@@ -455,6 +465,14 @@ struct ConvertSDSS3 {
 					&& vtx[2] != INFINITY && vtx[2] != -INFINITY
 				) {
 					numReadable++;	
+					
+					if (showRanges) {
+						stat_z.accum(value_Z, numReadable);
+						stat_cx.accum(value_CX, numReadable);
+						stat_cy.accum(value_CY, numReadable);
+						stat_cz.accum(value_CZ, numReadable);
+					}
+					
 					if (!omitWrite) fwrite(vtx, sizeof(vtx), 1, pointDestFile);
 				}
 				if (verbose) {
@@ -481,6 +499,13 @@ struct ConvertSDSS3 {
 					&& vtx[2] != INFINITY && vtx[2] != -INFINITY
 				) {
 					numReadable++;	
+					
+					if (showRanges) {
+						stat_z.accum(value_Z, numReadable);
+						stat_ra.accum(value_RA, numReadable);
+						stat_dec.accum(value_DEC, numReadable);
+					}
+					
 					if (!omitWrite) fwrite(vtx, sizeof(vtx), 1, pointDestFile);
 				}	
 			}
@@ -507,6 +532,25 @@ struct ConvertSDSS3 {
 		if (!omitWrite) fclose(pointDestFile);
 		
 		std::cout << "num readable: " << numReadable << std::endl;
+	
+		if (showRanges) {
+			std::cout 
+				<< stat_z.rw("z") << std::endl
+			;
+			if (!spherical) {
+				std::cout 
+					<< stat_cx.rw("cx") << std::endl
+					<< stat_cy.rw("cy") << std::endl
+					<< stat_cz.rw("cz") << std::endl
+				;
+			} else {
+				std::cout
+					<< stat_ra.rw("ra") << std::endl
+					<< stat_dec.rw("dec") << std::endl
+				;
+			}
+		}
+
 	}
 };
 
@@ -516,6 +560,7 @@ void showhelp() {
 	<< "options:" << std::endl
 	<< "	--verbose				output values" << std::endl
 	<< "	--wait					wait for keypress after each entry.  'q' stops" << std::endl
+	<< "	--show-ranges			show ranges of certain fields" << std::endl
 	<< "	--read-desc				reads string descriptions" << std::endl
 	<< "	--min-redshift <cz> 	specify minimum redshift" << std::endl
 	<< "	--enum-class			enumerate all classes" << std::endl
@@ -541,6 +586,8 @@ int main(int argc, char **argv) {
 		} else if (!strcmp(argv[i], "--min-redshift") && i < argc-1) {
 			useMinRedshift = true;
 			minRedshift = atof(argv[++i]);
+		} else if (!strcmp(argv[i], "--show-ranges")) {
+			showRanges = true;
 		} else if (!strcasecmp(argv[i], "--read-desc")) {
 			readStringDescs  = true;
 		} else if (!strcasecmp(argv[i], "--enum-class")) {
