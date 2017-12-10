@@ -8,13 +8,13 @@ Datasets:
 - 2MASS
 - 2MRS
 - 6DFGS
-- SDSS3-DR12
+- SDSS3-DR14
 
 GET parameters:
 	?dataset= specifies the initial dataset:
 		2MRS		(default)
 		6dF GS
-		SDSS3-DR12
+		SDSS3-DR14
 		SIMBAD 
 
 Check it out at http://christopheremoore.net/universe
