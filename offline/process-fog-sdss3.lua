@@ -429,7 +429,7 @@ typedef _<?=env.real?>3 real3;
 		end
 	end
 
-	doClusteringOnCPU()
+	--doClusteringOnCPU()
 	gpuClustering = GPUClustering()	
 
 	--[[
@@ -558,6 +558,10 @@ function App:updateGUI()
 	
 	if ig.igButton'reset clusters' then
 		resetClusters()
+	end
+
+	if ig.igButton'CPU clustering' then
+		doClusteringOnCPU()
 	end
 end
 

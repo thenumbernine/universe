@@ -853,7 +853,8 @@ $(document).ready(function() {
 				load:function(arrayBuffer, input) {
 					
 					var pointVtxBuf = new glutil.ArrayBuffer({
-						data : arrayBuffer
+						data : arrayBuffer,
+						usage : gl.STATIC_DRAW
 					});
 
 					var dataSet = {
