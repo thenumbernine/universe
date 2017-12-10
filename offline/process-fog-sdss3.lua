@@ -26,9 +26,11 @@ local App = class(Orbit(View.apply(ImGuiApp)))
 App.title = 'FoG tool'
 App.viewDist = 2
 
+local redshiftMin = .01
+
 local cpuPtsBuf, cpuPtsXYZBuf
 local cpuColorBuf
-local glPtsBufID = ffi.new'GLuint[1]'
+local glPtsXYZBufID = ffi.new'GLuint[1]'
 local glColorBufID = ffi.new'GLuint[1]'
 local n
 local clPtsBuf, clPtsXYZBuf
@@ -46,23 +48,31 @@ SubbaRao says b_perp = 1/8 b_par
 n_g = 0.00673 to 0.02434
 
 the 2008 SubbaRao paper has all sorts of symbol screwups (swapping perpendicul for parallel, swapping + and - ...)
-D_par_ij = (c/H0) (z_i + z_j) sin (theta_ij / 2)
-D_perp_ij = (c/H0) |z_i - z_j|
+so I'm just going by intuition here ... 
+...parallel distance would be difference in r's, i.e. difference in redshifts
+...perpendicular distance would be r theta, where r = .5 (r1 + r2), and theta ~ sin theta at close distances, so (r1 + r2) (.5 theta) ~ (r1 + r2) sin(.5 theta), which can be represented as a half angle of the sin written wrt the dot product 
+...and the perpendicular distance should be 1/8th the parallel distance so clusters form greater in the radial direction
+D_perp_ij = (c/H0) (z_i + z_j) sin (theta_ij / 2)
+D_par_ij = (c/H0) |z_i - z_j|
 
 link if
-D_par_ij < b_par 1/cbrt(n_g)
 D_perp_ij < b_perp 1/cbrt(n_g)
+D_par_ij < b_par 1/cbrt(n_g)
 
 for b_par = 1.5 and n_g = .02434 we get D_par_threshold = 5.1758824097784
 for b_par = 1.5 and n_g = .00673 we get D_par_threshold = 7.9448597976334
 c/H0 |z_i - z_j| would be the distance in Mpc
 --]]
 -- [[
-local b_par = 1.5
-local n_g = .00655
---local n_g = .1
+--local b_par = 1.5
+--local b_perp = .11
+--local n_g = .00673
+--local b_perp = b_par / 8
+local b_perp = .001
+local b_par = b_perp * 8
+local n_g = .02434
 local D_par_threshold = b_par / n_g ^ (1/3)
-local D_perp_threshold = 1/8 * D_par_threshold	-- because b_perp = 1/8 b_par
+local D_perp_threshold = b_perp / n_g ^ (1/3)
 --]]
 --[[
 local D_par_threshold = .001
@@ -90,13 +100,15 @@ function doClusteringOnCPU()
 		--- xyz is z, ra, dec.  z is redshift fraction of c 0 to 1, ra and dec are degrees.  ra is 0 to 360, dec is -90 to 90
 		local pt = cpuPtsBuf[i]
 		local z, ra, dec = pt.x, pt.y, pt.z
-		z = z * c / H0
-		local zi = math.clamp(math.floor((z - zmin) / dz), 0, zbins-1)
-		local rai = math.clamp(math.floor((ra - ramin) / dra), 0, rabins-1)
-		local deci = math.clamp(math.floor((dec - decmin) / ddec), 0, decbins-1)
-		local binIndex = zi + zbins * (rai + rabins * (deci))
-		bins[binIndex] = bins[binIndex] or {}
-		table.insert(bins[binIndex], i)
+		if z > redshiftMin then
+			z = z * c / H0
+			local zi = math.clamp(math.floor((z - zmin) / dz), 0, zbins-1)
+			local rai = math.clamp(math.floor((ra - ramin) / dra), 0, rabins-1)
+			local deci = math.clamp(math.floor((dec - decmin) / ddec), 0, decbins-1)
+			local binIndex = zi + zbins * (rai + rabins * (deci))
+			bins[binIndex] = bins[binIndex] or {}
+			table.insert(bins[binIndex], i)
+		end
 	end
 	print('...took '..(os.clock() - startTime)..' seconds')
 	
@@ -156,18 +168,17 @@ end
 												-- test distances between points i and j
 												local pi, pj = cpuPtsBuf[i], cpuPtsBuf[j]
 												local pi_z, pj_z = pi.s0, pj.s0
-												local D_perp = math.abs(pi_z - pj_z)		-- 2006 Berlind says -, 2008 SubbaRao says +
-												if D_perp <= D_perp_threshold then
+												local D_par = math.abs(pi_z - pj_z)		-- 2006 Berlind says -, 2008 SubbaRao says +
+												if D_par <= D_par_threshold then
 													local pi_xyz, pj_xyz = cpuPtsXYZBuf[i], cpuPtsXYZBuf[j]
 													local dot = pi_xyz.x * pj_xyz.x 
 														+ pi_xyz.y * pj_xyz.y 
 														+ pi_xyz.z * pj_xyz.z
 													dot = math.clamp(dot, -1, 1)
 													local halfsinthSq = math.abs(.5 * (1 - dot))
-													-- TODO the 'half sin theta' part means we should adjust our draj/ddecj based on their max sin theta as well
-													local D_parSq = (pi_z + pj_z)
-													D_parSq = D_parSq * D_parSq * halfsinthSq
-													if D_parSq < D_par_threshold * D_par_threshold then
+													local D_perpSq = (pi_z + pj_z)
+													D_perpSq = D_perpSq * D_perpSq * halfsinthSq
+													if D_perpSq < D_perp_threshold * D_perp_threshold then
 														-- WE'RE LINKED
 														local ci = clusterID[i]
 														local cj = clusterID[j] 
@@ -236,7 +247,7 @@ end
 		local cid = clusterID[i]
 		--assert(cid ~= 0, "found a pt without a cluster!")
 		for j=0,2 do
-			cpuColorBuf[j+3*i] = colors[cid]:ptr()[j]
+			cpuColorBuf[i].s[j] = colors[cid]:ptr()[j]
 		end
 	end
 	print('...took '..(os.clock() - startTime)..' seconds')
@@ -287,14 +298,16 @@ function GPUClustering:init()
 		
 		real pi_z = pi.w;
 		real pj_z = pj.w;
-		real D_perp = fabs(pi_z - pj_z);
-		if (D_perp < <?=clnumber(D_perp_threshold)?>) {
+		if (pi_z < <?=clnumber(redshiftMin)?> || pj_z < <?=clnumber(redshiftMin)?>) continue;
+
+		real D_par = fabs(pi_z - pj_z);
+		if (D_par < <?=clnumber(D_par_threshold)?>) {
 			real dot = pi.x * pj.x + pi.y * pj.y + pi.z * pj.z;
 			dot = clamp(dot, -1., 1.);
-			real halfsinthSq = .5 * (1. - dot);
+			real halfsinthSq = fabs(.5 * (1. - dot));
 			
-			real D_parSq = pi_z + pj_z; D_parSq *= D_parSq * halfsinthSq;
-			if (D_parSq < <?=clnumber(D_par_threshold)?>) {
+			real D_perpSq = pi_z + pj_z; D_perpSq *= D_perpSq * halfsinthSq;
+			if (D_perpSq < <?=clnumber(D_perp_threshold * D_perp_threshold)?>) {
 				if (index > neighbor) {
 					cluster[neighbor] = cluster[index];
 				} else {
@@ -308,6 +321,7 @@ function GPUClustering:init()
 	clnumber = clnumber,
 	D_par_threshold = D_par_threshold,
 	D_perp_threshold = D_perp_threshold,
+	redshiftMin = redshiftMin,
 }),
 	}
 	self.updateKernel:compile()
@@ -347,7 +361,7 @@ end
 local gpuClustering
 
 function refreshPoints()
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPtsBufID[0])
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPtsXYZBufID[0])
 	local glPtsBufMap = gl.glMapBuffer(gl.GL_ARRAY_BUFFER, gl.GL_WRITE_ONLY)
 	clPtsBuf:toCPU(glPtsBufMap)
 	gl.glUnmapBuffer(gl.GL_ARRAY_BUFFER)
@@ -415,7 +429,7 @@ typedef _<?=env.real?>3 real3;
 		end
 	end
 
-	--doClusteringOnCPU()
+	doClusteringOnCPU()
 	gpuClustering = GPUClustering()	
 
 	--[[
@@ -434,8 +448,8 @@ typedef _<?=env.real?>3 real3;
 	-- not needed at the moment ...
 	clPtsBuf = env:buffer{name='pts', type='real3', data=cpuPtsBuf}
 
-	gl.glGenBuffers(1, glPtsBufID)
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPtsBufID[0])
+	gl.glGenBuffers(1, glPtsXYZBufID)
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPtsXYZBufID[0])
 	gl.glBufferData(gl.GL_ARRAY_BUFFER, n*ffi.sizeof'real4', cpuPtsXYZBuf, gl.GL_STATIC_DRAW)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	--refreshPoints()
@@ -497,7 +511,7 @@ function App:update()
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glColorBufID[0])
 	gl.glColorPointer(3, gl.GL_FLOAT, 0, nil)	-- call every frame
 	
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPtsBufID[0])
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPtsXYZBufID[0])
 	gl.glVertexPointer(4, gl.GL_DOUBLE, 0, nil)	-- call every frame
 	
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
