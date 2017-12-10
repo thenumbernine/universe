@@ -9,6 +9,7 @@ Datasets:
 - 2MRS
 - 6DFGS
 - SDSS3-DR12
+- Gaia
 
 GET parameters:
 	?dataset= specifies the initial dataset:
