@@ -12,8 +12,9 @@ universe/
 				specObj-dr14.fits	<- should be the only contents of the source dir
 		gaia/
 			source/	<- put the FITS file here, should be found at http://gea.esac.esa.int/archive/ adql form with the query...
-						"select source_id, ra, dec, parallax from gaiadr1.gaia_source where parallax is not null order by source_id asc"
-				results.fits
+						"select source_id, ra, dec, parallax, pmra, pmdec, radial_velocity, teff_val, radius_val, lum_val from gaiadr2.gaia_source order by source_id asc"
+				result.fits
+
 
 USAGE:
 
@@ -48,7 +49,7 @@ USAGE:
 		datasets/simbad/catalog.specs to ../simbad-catalog.specs
 
 1F) convert-gaia
-	converts datasets/gaia/source/results.fits to converts datasets/gaia/points/*.f32
+	converts datasets/gaia/source/result.fits to converts datasets/gaia/points/*.f32
 
 
 2) getstats --force --all

@@ -39,7 +39,7 @@ bool showRanges = false;
 // samples redshift from 0.01 < z < 0.11
 double minRedshift = -std::numeric_limits<double>::infinity();
 
-//fits is rigit and I am lazy.  use its writer to stderr and return the same status
+//fits is rigid and I am lazy.  use its writer to stderr and return the same status
 std::string fitsGetError(int status) {
 	//let the default stderr writer do its thing
 	fits_report_error(stderr, status);

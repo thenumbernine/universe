@@ -31,7 +31,7 @@ bool interactive = false;
 bool omitWrite = false;
 bool showRanges = false;
 
-//fits is rigit and I am lazy.  use its writer to stderr and return the same status
+//fits is rigid and I am lazy.  use its writer to stderr and return the same status
 string fitsGetError(int status) {
 	//let the default stderr writer do its thing
 	fits_report_error(stderr, status);
@@ -145,7 +145,7 @@ struct FITSStringColumn : public FITSColumn {
 struct ConvertSDSS3 {
 	ConvertSDSS3() {}
 	void operator()() {
-		const char *sourceFileName = "datasets/gaia/source/results.fits";
+		const char *sourceFileName = "datasets/gaia/source/result.fits";
 		const char *pointDestFileName = "datasets/gaia/points/points.f32";
 
 		mkdir("datasets", 0775);
