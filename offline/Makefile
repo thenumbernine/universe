@@ -1,5 +1,5 @@
-CPPFLAGS= -O3 -I../libs -fPIC
-#CPPFLAGS= -g -O0 -I../libs -fPIC
+#CPPFLAGS= -O3 -I../libs -fPIC
+CPPFLAGS= -g -O0 -I../libs -fPIC
 
 #LDFLAGS = -lpthread -fPIC
 LDFLAGS = -g -O0 -lpthread -fPIC

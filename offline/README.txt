@@ -10,9 +10,14 @@ universe/
 		sdss3/
 			source/ <- put the SDSS3 DR14 5-gigabyte FITS file here.  file found at http://data.sdss3.org/sas/dr14/sdss/spectro/redux/specObj-dr14.fits
 				specObj-dr14.fits	<- should be the only contents of the source dir
+		simbad/
+			results.lua	<- generated from the convert-simbad.lua script
 		gaia/
 			source/	<- put the FITS file here, should be found at http://gea.esac.esa.int/archive/ adql form with the query...
-						"select source_id, ra, dec, parallax, pmra, pmdec, radial_velocity, teff_val, radius_val, lum_val from gaiadr2.gaia_source order by source_id asc"
+						"select source_id, ra, dec, parallax, pmra, pmdec, radial_velocity, teff_val, radius_val, lum_val from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null order by source_id asc"
+					... 7183262 have pmra, pmdec, radial_velocity (from "select count(source_id) from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null")
+					... 6081418 have pmra, pmdec, radial_velocity, lum_val (from "select count(source_id) from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null and lum_val is not null")
+					... 6081418 have pmra, pmdec, radial_velocity, teff_val, radius_val, lum_val 
 				result.fits
 
 
