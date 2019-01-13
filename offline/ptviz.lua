@@ -29,11 +29,15 @@ typedef struct {
 } pt_t;
 ]]
 
-local cpuPtsBuf
-local glPtsBufID = ffi.new'GLuint[1]'
-local n
+local glPointBufID = ffi.new'GLuint[1]'
+
+-- 2x
+local glLinePosBufID = ffi.new'GLuint[1]'
+local glLineVelBufID = ffi.new'GLuint[1]'
+
 local env
-local accumStarShader
+local accumStarPointShader
+local accumStarLineShader
 local renderAccumShader
 
 local fbo
@@ -49,7 +53,7 @@ function App:initGL(...)
 	self.view.zfar = 10000
 
 
-	local data = file['datasets/gaia/points/points.f32']
+	local data = file['datasets/gaia/points/points-9col.f32']
 	n = #data / ffi.sizeof'pt_t'
 
 	env = CLEnv{precision='float', size=n}
@@ -80,59 +84,113 @@ typedef _<?=env.real?>4 real4;
 	env.code = env.code .. real3code
 
 	local s = ffi.cast('char*', data)
-	local pts = ffi.cast('pt_t*', s)
-	cpuPtsBuf = ffi.new('_float4[?]', n)
-	-- distances are in kparsecs
+	local cpuPointBuf = ffi.cast('pt_t*', s)
+	
+	local cpuLinePosBuf = ffi.new('_float4[?]', 2*n)	-- pts buf x number of vtxs
+	local cpuLineVelBuf = ffi.new('_float4[?]', 2*n)
+
 	for i=0,n-1 do
-		cpuPtsBuf[i].x = pts[i].pos[0]
-		cpuPtsBuf[i].y = pts[i].pos[1]
-		cpuPtsBuf[i].z = pts[i].pos[2]
-		cpuPtsBuf[i].w = pts[i].lum
+		for j=0,1 do
+			cpuLinePosBuf[j+2*i].x = cpuPointBuf[i].pos[0]
+			cpuLinePosBuf[j+2*i].y = cpuPointBuf[i].pos[1]
+			cpuLinePosBuf[j+2*i].z = cpuPointBuf[i].pos[2]
+			cpuLinePosBuf[j+2*i].w = cpuPointBuf[i].lum
+			cpuLineVelBuf[j+2*i].x = cpuPointBuf[i].vel[0]
+			cpuLineVelBuf[j+2*i].y = cpuPointBuf[i].vel[1]
+			cpuLineVelBuf[j+2*i].z = cpuPointBuf[i].vel[2]
+			cpuLineVelBuf[j+2*i].w = j
+		end
 	end
 	
-	gl.glGenBuffers(1, glPtsBufID)
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPtsBufID[0])
-	gl.glBufferData(gl.GL_ARRAY_BUFFER, n*ffi.sizeof'_float4', cpuPtsBuf, gl.GL_STATIC_DRAW)
+	gl.glGenBuffers(1, glPointBufID)
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+	gl.glBufferData(gl.GL_ARRAY_BUFFER, n*ffi.sizeof'pt_t', cpuPointBuf, gl.GL_STATIC_DRAW)
+	
+	gl.glGenBuffers(1, glLinePosBufID)
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
+	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*n*ffi.sizeof'_float4', cpuLinePosBuf, gl.GL_STATIC_DRAW)
+
+	gl.glGenBuffers(1, glLineVelBufID)
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLineVelBufID[0])
+	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*n*ffi.sizeof'_float4', cpuLineVelBuf, gl.GL_STATIC_DRAW)
+	
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	
 	--refreshPoints()
 	
-	accumStarShader = GLProgram{
-		vertexCode = template[[
-<?
-local clnumber = require 'cl.obj.number'
-?>
+	accumStarPointShader = GLProgram{
+		vertexCode = [[
 #version 130
-varying vec4 color;
-varying float lum;
+attribute float lum;
+varying float lumv;
 void main() {
 	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
 	gl_Position = gl_ModelViewProjectionMatrix * vtx;
-	lum = gl_Vertex.w;
-	color = gl_Color;
+	lumv = lum;
 }
 ]],
 		fragmentCode = [[
 #version 130
-varying vec4 color;
-varying float lum;
+varying float lumv;
 uniform float alpha;
 void main() {
-	float _lum = lum;
+	float lumf = lumv;
 	
 	float z = gl_FragCoord.z / gl_FragCoord.w;
-	_lum *= .0001 / (z * z);
+	z *= .001;
+	lumf *= 1. / (z * z);
 	
 	vec2 d = gl_PointCoord.xy * 2. - 1.;
 	float rsq = dot(d,d);
-	_lum *= 1. / (rsq + .1);
+	lumf *= 1. / (10. * rsq + .1);
 
-	//gl_FragColor = vec4(color.rgb, color.a * _lum * alpha);
-	gl_FragColor = vec4(color.rgb, lum);
-	//gl_FragColor = vec4(color.rgb, 1.);
+	gl_FragColor = vec4(1., 1., 1., lumf * alpha);
 }
 ]],
 	}
-	accumStarShader:useNone()
+	accumStarPointShader:useNone()
+	glreport'here'
+
+	accumStarLineShader = GLProgram{
+		vertexCode = [[
+#version 130
+attribute vec4 vel;
+uniform float velScalar;
+uniform bool normalizeVel;
+varying float lum;
+void main() {
+	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
+
+	vec3 _vel = vel.xyz;
+	if (normalizeVel) _vel = normalize(_vel);
+	vtx.xyz += _vel * vel.w * velScalar;
+	gl_Position = gl_ModelViewProjectionMatrix * vtx;
+	lum = 1.;//gl_Vertex.w;
+}
+]],
+		fragmentCode = [[
+#version 130
+varying float lum;
+uniform float alpha;
+void main() {
+	
+	float _lum = lum;
+	
+	float z = gl_FragCoord.z / gl_FragCoord.w;
+	z *= .001;
+	_lum *= 1. / (z * z);
+	
+	vec2 d = gl_PointCoord.xy * 2. - 1.;
+	float rsq = dot(d,d);
+	_lum *= 1. / (10. * rsq + .1);
+
+	gl_FragColor = vec4(1., 1., 1., _lum * alpha);
+
+	//gl_FragColor = vec4(1., 1., 1., 100.);
+}
+]],
+	}
+	accumStarLineShader:useNone()
 	glreport'here'
 
 	renderAccumShader = GLProgram{
@@ -154,6 +212,7 @@ uniform sampler1D hsvtex;
 uniform float hdrScale;
 uniform float hdrGamma;
 uniform float hsvRange;
+uniform bool showDensity;
 uniform float bloomLevels;
 void main() {
 	gl_FragColor = vec4(0., 0., 0., 0.);
@@ -166,21 +225,22 @@ end
 ?>
 	gl_FragColor *= hdrScale * <?=clnumber(1/maxLevels)?>;
 
-	//tone mapping, from https://learnopengl.com/Advanced-Lighting/HDR
-	//gl_FragColor.rgb = gl_FragColor.rgb / (gl_FragColor.rgb + vec3(1.));
-	
-	gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1. / hdrGamma));
+	if (showDensity) {
+		gl_FragColor = texture1D(hsvtex, log(gl_FragColor.a + 1.) * hsvRange);
+	} else {
+		//tone mapping, from https://learnopengl.com/Advanced-Lighting/HDR
+		//gl_FragColor.rgb = gl_FragColor.rgb / (gl_FragColor.rgb + vec3(1.));
+		gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1. / hdrGamma));
+		gl_FragColor.rgb = log(gl_FragColor.rgb + vec3(1.));
+	}
 
-	gl_FragColor.rgb = log(gl_FragColor.rgb + vec3(1.));
-	
-	//gl_FragColor = texture1D(hsvtex, log(gl_FragColor.a + 1.) * hsvRange);
-	
 	gl_FragColor.a = 1.;
 }
 ]],
 		uniforms = {
 			fbotex = 0,
 			hsvtex = 1,
+			showDensity = false,
 		},
 	}
 	renderAccumShader:useNone()
@@ -188,12 +248,17 @@ end
 	hsvtex = GLHSVTex(1024, nil, true)
 end
 
-local alphaValue = ffi.new('float[1]', .05)
-local pointSize = ffi.new('float[1]', 1)
+local alphaValue = ffi.new('float[1]', 1)
+local pointSize = ffi.new('float[1]', 2)	-- TODO point size according to luminosity
 local hsvRangeValue = ffi.new('float[1]', .2)
 local hdrScaleValue = ffi.new('float[1]', .001)
-local hdrGammaValue = ffi.new('float[1]', 2.2)
+local hdrGammaValue = ffi.new('float[1]', 1)
 local bloomLevelsValue = ffi.new('float[1]', 1)
+local showDensityValue = ffi.new('int[1]', 0)
+local velScalarValue = ffi.new('float[1]', 1)
+local drawPoints = true
+local drawLines = false
+local normalizeVelValue = ffi.new('int[1]', 0)
 
 local lastWidth, lastHeight
 function App:update()
@@ -222,28 +287,73 @@ function App:update()
 		callback = function()
 			gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
-			gl.glColor3f(1,1,1)
 			gl.glEnable(gl.GL_BLEND)
 
-			gl.glPointSize(pointSize[0])
+			
+			if drawPoints then
+				accumStarPointShader:use()
+				if accumStarPointShader.uniforms.alpha then
+					gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue[0])
+				end
+				
+				gl.glPointSize(pointSize[0])
 
-			gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+				gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+				gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof'pt_t', nil)
+
+				if accumStarPointShader.attrs.lum then
+					gl.glEnableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
+					gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+					gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof'pt_t', ffi.cast('void*', (ffi.offsetof('pt_t', 'lum'))))
+				end
+
+				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 			
-			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPtsBufID[0])
-			gl.glVertexPointer(4, gl.GL_FLOAT, 0, nil)	-- call every frame
+				gl.glDrawArrays(gl.GL_POINTS, 0, n)
 			
-			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-			
-			accumStarShader:use()
-			if accumStarShader.uniforms.alpha then
-				gl.glUniform1f(accumStarShader.uniforms.alpha.loc, alphaValue[0])
+				gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+				if accumStarPointShader.attrs.lum then
+					gl.glDisableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
+				end
+				
+				accumStarPointShader:useNone()
+				
+				gl.glPointSize(1)
 			end
-			gl.glDrawArrays(gl.GL_POINTS, 0, n)
-			accumStarShader:useNone()
+			if drawLines then
+				accumStarLineShader:use()
+				if accumStarLineShader.uniforms.alpha then
+					gl.glUniform1f(accumStarLineShader.uniforms.alpha.loc, alphaValue[0])
+				end
+				if accumStarLineShader.uniforms.velScalar then
+					gl.glUniform1f(accumStarLineShader.uniforms.velScalar.loc, velScalarValue[0])
+				end
+				if accumStarLineShader.uniforms.normalizeVel then
+					gl.glUniform1f(accumStarLineShader.uniforms.normalizeVel.loc, normalizeVelValue[0])
+				end
+
+				gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
+				gl.glVertexPointer(4, gl.GL_FLOAT, 0, nil)
+
+				if accumStarLineShader.attrs.vel then
+					gl.glEnableVertexAttribArray(accumStarLineShader.attrs.vel.loc)
+					gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLineVelBufID[0])
+					gl.glVertexAttribPointer(accumStarLineShader.attrs.vel.loc, 4, gl.GL_FLOAT, false, 0, nil)	-- 'normalize' doesn't seem to make a difference ...
+				end
+				
+				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 			
-			gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+				gl.glDrawArrays(gl.GL_LINES, 0, 2*n)
 			
-			gl.glPointSize(1)
+				gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+				if accumStarLineShader.attrs.vel then
+					gl.glDisableVertexAttribArray(accumStarLineShader.attrs.vel.loc)
+				end
+				
+				accumStarLineShader:useNone()
+			end
 			
 			gl.glDisable(gl.GL_BLEND)
 		end,
@@ -279,6 +389,9 @@ function App:update()
 	if renderAccumShader.uniforms.bloomLevels then
 		gl.glUniform1f(renderAccumShader.uniforms.bloomLevels.loc, bloomLevelsValue[0])
 	end
+	if renderAccumShader.uniforms.showDensity then
+		gl.glUniform1i(renderAccumShader.uniforms.showDensity.loc, showDensityValue[0])
+	end
 
 	gl.glBegin(gl.GL_QUADS)
 	gl.glVertex2f(0,0)
@@ -302,14 +415,26 @@ end
 
 local float = ffi.new'float[1]'
 local int = ffi.new'int[1]'
+local bool = ffi.new'bool[1]'
 function App:updateGUI()
 	ig.igSliderFloat('point size', pointSize, 1, 10)
-	ig.igSliderFloat('alpha value', alphaValue, 0, 1, '%.7f', 10)
+	ig.igSliderFloat('alpha value', alphaValue, 0, 1000, '%.7f', 10)
 	ig.igSliderFloat('hdr scale', hdrScaleValue, 0, 1000, '%.7f', 10)
 	ig.igSliderFloat('hdr gamma', hdrGammaValue, 0, 1000, '%.7f', 10)
 	ig.igSliderFloat('hsv range', hsvRangeValue, 0, 1000, '%.7f', 10)
 	ig.igSliderFloat('bloom levels', bloomLevelsValue, 0, 8)
+	ig.igCheckbox('show density', ffi.cast('bool*', showDensityValue))
+
+	bool[0] = drawPoints
+	if ig.igCheckbox('draw points', bool) then drawPoints = bool[0] end
 	
+	bool[0] = drawLines
+	if ig.igCheckbox('draw lines', bool) then drawLines = bool[0] end
+	
+	ig.igSliderFloat('vel scalar', velScalarValue, 0, 1000, '%.7f', 10)
+
+	ig.igCheckbox('normalize velocity', ffi.cast('bool*', normalizeVelValue))
+
 	float[0] = self.view.fovY
 	if ig.igSliderFloat('fov y', float, 0, 180) then
 		self.view.fovY = float[0]

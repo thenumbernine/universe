@@ -23,8 +23,6 @@ convert-gaia			generates point file
 #include "util.h"
 #include "defs.h"
 
-using namespace std;
-
 bool verbose = false;
 bool getColumns = false;
 bool interactive = false;
@@ -33,15 +31,18 @@ bool showRanges = false;
 bool outputExtra = true;
 bool keepNegativeParallax = false;
 
+double parsec_in_meters = 30856780000000000;
+double year_in_seconds = 31557600; 
+
 //fits is rigid and I am lazy.  use its writer to stderr and return the same status
-string fitsGetError(int status) {
+std::string fitsGetError(int status) {
 	//let the default stderr writer do its thing
 	fits_report_error(stderr, status);
 	//then capture the 30-char-max error
 	char buffer[32];
 	bzero(buffer, sizeof(buffer));
 	fits_get_errstatus(status, buffer);
-	ostringstream ss;
+	std::ostringstream ss;
 	ss << "FITS error " << status << ": " << buffer;
 	return ss.str();
 }
@@ -64,7 +65,7 @@ FITS_TYPE(long, TLONG);
 FITS_TYPE(long long, TLONGLONG);
 FITS_TYPE(float, TFLOAT);
 FITS_TYPE(double, TDOUBLE);
-FITS_TYPE(string, TSTRING);
+FITS_TYPE(std::string, TSTRING);
 
 struct FITSColumn {
 	fitsfile *file;
@@ -74,7 +75,7 @@ struct FITSColumn {
 	FITSColumn(fitsfile *file_, const char *colName_) 
 	: file(file_), colName(colName_), colNum(0) {}
 
-	virtual string readStr(int rowNum) = 0;
+	virtual std::string readStr(int rowNum) = 0;
 };
 
 template<typename CTYPE_>
@@ -91,7 +92,7 @@ struct FITSTypedColumn : public FITSColumn {
 		long repeat = 0;
 		long width = 0;
 		FITS_SAFE(fits_get_coltype(file, colNum, &colType, &repeat, &width, &status));
-		//cout << "type " << colType << " vs TDOUBLE " << TDOUBLE << " vs TFLOAT " << TFLOAT << endl;
+		//std::cout << "type " << colType << " vs TDOUBLE " << TDOUBLE << " vs TFLOAT " << TFLOAT << std::endl;
 		if (colType != FITSType<CTYPE>::type) throw Exception() << "for column " << colNum << " expected FITS type " << (int)FITSType<CTYPE>::type << " but found " << colType;
 		if (repeat != 1) throw Exception() << "for column " << colNum << " expected repeat to be 1 but found " << repeat;
 		if (width != sizeof(CTYPE)) throw Exception() << "for column " << colNum << " expected column width to be " << sizeof(CTYPE) << " but found " << width;
@@ -106,15 +107,15 @@ struct FITSTypedColumn : public FITSColumn {
 		return result;
 	}
 	
-	virtual string readStr(int rowNum) {
-		ostringstream ss;
+	virtual std::string readStr(int rowNum) {
+		std::ostringstream ss;
 		ss << read(rowNum);
 		return ss.str();
 	}
 };
 
 struct FITSStringColumn : public FITSColumn {
-	typedef string CTYPE;
+	typedef std::string CTYPE;
 	long width;
 	FITSStringColumn(fitsfile *file_, const char *colName_)
 	: FITSColumn(file_, colName_) {
@@ -135,11 +136,11 @@ struct FITSStringColumn : public FITSColumn {
 		int nullResult = 0;
 		FITS_SAFE(fits_read_col(file, FITSType<CTYPE>::type, colNum, rowNum, 1, 1, NULL, &result, &nullResult, &status));
 		if (nullResult != 0) throw Exception() << "got nullResult " << nullResult;
-		return string(buffer);
+		return std::string(buffer);
 
 	}
 	
-	virtual string readStr(int rowNum) {
+	virtual std::string readStr(int rowNum) {
 		return read(rowNum);
 	}
 };
@@ -157,7 +158,7 @@ struct ConvertSDSS3 {
 	ConvertSDSS3() {}
 	
 	void operator()() {
-		std::string pointDestFileName = std::string("datasets/gaia/points/points.") + getOutputExt();
+		std::string pointDestFileName = std::string() + "datasets/gaia/points/points" + (outputExtra ? "-9col" : "") + "." + getOutputExt();
 		
 		FILE *pointDestFile = NULL;
 		if (!omitWrite) {
@@ -174,6 +175,10 @@ struct ConvertSDSS3 {
 		Stat stat_teff_val;
 		Stat stat_radius_val;
 		Stat stat_lum_val;
+		
+		Stat stat_x, stat_y, stat_z;
+		Stat stat_vx, stat_vy, stat_vz;
+		
 		//not a complete 'stat', just min/max
 		long long source_id_min = -std::numeric_limits<long long>::infinity();
 		long long source_id_max = std::numeric_limits<long long>::infinity();
@@ -207,8 +212,8 @@ struct ConvertSDSS3 {
 			int numCols = 0;
 			FITS_SAFE(fits_get_num_cols(file, &numCols, &status));
 
-			cout << "numCols: " << numCols << endl;
-			cout << "numRows: " << numRows << endl;
+			std::cout << "numCols: " << numCols << std::endl;
+			std::cout << "numRows: " << numRows << std::endl;
 
 			if (getColumns || verbose) {
 				int status = 0;
@@ -219,9 +224,9 @@ struct ConvertSDSS3 {
 					fits_get_colname(file, CASESEN, (char *)"*", colName, &colNum, &status);
 					if (status == COL_NOT_FOUND) break;
 					if (status != 0 && status != COL_NOT_UNIQUE) throw Exception() << fitsGetError(status);
-					cout << colNum << "\t" << colName << endl;
+					std::cout << colNum << "\t" << colName << std::endl;
 				}
-				cout << endl;
+				std::cout << std::endl;
 				if (getColumns) return;
 			}
 
@@ -233,7 +238,7 @@ struct ConvertSDSS3 {
 			brightness? color? shape?
 			catalog name? NGC_*** MS_*** or whatever other identifier?
 			*/
-			vector<FITSColumn*> columns;
+			std::vector<FITSColumn*> columns;
 		
 			int readStringStartIndex = columns.size();
 
@@ -249,7 +254,7 @@ struct ConvertSDSS3 {
 			FITSTypedColumn<double> *col_pmra = nullptr; if (outputExtra) { col_pmra = new FITSTypedColumn<double>(file, "pmra"); columns.push_back(col_pmra); }
 			//proper motion in declination (radians/year)
 			FITSTypedColumn<double> *col_pmdec = nullptr; if (outputExtra) { col_pmdec = new FITSTypedColumn<double>(file, "pmdec"); columns.push_back(col_pmdec); }
-			//radial velocity
+			//radial velocity (km/s)
 			FITSTypedColumn<double> *col_radial_velocity = nullptr; if (outputExtra) { col_radial_velocity = new FITSTypedColumn<double>(file, "radial_velocity"); columns.push_back(col_radial_velocity); }
 			//stellar effective temperature (K)
 			FITSTypedColumn<float> *col_teff_val = nullptr; if (outputExtra) { col_teff_val = new FITSTypedColumn<float>(file, "teff_val"); columns.push_back(col_teff_val); }
@@ -261,8 +266,8 @@ struct ConvertSDSS3 {
 			//well that's 9 columns.  I wasn't storing radius in the HYG data
 
 			if (verbose) {
-				for (vector<FITSColumn*>::iterator i = columns.begin(); i != columns.end(); ++i) {
-					cout << " col num " << (*i)->colName << " = " << (*i)->colNum << endl;
+				for (std::vector<FITSColumn*>::iterator i = columns.begin(); i != columns.end(); ++i) {
+					std::cout << " col num " << (*i)->colName << " = " << (*i)->colNum << std::endl;
 				}
 			}	
 
@@ -308,18 +313,18 @@ struct ConvertSDSS3 {
 				}
 
 				if (verbose) {
-					cout << endl;
-					cout << "source_id = " << value_source_id << endl;
-					cout << "ra = " << value_ra << endl;
-					cout << "dec = " << value_dec << endl;
-					cout << "parallax = " << value_parallax << endl;
+					std::cout << std::endl;
+					std::cout << "source_id = " << value_source_id << std::endl;
+					std::cout << "ra = " << value_ra << std::endl;
+					std::cout << "dec = " << value_dec << std::endl;
+					std::cout << "parallax = " << value_parallax << std::endl;
 					if (outputExtra) {
-						cout << "pmra = " << value_pmra << endl;
-						cout << "pmdec = " << value_pmdec << endl;
-						cout << "radial_velocity = " << value_radial_velocity << endl;
-						cout << "teff_val = " << value_teff_val << endl;
-						cout << "radius_val = " << value_radius_val << endl;
-						cout << "lum_val = " << value_lum_val << endl;
+						std::cout << "pmra = " << value_pmra << std::endl;
+						std::cout << "pmdec = " << value_pmdec << std::endl;
+						std::cout << "radial_velocity = " << value_radial_velocity << std::endl;
+						std::cout << "teff_val = " << value_teff_val << std::endl;
+						std::cout << "radius_val = " << value_radius_val << std::endl;
+						std::cout << "lum_val = " << value_lum_val << std::endl;
 					}
 				}
 			
@@ -344,22 +349,39 @@ struct ConvertSDSS3 {
 					if (outputExtra) {
 						//dec = theta
 						//ra = phi
-						OutputPrecision 
-							e_r_x = sin_dec * cos_ra,
-							e_r_y = sin_dec * sin_ra,
-							e_r_z = cos_dec,
-							e_dec_x = cos_dec * cos_ra,
-							e_dec_y = cos_dec * sin_ra,
-							e_dec_z = -sin_dec,
+						double
 							e_ra_x = -sin_ra,
 							e_ra_y = cos_ra,
-							e_ra_z = 0.;
+							e_ra_z = 0.,
+							
+							e_dec_x = -sin_dec * cos_ra,
+							e_dec_y = -sin_dec * sin_ra,
+							e_dec_z = cos_dec,
+							
+							e_r_x = cos_dec * cos_ra,
+							e_r_y = cos_dec * sin_ra,
+							e_r_z = sin_dec;
+
+    					const double AU_YRKMS = 4.740470446;
+					
+						// http://www.star.bris.ac.uk/~mbt/topcat/sun253/Gaia.html
+						/*	
+						arcsecond = 1/3,600 degree 
+						milliarcsecond = 1/3,600,000 degree = pi/180 1/3,600,000 raidian (unitless)
+						milliarcsecond/year = 1/3,600,000 pi/180 radian/year
+						*/	
+						double pmra_arcsec_year = value_pmra * .001;	//mas/year (milliarcseconds) to arcseconds/year
+						double pmra_km_s = distance * pmra_arcsec_year * AU_YRKMS;  //arcseconds/year to km/s
 						
-						OutputPrecision pmra_parsec_year = 1./value_pmra;  // or would this be parsec-years?
-						OutputPrecision pmra_m_s = 0, pmdec_m_s = 0, radial_velocity_m_s = 0;
-						velocity[0] = (OutputPrecision)(e_ra_x * pmra_m_s + e_dec_x * pmdec_m_s + e_r_x * radial_velocity_m_s);
-						velocity[1] = (OutputPrecision)(e_ra_y * pmra_m_s + e_dec_y * pmdec_m_s + e_r_x * radial_velocity_m_s);
-						velocity[2] = (OutputPrecision)(e_ra_z * pmra_m_s + e_dec_z * pmdec_m_s + e_r_x * radial_velocity_m_s);
+						double pmdec_arcsec_year = value_pmdec * .001;	//mas/year (milliarcseconds) to arcseconds/year
+						double pmdec_km_s = distance * pmdec_arcsec_year * AU_YRKMS;
+
+						double radial_velocity_km_s = value_radial_velocity;
+						
+						velocity[0] = (e_ra_x * pmra_km_s + e_dec_x * pmdec_km_s + e_r_x * radial_velocity_km_s) * (1000. / parsec_in_meters * year_in_seconds);
+						velocity[1] = (e_ra_y * pmra_km_s + e_dec_y * pmdec_km_s + e_r_y * radial_velocity_km_s) * (1000. / parsec_in_meters * year_in_seconds);
+						velocity[2] = (e_ra_z * pmra_km_s + e_dec_z * pmdec_km_s + e_r_z * radial_velocity_km_s) * (1000. / parsec_in_meters * year_in_seconds);
+					
 					}
 					
 					if (!isnan(position[0]) && !isnan(position[1]) && !isnan(position[2])
@@ -374,6 +396,11 @@ struct ConvertSDSS3 {
 							stat_dec.accum(value_dec, numReadable);
 							stat_parallax.accum(value_parallax, numReadable);
 							stat_distance.accum(distance, numReadable);
+						
+							stat_x.accum(position[0], numReadable);
+							stat_y.accum(position[1], numReadable);
+							stat_z.accum(position[2], numReadable);
+							
 							if (outputExtra) {
 								stat_pmra.accum(value_pmra, numReadable);
 								stat_pmdec.accum(value_pmdec, numReadable);
@@ -381,6 +408,10 @@ struct ConvertSDSS3 {
 								stat_teff_val.accum(value_teff_val, numReadable);
 								stat_radius_val.accum(value_radius_val, numReadable);
 								stat_lum_val.accum(value_lum_val, numReadable);
+							
+								stat_vx.accum(velocity[0], numReadable);
+								stat_vy.accum(velocity[1], numReadable);
+								stat_vz.accum(velocity[2], numReadable);
 							}
 						}
 						
@@ -395,7 +426,7 @@ struct ConvertSDSS3 {
 				}
 
 				if (verbose) {
-					cout << "distance (Mpc) " << distance << endl;
+					std::cout << "distance (Mpc) " << distance << std::endl;
 				}
 
 				if (interactive) {
@@ -413,20 +444,26 @@ struct ConvertSDSS3 {
 
 		if (!omitWrite) fclose(pointDestFile);
 
-		cout << "num readable: " << numReadable << endl;
+		std::cout << "num readable: " << numReadable << std::endl;
 	
 		if (showRanges) {
-			cout 
-				<< stat_ra.rw("ra") << endl
-				<< stat_dec.rw("dec") << endl
-				<< stat_parallax.rw("parallax") << endl
-				<< stat_pmra.rw("pmra") << endl
-				<< stat_pmdec.rw("pmdec") << endl
-				<< stat_radial_velocity.rw("radial_velocity") << endl
-				<< stat_teff_val.rw("teff_val") << endl
-				<< stat_radius_val.rw("radius_val") << endl
-				<< stat_lum_val.rw("lum_val") << endl
-				<< stat_distance.rw("distance") << endl
+			std::cout 
+				<< stat_ra.rw("ra") << std::endl
+				<< stat_dec.rw("dec") << std::endl
+				<< stat_parallax.rw("parallax") << std::endl
+				<< stat_pmra.rw("pmra") << std::endl
+				<< stat_pmdec.rw("pmdec") << std::endl
+				<< stat_radial_velocity.rw("radial_velocity") << std::endl
+				<< stat_teff_val.rw("teff_val") << std::endl
+				<< stat_radius_val.rw("radius_val") << std::endl
+				<< stat_lum_val.rw("lum_val") << std::endl
+				<< stat_distance.rw("distance") << std::endl
+				<< stat_x.rw("x") << std::endl
+				<< stat_y.rw("y") << std::endl
+				<< stat_z.rw("z") << std::endl
+				<< stat_vx.rw("vx") << std::endl
+				<< stat_vy.rw("vy") << std::endl
+				<< stat_vz.rw("vz") << std::endl
 			;
 		}
 
@@ -435,17 +472,17 @@ struct ConvertSDSS3 {
 };
 
 void showhelp() {
-	cout
-	<< "usage: convert-gaia <options>" << endl
-	<< "options:" << endl
-	<< "	--verbose				output values" << endl
-	<< "	--show-ranges			show ranges of certain fields" << endl
-	<< "	--wait					wait for keypress after each entry.  'q' stops" << endl
-	<< "	--get-columns			print all column names" << endl
-	<< "	--nowrite				don't write results.  useful with --verbose or --read-desc" << endl
-	<< "	--output-extra			also output velocity, temperature, and luminosity" << endl
-	<< "	--keep-neg-parallax		keep negative parallax" << endl
-	<< "	--double				output as double precision (default single)" << endl
+	std::cout
+	<< "usage: convert-gaia <options>" << std::endl
+	<< "options:" << std::endl
+	<< "	--verbose				output values" << std::endl
+	<< "	--show-ranges			show ranges of certain fields" << std::endl
+	<< "	--wait					wait for keypress after each entry.  'q' stops" << std::endl
+	<< "	--get-columns			print all column names" << std::endl
+	<< "	--nowrite				don't write results.  useful with --verbose or --read-desc" << std::endl
+	<< "	--output-extra			also output velocity, temperature, and luminosity" << std::endl
+	<< "	--keep-neg-parallax		keep negative parallax" << std::endl
+	<< "	--double				output as double precision (default single)" << std::endl
 	;
 }
 
