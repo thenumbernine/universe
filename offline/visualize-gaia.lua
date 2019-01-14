@@ -7,6 +7,7 @@ local template = require 'template'
 local ImGuiApp = require 'imguiapp'
 local Orbit = require 'glapp.orbit'
 local View = require 'glapp.view'
+local Image = require 'image'
 local gl = require 'gl'
 local glreport = require 'gl.report'
 local GLProgram = require 'gl.program'
@@ -42,6 +43,10 @@ local renderAccumShader
 
 local fbo
 local fbotex
+
+local tempMin = 3300
+local tempMax = 8000
+local tempTex
 
 function App:initGL(...)
 	App.super.initGL(self, ...)
@@ -122,16 +127,24 @@ typedef _<?=env.real?>4 real4;
 		vertexCode = [[
 #version 130
 attribute float lum;
+attribute float temp;
 varying float lumv;
+varying float tempv;
 void main() {
 	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
 	gl_Position = gl_ModelViewProjectionMatrix * vtx;
 	lumv = lum;
+	tempv = temp;
 }
 ]],
-		fragmentCode = [[
+		fragmentCode = template([[
+<?
+local clnumber = require 'cl.obj.number'
+?>
 #version 130
+uniform sampler2D tempTex;
 varying float lumv;
+varying float tempv;
 uniform float alpha;
 void main() {
 	float lumf = lumv;
@@ -144,9 +157,17 @@ void main() {
 	float rsq = dot(d,d);
 	lumf *= 1. / (10. * rsq + .1);
 
-	gl_FragColor = vec4(1., 1., 1., lumf * alpha);
+	float tempfrac = (tempv - <?=clnumber(tempMin)?>) * <?=clnumber(1/(tempMax - tempMin))?>;
+	vec3 tempcolor = texture2D(tempTex, vec2(tempfrac, .5)).rgb;
+	gl_FragColor = vec4(tempcolor, lumf * alpha);
 }
-]],
+]],			{
+				tempMin = tempMin,
+				tempMax = tempMax,
+			}),
+		uniforms = {
+			tempTex = 0,
+		},
 	}
 	accumStarPointShader:useNone()
 	glreport'here'
@@ -163,7 +184,14 @@ void main() {
 
 	vec3 _vel = vel.xyz;
 	if (normalizeVel) _vel = normalize(_vel);
-	vtx.xyz += _vel * vel.w * velScalar;
+	
+	//using an extra channel
+	float end = vel.w;
+	//trying to use a shader variable:	
+	//float end = float(gl_VertexID % 2 == 0);
+	vtx.xyz += _vel * end * velScalar;
+	
+	
 	gl_Position = gl_ModelViewProjectionMatrix * vtx;
 	lum = 1.;//gl_Vertex.w;
 }
@@ -184,7 +212,7 @@ void main() {
 	float rsq = dot(d,d);
 	_lum *= 1. / (10. * rsq + .1);
 
-	gl_FragColor = vec4(1., 1., 1., _lum * alpha);
+	gl_FragColor = vec4(.1, 1., .1, _lum * alpha);
 
 	//gl_FragColor = vec4(1., 1., 1., 100.);
 }
@@ -246,6 +274,36 @@ end
 	renderAccumShader:useNone()
 
 	hsvtex = GLHSVTex(1024, nil, true)
+
+	-- https://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
+	local tempTexWidth = 1024
+	local tempImg = Image(tempTexWidth, 1, 3, 'unsigned char', function(i,j)
+		local frac = (i + .5) / tempTexWidth
+		local temp = frac * (tempMax - tempMin) + tempMin
+		local t = temp / 100
+		local r = t <= 66 and 255 or math.clamp(329.698727446 * ((t - 60) ^ -0.1332047592), 0, 255)
+		local g = t <= 66
+			and math.clamp(99.4708025861 * math.log(t) - 161.1195681661, 0, 255)
+			or math.clamp(288.1221695283 * ((t - 60) ^ -0.0755148492), 0, 255)
+		local b = t >= 66 
+			and 255 or (
+				t <= 19 
+					and 0 
+					or math.clamp(138.5177312231 * math.log(t - 10) - 305.0447927307, 0, 255)
+			)
+		return r,g,b
+	end)
+	tempTex = GLTex2D{
+		width = tempTexWidth,
+		height = 1,
+		internalFormat = gl.GL_RGBA,
+		format = gl.GL_RGB,
+		type = gl.GL_UNSIGNED_BYTE,
+		magFilter = gl.GL_LINEAR,
+		minFilter = gl.GL_NEAREST,
+		wrap = {gl.GL_CLAMP_TO_EDGE, gl.GL_CLAMP_TO_EDGE},
+		image = tempImg,
+	}
 end
 
 local alphaValue = ffi.new('float[1]', 1)
@@ -295,6 +353,8 @@ function App:update()
 				if accumStarPointShader.uniforms.alpha then
 					gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue[0])
 				end
+
+				tempTex:bind()
 				
 				gl.glPointSize(pointSize[0])
 
@@ -307,6 +367,11 @@ function App:update()
 					gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
 					gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof'pt_t', ffi.cast('void*', (ffi.offsetof('pt_t', 'lum'))))
 				end
+				if accumStarPointShader.attrs.temp then
+					gl.glEnableVertexAttribArray(accumStarPointShader.attrs.temp.loc)
+					gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+					gl.glVertexAttribPointer(accumStarPointShader.attrs.temp.loc, 1, gl.GL_FLOAT, false, ffi.sizeof'pt_t', ffi.cast('void*', (ffi.offsetof('pt_t', 'temp'))))
+				end
 
 				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 			
@@ -317,6 +382,7 @@ function App:update()
 					gl.glDisableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
 				end
 				
+				tempTex:unbind()
 				accumStarPointShader:useNone()
 				
 				gl.glPointSize(1)
@@ -431,7 +497,7 @@ function App:updateGUI()
 	bool[0] = drawLines
 	if ig.igCheckbox('draw lines', bool) then drawLines = bool[0] end
 	
-	ig.igSliderFloat('vel scalar', velScalarValue, 0, 1000, '%.7f', 10)
+	ig.igSliderFloat('vel scalar', velScalarValue, 0, 1000000000, '%.7f', 10)
 
 	ig.igCheckbox('normalize velocity', ffi.cast('bool*', normalizeVelValue))
 
