@@ -28,7 +28,7 @@ bool getColumns = false;
 bool interactive = false;
 bool omitWrite = false;
 bool showRanges = false;
-bool outputExtra = true;
+bool outputExtra = false;
 bool keepNegativeParallax = false;
 
 double parsec_in_meters = 30856780000000000;
@@ -417,10 +417,12 @@ struct ConvertSDSS3 {
 						
 						if (!omitWrite) {
 							fwrite(position, sizeof(position), 1, pointDestFile);
-							fwrite(velocity, sizeof(velocity), 1, pointDestFile);
-							fwrite(&radius, sizeof(radius), 1, pointDestFile);
-							fwrite(&temp, sizeof(temp), 1, pointDestFile);
-							fwrite(&luminosity, sizeof(luminosity), 1, pointDestFile);
+							if (outputExtra) {
+								fwrite(velocity, sizeof(velocity), 1, pointDestFile);
+								fwrite(&radius, sizeof(radius), 1, pointDestFile);
+								fwrite(&temp, sizeof(temp), 1, pointDestFile);
+								fwrite(&luminosity, sizeof(luminosity), 1, pointDestFile);
+							}
 						}
 					}
 				}

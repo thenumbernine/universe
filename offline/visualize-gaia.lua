@@ -25,7 +25,21 @@ typedef struct {
 	float pos[3];
 	float vel[3];
 	float rad;
+	
+	/*
+	temperature, in Kelvin
+	*/
 	float temp;
+	
+	/*
+	solar luminosity
+	https://en.wikipedia.org/wiki/Solar_luminosity
+	3.828e+26 watts
+	total emitted over the whole surface 
+	L_sun = 4 pi k I_sun A^2 
+		for L_sum solar luminosity (watts)
+		and I_sun solar irradiance (watts/meter^2)
+	*/
 	float lum;
 } pt_t;
 ]]
@@ -159,7 +173,7 @@ void main() {
 
 	float tempfrac = (tempv - <?=clnumber(tempMin)?>) * <?=clnumber(1/(tempMax - tempMin))?>;
 	vec3 tempcolor = texture2D(tempTex, vec2(tempfrac, .5)).rgb;
-	gl_FragColor = vec4(tempcolor, lumf * alpha);
+	gl_FragColor = vec4(tempcolor * lumf * alpha, 1.);
 }
 ]],			{
 				tempMin = tempMin,
@@ -212,8 +226,8 @@ void main() {
 	float rsq = dot(d,d);
 	_lum *= 1. / (10. * rsq + .1);
 
-	gl_FragColor = vec4(.1, 1., .1, _lum * alpha);
-
+	vec3 color = vec3(.1, 1., .1) * _lum * alpha;
+	gl_FragColor = vec4(color, 1.); 
 	//gl_FragColor = vec4(1., 1., 1., 100.);
 }
 ]],
@@ -254,7 +268,7 @@ end
 	gl_FragColor *= hdrScale * <?=clnumber(1/maxLevels)?>;
 
 	if (showDensity) {
-		gl_FragColor = texture1D(hsvtex, log(gl_FragColor.a + 1.) * hsvRange);
+		gl_FragColor = texture1D(hsvtex, log(dot(gl_FragColor.rgb, vec3(.3, .6, .1)) + 1.) * hsvRange);
 	} else {
 		//tone mapping, from https://learnopengl.com/Advanced-Lighting/HDR
 		//gl_FragColor.rgb = gl_FragColor.rgb / (gl_FragColor.rgb + vec3(1.));
@@ -275,6 +289,7 @@ end
 
 	hsvtex = GLHSVTex(1024, nil, true)
 
+--[[
 	-- https://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
 	local tempTexWidth = 1024
 	local tempImg = Image(tempTexWidth, 1, 3, 'unsigned char', function(i,j)
@@ -293,10 +308,34 @@ end
 			)
 		return r,g,b
 	end)
+--]]
+-- [[ black body color table from http://www.vendian.org/mncharity/dir3/blackbody/UnstableURLs/bbr_color_D58.html
+	local rgbs = table()
+	for l in io.lines'bbr_color_D58.txt' do
+		if l ~= '' and l:sub(1,1) ~= '#' then
+			local cmf = l:sub(11,15)
+			if cmf == '10deg' then
+				local temp = tonumber(l:sub(2,6):trim())
+				if temp >= tempMin and temp <= tempMax then
+					local r = tonumber(l:sub(82,83), 16)
+					local g = tonumber(l:sub(84,85), 16)
+					local b = tonumber(l:sub(86,87), 16)
+					rgbs:insert{r,g,b}
+				end
+			end
+		end
+	end
+	local tempImg = Image(#rgbs, 1, 3, 'unsigned char')
+	for i=0,#rgbs-1 do
+		for j=0,2 do
+			tempImg.buffer[j+3*i] = rgbs[i+1][j+1]
+		end
+	end
+--]]
 	tempTex = GLTex2D{
-		width = tempTexWidth,
+		width = tempImg.width,
 		height = 1,
-		internalFormat = gl.GL_RGBA,
+		internalFormat = gl.GL_RGB,
 		format = gl.GL_RGB,
 		type = gl.GL_UNSIGNED_BYTE,
 		magFilter = gl.GL_LINEAR,
@@ -306,17 +345,18 @@ end
 	}
 end
 
-local alphaValue = ffi.new('float[1]', 1)
-local pointSize = ffi.new('float[1]', 2)	-- TODO point size according to luminosity
-local hsvRangeValue = ffi.new('float[1]', .2)
-local hdrScaleValue = ffi.new('float[1]', .001)
-local hdrGammaValue = ffi.new('float[1]', 1)
-local bloomLevelsValue = ffi.new('float[1]', 1)
-local showDensityValue = ffi.new('int[1]', 0)
-local velScalarValue = ffi.new('float[1]', 1)
-local drawPoints = true
-local drawLines = false
-local normalizeVelValue = ffi.new('int[1]', 0)
+-- _G so that sliderFloatTable can use them
+alphaValue = 1
+pointSize = 2	-- TODO point size according to luminosity
+hsvRangeValue = .2
+hdrScaleValue = .001
+hdrGammaValue = 1
+bloomLevelsValue = 1
+showDensityValue = false
+velScalarValue = 1
+drawPoints = true
+drawLines = false
+normalizeVelValue = 0
 
 local lastWidth, lastHeight
 function App:update()
@@ -351,12 +391,12 @@ function App:update()
 			if drawPoints then
 				accumStarPointShader:use()
 				if accumStarPointShader.uniforms.alpha then
-					gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue[0])
+					gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue)
 				end
 
 				tempTex:bind()
 				
-				gl.glPointSize(pointSize[0])
+				gl.glPointSize(pointSize)
 
 				gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
@@ -390,13 +430,13 @@ function App:update()
 			if drawLines then
 				accumStarLineShader:use()
 				if accumStarLineShader.uniforms.alpha then
-					gl.glUniform1f(accumStarLineShader.uniforms.alpha.loc, alphaValue[0])
+					gl.glUniform1f(accumStarLineShader.uniforms.alpha.loc, alphaValue)
 				end
 				if accumStarLineShader.uniforms.velScalar then
-					gl.glUniform1f(accumStarLineShader.uniforms.velScalar.loc, velScalarValue[0])
+					gl.glUniform1f(accumStarLineShader.uniforms.velScalar.loc, velScalarValue)
 				end
 				if accumStarLineShader.uniforms.normalizeVel then
-					gl.glUniform1f(accumStarLineShader.uniforms.normalizeVel.loc, normalizeVelValue[0])
+					gl.glUniform1f(accumStarLineShader.uniforms.normalizeVel.loc, normalizeVelValue)
 				end
 
 				gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
@@ -444,19 +484,19 @@ function App:update()
 	fbotex:bind(0)
 	hsvtex:bind(1)
 	if renderAccumShader.uniforms.hdrScale then
-		gl.glUniform1f(renderAccumShader.uniforms.hdrScale.loc, hdrScaleValue[0])
+		gl.glUniform1f(renderAccumShader.uniforms.hdrScale.loc, hdrScaleValue)
 	end
 	if renderAccumShader.uniforms.hdrGamma then
-		gl.glUniform1f(renderAccumShader.uniforms.hdrGamma.loc, hdrGammaValue[0])
+		gl.glUniform1f(renderAccumShader.uniforms.hdrGamma.loc, hdrGammaValue)
 	end
 	if renderAccumShader.uniforms.hsvRange then
-		gl.glUniform1f(renderAccumShader.uniforms.hsvRange.loc, hsvRangeValue[0])
+		gl.glUniform1f(renderAccumShader.uniforms.hsvRange.loc, hsvRangeValue)
 	end
 	if renderAccumShader.uniforms.bloomLevels then
-		gl.glUniform1f(renderAccumShader.uniforms.bloomLevels.loc, bloomLevelsValue[0])
+		gl.glUniform1f(renderAccumShader.uniforms.bloomLevels.loc, bloomLevelsValue)
 	end
 	if renderAccumShader.uniforms.showDensity then
-		gl.glUniform1i(renderAccumShader.uniforms.showDensity.loc, showDensityValue[0])
+		gl.glUniform1i(renderAccumShader.uniforms.showDensity.loc, showDensityValue and 1 or 0)
 	end
 
 	gl.glBegin(gl.GL_QUADS)
@@ -479,32 +519,78 @@ function App:update()
 	App.super.update(self)
 end
 
+--[[
+--]]
+
 local float = ffi.new'float[1]'
-local int = ffi.new'int[1]'
-local bool = ffi.new'bool[1]'
-function App:updateGUI()
-	ig.igSliderFloat('point size', pointSize, 1, 10)
-	ig.igSliderFloat('alpha value', alphaValue, 0, 1000, '%.7f', 10)
-	ig.igSliderFloat('hdr scale', hdrScaleValue, 0, 1000, '%.7f', 10)
-	ig.igSliderFloat('hdr gamma', hdrGammaValue, 0, 1000, '%.7f', 10)
-	ig.igSliderFloat('hsv range', hsvRangeValue, 0, 1000, '%.7f', 10)
-	ig.igSliderFloat('bloom levels', bloomLevelsValue, 0, 8)
-	ig.igCheckbox('show density', ffi.cast('bool*', showDensityValue))
-
-	bool[0] = drawPoints
-	if ig.igCheckbox('draw points', bool) then drawPoints = bool[0] end
-	
-	bool[0] = drawLines
-	if ig.igCheckbox('draw lines', bool) then drawLines = bool[0] end
-	
-	ig.igSliderFloat('vel scalar', velScalarValue, 0, 1000000000, '%.7f', 10)
-
-	ig.igCheckbox('normalize velocity', ffi.cast('bool*', normalizeVelValue))
-
-	float[0] = self.view.fovY
-	if ig.igSliderFloat('fov y', float, 0, 180) then
-		self.view.fovY = float[0]
-	end
+local function sliderFloatTable(title, t, key, ...)
+	float[0] = t[key]
+	local result = ig.igSliderFloat(title, float, ...) 
+	if result then t[key] = float[0] end
+	return result
 end
+
+local bool = ffi.new'bool[1]'
+local function checkboxTable(title, t, key, ...)
+	bool[0] = t[key]
+	local result = ig.igCheckbox(title, bool, ...)
+	if result then t[key] = bool[0] end
+	return result
+end
+
+function App:updateGUI()
+	sliderFloatTable('point size', _G, 'pointSize', 1, 10)
+	sliderFloatTable('alpha value', _G, 'alphaValue', 0, 1000, '%.7f', 10)
+	
+	sliderFloatTable('hdr scale', _G, 'hdrScaleValue', 0, 1000, '%.7f', 10)
+	sliderFloatTable('hdr gamma', _G, 'hdrGammaValue', 0, 1000, '%.7f', 10)
+	sliderFloatTable('hsv range', _G, 'hsvRangeValue', 0, 1000, '%.7f', 10)
+	sliderFloatTable('bloom levels', _G, 'bloomLevelsValue', 0, 8)
+	checkboxTable('show density', _G, 'showDensityValue')
+
+	checkboxTable('draw points', _G, 'drawPoints')
+	
+	checkboxTable('draw lines', _G, 'drawLines')
+	
+	sliderFloatTable('vel scalar', _G, 'velScalarValue', 0, 1000000000, '%.7f', 10)
+
+	checkboxTable('normalize velocity', _G, 'normalizeVelValue')
+
+	sliderFloatTable('fov y', self.view, 'fovY', 0, 180)
+
+	ig.igImage(
+		ffi.cast('void*', ffi.cast('intptr_t', tempTex.id)),
+		ig.ImVec2(128, 24),
+		ig.ImVec2(0,0),
+		ig.ImVec2(1,1))
+end
+
+--[[
+watershed of velocity functions ...
+
+dphi/dx(p1) = v1_x
+dphi/dy(p1) = v1_y
+dphi/dz(p1) = v1_z
+
+dphi/dx(p2) = v1_x
+dphi/dy(p2) = v1_y
+dphi/dz(p2) = v1_z
+
+...
+
+dphi/dx(pn) = v1_x
+dphi/dy(pn) = v1_y
+dphi/dz(pn) = v1_z
+
+becomes
+
+(phi(p[i] + h e_x) - phi(p[i] - h e_x)) / (2h) ~= v[i]_x
+(phi(p[i] + h e_y) - phi(p[i] - h e_y)) / (2h) ~= v[i]_y
+(phi(p[i] + h e_z) - phi(p[i] - h e_z)) / (2h) ~= v[i]_z
+
+is not invertible for odd # of elements ...
+
+
+--]]
 
 App():run()

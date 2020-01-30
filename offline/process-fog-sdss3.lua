@@ -5,8 +5,8 @@ courtesy of OpenCL and LuaJIT
 --]]
 require 'ext'
 local template = require 'template'
-local vec3f = require 'ffi.vec.vec3f'
-local vec4f = require 'ffi.vec.vec4f'
+local vec3f = require 'vec-ffi.vec3f'
+local vec4f = require 'vec-ffi.vec4f'
 local bit = require 'bit'
 local ffi = require 'ffi'
 local gl = require 'gl'
