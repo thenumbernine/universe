@@ -11,9 +11,6 @@ local bit = require 'bit'
 local ffi = require 'ffi'
 local gl = require 'gl'
 local ig = require 'ffi.imgui'
-local ImGuiApp = require 'imguiapp'
-local Orbit = require 'glapp.orbit'
-local View = require 'glapp.view'
 local glreport = require 'gl.report'
 local GLProgram = require 'gl.program'
 local clnumber = require 'cl.obj.number'
@@ -22,7 +19,7 @@ local CLEnv = require 'cl.obj.env'
 local c = 299792.458	--km/s
 local H0 = 69.32	--km/s/Mpc
 
-local App = class(Orbit(View.apply(ImGuiApp)))
+local App = class(require 'glapp.orbit'(require 'imguiapp'))
 App.title = 'FoG tool'
 App.viewDist = 2
 

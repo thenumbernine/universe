@@ -4,9 +4,6 @@ local ffi = require 'ffi'
 require 'ext'
 local ig = require 'ffi.imgui'
 local template = require 'template'
-local ImGuiApp = require 'imguiapp'
-local Orbit = require 'glapp.orbit'
-local View = require 'glapp.view'
 local Image = require 'image'
 local gl = require 'gl'
 local glreport = require 'gl.report'
@@ -16,7 +13,7 @@ local GLTex2D = require 'gl.tex2d'
 local GLHSVTex = require 'gl.hsvtex'
 local CLEnv = require 'cl.obj.env'
 
-local App = class(Orbit(View.apply(ImGuiApp)))
+local App = class(require 'glapp.orbit'(require 'imguiapp'))
 App.title = 'pointcloud visualization tool'
 App.viewDist = 2
 
