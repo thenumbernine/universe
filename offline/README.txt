@@ -8,8 +8,8 @@ universe/
 			source/	<- put the 2MASS redshift survey here.  archive is found at http://tdc-www.cfa.harvard.edu/2mrs/
 				2mrs_v240/	<- should be the only contents of the source dir
 		sdss3/
-			source/ <- put the SDSS3 DR14 5-gigabyte FITS file here.  file found at http://data.sdss3.org/sas/dr14/sdss/spectro/redux/specObj-dr14.fits
-				specObj-dr14.fits	<- should be the only contents of the source dir
+			source/ <- put the SDSS3 DR16 ~7-gigabyte FITS file here.  file found at http://data.sdss3.org/sas/dr16/sdss/spectro/redux/specObj-dr16.fits
+				specObj-dr16.fits	<- should be the only contents of the source dir
 		simbad/
 			results.lua	<- generated from the convert-simbad.lua script
 		gaia/
@@ -40,8 +40,8 @@ USAGE:
 	then copy datasets/6dfgs/points/points.f32 to ../6dfgs.f32 
 
 1D) convert-sdss3
-	converts datasets/sdss3/source/specObj-dr14.fits to datasets/sdss3/points/*.f32
-	then copy datasets/sdss3/points/points.f32 to ../sdss3-dr14.f32
+	converts datasets/sdss3/source/specObj-dr16.fits to datasets/sdss3/points/*.f32
+	then copy datasets/sdss3/points/points.f32 to ../sdss3-dr16.f32
 
 1E) convert-simbad.lua
 	converts to datasets/simbad/points/points.f32
