@@ -8,14 +8,14 @@ Datasets:
 - 2MASS
 - 2MRS
 - 6DFGS
-- SDSS3-DR16
+- SDSS-DR16
 - Gaia
 
 GET parameters:
 	?dataset= specifies the initial dataset:
 		2MRS		(default)
 		6dF GS
-		SDSS3-DR16
+		SDSS-DR16
 		SIMBAD 
 
 Check it out at http://christopheremoore.net/universe

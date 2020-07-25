@@ -8,7 +8,7 @@ ALL =	\
 	convert-2mass \
 	convert-2mrs \
 	convert-6dfgs \
-	convert-sdss3 \
+	convert-sdss \
 	convert-gaia \
 	genvolume \
 	getstats \
@@ -31,7 +31,7 @@ convert-2mrs.o: convert-2mrs.cpp
 convert-6dfgs.o: convert-6dfgs.cpp
 	g++ $(CPPFLAGS) -c $^ -o $@ 
 
-convert-sdss3.o: convert-sdss3.cpp
+convert-sdss.o: convert-sdss.cpp
 	g++ $(CPPFLAGS) -c $^ -o $@
 
 convert-gaia.o: convert-gaia.cpp
@@ -80,7 +80,7 @@ convert-2mrs: convert-2mrs.o util.o stat.o
 convert-6dfgs: convert-6dfgs.o util.o
 	g++ $^ $(LDFLAGS) -o $@
 
-convert-sdss3: convert-sdss3.o stat.o util.o
+convert-sdss: convert-sdss.o stat.o util.o
 	g++ $^ $(LDFLAGS) -lcfitsio -o $@
 
 convert-gaia: convert-gaia.o stat.o util.o
