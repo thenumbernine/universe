@@ -25,11 +25,11 @@ local opts = {
 			local setname = getsetname(i)
 			local prevsetname = getsetname(i-1)
 			if i == 1 then
-				if not io.fileexists('datasets\\'..setname..'\\points\\points.f32') then
+				if not os.fileexists('datasets\\'..setname..'\\points\\points.f32') then
 					exec('convert-2mrs')	-- makes datasets/2mrs/points/*.f32 
 				end
 			else
-				if not io.fileexists('datasets\\'..setname..'\\points\\points.f32') then
+				if not os.fileexists('datasets\\'..setname..'\\points\\points.f32') then
 					exec('mkdir datasets\\'..setname)
 					exec('mkdir datasets\\'..setname..'\\points')
 					exec('mkdir datasets\\'..setname..'\\stats')

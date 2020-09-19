@@ -170,7 +170,7 @@ end
 
 local function getOfflineData()
 	local filename = 'datasets/simbad/results.lua'
-	if not io.fileexists(filename) then return end
+	if not os.fileexists(filename) then return end
 	local entries = table()
 	for l in io.lines(filename) do
 		if l == '{' or l == '}' or l == '' then
@@ -199,10 +199,10 @@ end)
 -- [[ filter by otype
 -- TODO dynamically update this via the get-simbad-otypedef + filter desc:lower() by 'galax' ?
 local json = require 'dkjson'
-if not io.fileexists('../otypedescs.js') then
+if not os.fileexists('../otypedescs.js') then
 	print("couldn't find ../otypedescs.js, trying to rebuild it...")
 	os.execute("lua get-simbad-otypedescs.lua")
-	if not io.fileexists('../otypedescs.js') then
+	if not os.fileexists('../otypedescs.js') then
 		error("still couldn't find ../otypedescs.js -- something must be wrong")
 	end
 end
