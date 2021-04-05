@@ -8,6 +8,8 @@ local convertToMpc = {
 	km = 1 / (3261563.79673 * 9460730472580.8),
 }
 
+local filename = 'datasets/simbad/results.lua'
+
 --[[
 this uses mesDiameter, which has something like 3340 unique entries
 another option is to use basic.galdim_majaxis and basic.galdim_minaxis, but this is only set for about 553 entries (all but 3 also have basic.galdim_angle)
@@ -162,111 +164,148 @@ local function getOnlineData()
 	addDiameters(entries)
 	
 	os.execute('mkdir -p datasets/simbad')	-- should mkdir be implicit in file writing?  should the file object have a mkdir operation?
-	file['datasets/simbad/results.lua'] = '{\n'
-		.. entries:map(function(entry) return tolua(entry)..',\n' end):concat() .. '}\n'
+	os.mkdir'datasets/simbad'
+	-- save with one record on one line ... because lua can't handle the whole thing at once
+	file[filename] = '{\n'
+		.. entries:map(function(entry)
+			return tolua(entry, {indent=false})..',\n'
+		end):concat() .. '}\n'
 
 	return entries
 end
 
-local function getOfflineData()
-	local filename = 'datasets/simbad/results.lua'
-	if not os.fileexists(filename) then return end
-	local entries = table()
+if not os.fileexists(filename) then
+	-- writing in Lua was able to work without running out of memory, but reading in Luajit doesn't ...
+	getOnlineData()
+end
+
+-- parse this one line at a time because lua can't handle the whole thing at once
+local function iterateOfflineData()
 	for l in io.lines(filename) do
 		if l == '{' or l == '}' or l == '' then
 		else
-			entries:insert(load('return '..l:sub(1,-2))())
+			local entry = assert(assert(load('return '..l:sub(1,-2)))())
+			coroutine.yield(entry)
 		end
 	end
-	return entries
 end
 
-print'reading data...'
-local entries = getOfflineData() or getOnlineData()
+--local json = require 'dkjson'
 
-print'filtering galaxies...'
-
-local ffi = require 'ffi'
-require 'ffi.c.stdio'
-
--- [[
--- filter out points inside of our galaxy?
--- andromeda is .77 mpc ... milky way is .030660137 mpc
-entries = entries:filter(function(entry)
-	return entry.dist > .1	
-end)
---]]
--- [[ filter by otype
--- TODO dynamically update this via the get-simbad-otypedef + filter desc:lower() by 'galax' ?
-local json = require 'dkjson'
-if not os.fileexists('../otypedescs.js') then
-	print("couldn't find ../otypedescs.js, trying to rebuild it...")
-	os.execute("lua get-simbad-otypedescs.lua")
-	if not os.fileexists('../otypedescs.js') then
-		error("still couldn't find ../otypedescs.js -- something must be wrong")
-	end
-end
+local oTypes = fromlua(file['../otypedescs.lua'])
 local galaxyOTypes = table.map(
-	json.decode(
-		assert(file['../otypedescs.js'], "please regenerate your ../otypedescs.js with get-simbad-otypesdescs.lua")
-		:match('.-=(.*)')
-	), function(v,k,t)
+	oTypes, function(v,k,t)
 		v = v:lower()
 		if v:find('galaxy',1,true) or v:find('galaxies',1,true) then
 			return true,k
 		end
 	end)
-entries = entries:filter(function(entry)
-	return galaxyOTypes[entry.otype]
-end)
---]]
 
-print'writing out point file...'
--- write out point files
-local vtx = ffi.new('float[3]')
-local sizeofvtx = ffi.sizeof('float[3]')
-os.execute('mkdir -p datasets/simbad/points')
-local pointFile = assert(ffi.C.fopen('datasets/simbad/points/points.f32', 'wb'))
-local numWritten = 0
-for _,entry in ipairs(entries) do
-	vtx[0], vtx[1], vtx[2] = table.unpack(entry.vtx)
-	ffi.C.fwrite(vtx, sizeofvtx, 1, pointFile)
-	numWritten = numWritten + 1
+local function filter(entry)
+	return 
+	-- filter out points inside of our galaxy?
+	-- andromeda is .77 mpc ... milky way is .030660137 mpc
+	entry.dist > .1
+	-- filter by otype
+	and galaxyOTypes[entry.otype]
 end
-ffi.C.fclose(pointFile)
-print('wrote '..numWritten..' universe points')
 
-print'writing out catalog spec file...'
--- write out catalog data and spec files
+os.mkdir'datasets/simbad/points'
+
+if not os.fileexists'datasets/simbad/points/points.f32' then
+	local ffi = require 'ffi'
+	require 'ffi.c.stdio'
+	print'writing out point file...'
+	local pointFile = assert(ffi.C.fopen('datasets/simbad/points/points.f32', 'wb'))
+	local numWritten = 0
+	local vtx = ffi.new('float[3]')
+	local sizeofvtx = ffi.sizeof('float[3]')
+	-- write out point files
+	for entry in coroutine.wrap(iterateOfflineData) do
+		if filter(entry) then 
+			vtx[0], vtx[1], vtx[2] = table.unpack(entry.vtx)
+			ffi.C.fwrite(vtx, sizeofvtx, 1, pointFile)
+			numWritten = numWritten + 1
+		end
+	end
+	ffi.C.fclose(pointFile)
+	print('wrote '..numWritten..' universe points')
+end
+
 local cols = table{'id','otype'}
-local colmaxs = cols:map(function(col)
-	return entries:map(function(entry)
-		return entry[col] and #tostring(entry[col]) or 0
-	end):sup(), col
-end)
-file['datasets/simbad/catalog.specs'] = cols:map(function(col)
-	return col..'='..colmaxs[col]
-end):concat'\n'
-local catalogFile = assert(ffi.C.fopen('datasets/simbad/catalog.dat', 'wb'))
-local tmplen = colmaxs:sup()+1
-local tmp = ffi.new('char[?]', tmplen)
-for _,entry in ipairs(entries) do
-	for _,col in ipairs(cols) do
-		ffi.fill(tmp, tmplen)
-		if entry[col] then ffi.copy(tmp, tostring(entry[col])) end
-		ffi.C.fwrite(tmp, colmaxs[col], 1, catalogFile)
+local colmaxs
+if not os.fileexists'datasets/simbad/catalog.specs' then
+	print'writing out catalog spec file...'
+	-- write out catalog data and spec files
+	colmaxs = cols:map(function(col)
+		return 0, col
+	end)
+	for entry in coroutine.wrap(iterateOfflineData) do
+		if filter(entry) then 
+			-- determine col value max length while we are here
+			for _,col in ipairs(cols) do
+				if entry[col] then
+					colmaxs[col] = math.max(colmaxs[col], #tostring(entry[col]) or 0)
+				end
+			end
+		end
 	end
+	file['datasets/simbad/catalog.specs'] = tolua(colmaxs)
+else
+	colmaxs = assert(fromlua(file['datasets/simbad/catalog.specs']), "failed to load colmaxs")
 end
-ffi.C.fclose(catalogFile)
 
-print'writing out catalog json file...'
-local json = require 'dkjson'
-file['datasets/simbad/catalog.json'] = json.encode(setmetatable(entries:map(function(entry)
-	local result = {}
-	for _,col in ipairs(cols) do
-		result[col] = entry[col]
+if not os.fileexists'datasets/simbad/catalog.dat' then
+	local ffi = require 'ffi'
+	require 'ffi.c.stdio'
+	local catalogFile = assert(ffi.C.fopen('datasets/simbad/catalog.dat', 'wb'))
+	local tmplen = colmaxs:sup()+1
+	local tmp = ffi.new('char[?]', tmplen)
+	for entry in coroutine.wrap(iterateOfflineData) do
+		if filter(entry) then
+			for _,col in ipairs(cols) do
+				ffi.fill(tmp, tmplen)
+				if entry[col] then ffi.copy(tmp, tostring(entry[col])) end
+				ffi.C.fwrite(tmp, colmaxs[col], 1, catalogFile)
+			end
+		end
 	end
-	return result
-end),nil),{indent=true})
+	ffi.C.fclose(catalogFile)
+end
+
+if not os.fileexists'datasets/simbad/catalog.lua' then
+	print'writing out catalog file in lua format...'
+	--[[
+	local json = require 'dkjson'
+	file['datasets/simbad/catalog.json'] = json.encode(setmetatable(entries:map(function(entry)
+		local result = {}
+		for _,col in ipairs(cols) do
+			result[col] = entry[col]
+		end
+		return result
+	end),nil),{indent=true})
+	--]]
+
+	-- TODO convert this separately, because luajit and luarocks aren't being friendly
+	local f = assert(io.open('datasets/simbad/catalog.lua', 'w'))
+	f:write'{\n'
+	for entry in coroutine.wrap(iterateOfflineData) do
+		if filter(entry) then
+			local result = {}
+			for _,col in ipairs(cols) do
+				result[col] = entry[col]
+			end
+			f:write('\t'..tolua(result, {indent=false})..',\n')
+		end
+	end
+	f:write'}\n'
+	f:close()
+end
+
+if not os.fileexists'datasets/simbad/catalog.json' then
+	print'writing out catalog file in json format...'
+	local json = require 'dkjson'
+	file['datasets/simbad/catalog.json'] = json.encode(fromlua(file['datasets/simbad/catalog.lua']))
+end
 
 print'done!'
