@@ -18,7 +18,8 @@ universe/
 					... 7183262 have pmra, pmdec, radial_velocity (from "select count(source_id) from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null")
 					... 6081418 have pmra, pmdec, radial_velocity, lum_val (from "select count(source_id) from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null and lum_val is not null")
 					... 6081418 have pmra, pmdec, radial_velocity, teff_val, radius_val, lum_val 
-				result.fits
+				The Gaia online query only has a maximum of 3000000 rows so you will have to add 'offset 3000000' and 'offset 6000000' etc to get all possible files.
+				Name them: 1.fits 2.fits 3.fits
 
 
 USAGE:

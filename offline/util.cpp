@@ -1,33 +1,23 @@
-#include <sys/time.h>
-#include <dirent.h>
-
 #include <fstream>
+#include <filesystem>
 
 #include "util.h"
 #include "exception.h"
 
-using namespace std;
-
-bool fileexists(const string &filename) {
-	ifstream f(filename.c_str());
+bool fileexists(const std::string &filename) {
+	std::ifstream f(filename.c_str());
 	return f.is_open();
 }
 
-double getTime() {
-	timeval t;
-	gettimeofday(&t, NULL);
-	return (double)t.tv_sec + (double)t.tv_usec * 1e-6;
-}
-
 std::streamsize getFileSize(const std::string &filename) {
-	ifstream f(filename.c_str(), ios::in | ios::ate);
+	std::ifstream f(filename.c_str(), std::ios::in | std::ios::ate);
 	return f.tellg();
 }
 
-void *getFile(const string &filename, streamsize *dstsize, void *buffer) {
-	ifstream f(filename.c_str(), ios::in | ios::binary | ios::ate);
+void *getFile(const std::string &filename, std::streamsize *dstsize, void *buffer) {
+	std::ifstream f(filename.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
 	if (!f.is_open()) throw Exception() << "failed to open file " << filename;
-	streamsize size = f.tellg();
+	std::streamsize size = f.tellg();
 	f.seekg(0);
 	if (buffer) {
 		if (size > *dstsize) {
@@ -43,9 +33,9 @@ void *getFile(const string &filename, streamsize *dstsize, void *buffer) {
 	return buffer;
 }
 
-void getFileNameParts(const string &filename, string &base, string &ext) {
+void getFileNameParts(const std::string &filename, std::string &base, std::string &ext) {
 	size_t dotpos = filename.find_last_of('.');
-	if (dotpos == string::npos) {
+	if (dotpos == std::string::npos) {
 		base = filename;
 		ext = "";
 	} else {
@@ -54,29 +44,15 @@ void getFileNameParts(const string &filename, string &base, string &ext) {
 	}
 }
 
-list<string> getDirFileNames(const string &dir) {
-	list<string> destList; 
-	
-	DIR *dp = NULL;
-	struct dirent *pent = NULL;
-	char basename[FILENAME_MAX];
-
-	dp = opendir(dir.c_str());
-	if (!dp) throw Exception() << "failed to open dir " << dir;
-	
-	while ((pent = readdir(dp))) {
-		const char *filename = pent->d_name;
-		if (filename[0] != '.') {
-			destList.push_back(filename);
-		}
+std::list<std::string> getDirFileNames(const std::string &dir) {
+	std::list<std::string> destList; 
+	for (auto& p : std::filesystem::directory_iterator(dir)) {
+		destList.push_back(p.path().string());
 	}
-	closedir(dp);
-
-	//i hope you have a good copy constructor ...
 	return destList;
 }
 
-void writeFile(const string &filename, void *data, streamsize size) {
-	ofstream f(filename.c_str(), ios::out | ios::binary);
+void writeFile(const std::string &filename, void *data, std::streamsize size) {
+	std::ofstream f(filename.c_str(), std::ios::out | std::ios::binary);
 	f.write((const char *)data, size);
 }

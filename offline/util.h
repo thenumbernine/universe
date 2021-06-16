@@ -1,6 +1,7 @@
-#ifndef UTIL_H
-#define UTIL_H
+#pragma once
 
+#include <chrono>
+#include <functional>
 #include <algorithm>
 #include <list>
 #include <string>
@@ -8,27 +9,13 @@
 #include <iostream>
 
 bool fileexists(const std::string &filename);
-double getTime();
 
-template <typename T>
-double profile(const std::string &name, T &f) { 
-	using namespace std;
-	double startTime = getTime();
+double profile(const std::string &name, std::function<void()> f) { 
+	auto startTime = std::chrono::high_resolution_clock::now();
 	f();
-	double endTime = getTime();
-	double deltaTime = getTime() - startTime;
-	cout << name << " took " << deltaTime << " seconds" << endl;
-	return deltaTime;
-}
-
-template <typename T, typename U>
-double profile(const std::string &name, T &f, U &u) { 
-	using namespace std;
-	double startTime = getTime();
-	f(u);
-	double endTime = getTime();
-	double deltaTime = getTime() - startTime;
-	cout << name << " took " << deltaTime << " seconds" << endl;
+	auto endTime = std::chrono::high_resolution_clock::now();
+	double deltaTime = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
+	std::cout << name << " took " << deltaTime << " seconds" << std::endl;
 	return deltaTime;
 }
 
@@ -52,6 +39,3 @@ void for_all(IteratedType &i, Function &f) {
 }
 
 void writeFile(const std::string &filename, void *data, std::streamsize size);
-
-#endif
-

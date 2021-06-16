@@ -5,8 +5,6 @@
 #include "stat.h"
 #include "exception.h"
 
-using namespace std;
-
 const char *Stat::varnames[NUM_STAT_VARS] = {
 	"min", "max", "avg", "sqavg", "stddev"
 };
@@ -26,11 +24,11 @@ void Stat::accum(double v, double n) {
 	sqavg += (v*v - sqavg) / n;
 }
 
-ostream &operator<<(ostream &o, const Stat::RW &statwrite) {
+std::ostream &operator<<(std::ostream &o, const Stat::RW &statwrite) {
 	for (int j = 0; j < NUM_STAT_VARS; j++) {
 		if (j == STAT_SQAVG) continue;
 		o << statwrite.name << "_" << Stat::varnames[j] 
-			<< " = " << statwrite.stat.vars()[j] << endl;
+			<< " = " << statwrite.stat.vars()[j] << std::endl;
 	}
 	return o;
 }
@@ -41,16 +39,16 @@ const char *StatSet::varnames[NUM_STATSET_VARS] = {
 	
 void StatSet::read(const char *filename) {
 	//read all first so we can complain if any fields are missing
-	ifstream f(filename);
+	std::ifstream f(filename);
 	if (!f.is_open()) throw Exception() << "failed to open file " << filename;	
 	
-	map<string, double> m;
+	std::map<std::string, double> m;
 	while (!f.eof()) {
-		string line;
+		std::string line;
 		getline(f, line);
 		if (f.fail()) break;
-		stringstream ss(line);
-		string key, eq;
+		std::stringstream ss(line);
+		std::string key, eq;
 		double value;
 		ss >> key >> eq >> value;
 		assert(eq == "=");
@@ -58,7 +56,7 @@ void StatSet::read(const char *filename) {
 		m[key] = value; 
 	}
 
-	map<string, double>::iterator mi;
+	std::map<std::string, double>::iterator mi;
 	mi = m.find("count");
 	if (mi == m.end()) throw Exception() << "failed to find count";
 	count = mi->second;
@@ -67,7 +65,7 @@ void StatSet::read(const char *filename) {
 		vars()[i].sqavg = 0;
 		for (int j = 0; j < NUM_STAT_VARS; j++) {
 			if (j == STAT_SQAVG) continue;	//not in the files
-			string key = string() + StatSet::varnames[i] + "_" + Stat::varnames[j];
+			std::string key = std::string() + StatSet::varnames[i] + "_" + Stat::varnames[j];
 			mi = m.find(key);
 			if (mi == m.end()) throw Exception() << "failed to find " << key;
 			vars()[i].vars()[j] = mi->second;
@@ -114,12 +112,12 @@ void StatSet::accum(const StatSet &set) {
 	}
 }
 
-void StatSet::write(const string &dstfilename) {
-	ofstream f(dstfilename.c_str());
+void StatSet::write(const std::string &dstfilename) {
+	std::ofstream f(dstfilename.c_str());
 	f.precision(50);
-	f << "count = " << count << endl;
+	f << "count = " << count << std::endl;
 	for (int k = 0; k < NUM_STATSET_VARS; k++) {
-		f << vars()[k].rw(string(StatSet::varnames[k]));
+		f << vars()[k].rw(std::string(StatSet::varnames[k]));
 	}
 	f.close();		
 }

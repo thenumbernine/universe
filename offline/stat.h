@@ -1,9 +1,8 @@
-#ifndef STAT_H
-#define STAT_H
+#pragma once
 
 #include <string>
 #include <ostream>
-#include <math.h>
+#include <cmath>
 
 enum {
 	STAT_MIN,
@@ -61,7 +60,3 @@ struct StatSet {
 	void accum(const StatSet &set);
 	void write(const std::string &dstfilename);
 };
-
-
-#endif
-

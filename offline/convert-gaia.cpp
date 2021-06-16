@@ -1,15 +1,28 @@
-// THIS WAS COPIED FROM convert-sdss3.cpp ... maybe unify the two for a fits reader / libraries?
+/* 
+THIS WAS COPIED FROM convert-sdss.cpp ... maybe unify the two for a fits reader / libraries?
 
-/*
 usage:
 convert-gaia			generates point file
+
+building with msvc:
+cl /EHsc /std:c++17 /I%CFITSIO_INC_DIR% /c convert-gaia.cpp
+cl /EHsc /std:c++17 /I%CFITSIO_INC_DIR% /c stat.cpp
+cl /EHsc convert-gaia.obj stat.obj %CFITSIO_LIB_DIR%/cfitsio.lib /Fe:convert-gaia.exe
+
+building with anything else: just use 'make'
 */
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#define strcasecmp _stricmp
+#endif
+#include <string.h>	// for strcasecmp/_stricmp
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <sys/stat.h>
 
+#include <filesystem>
+#include <cstring>
+#include <cmath>
 #include <vector>
 #include <map>
 #include <string>
@@ -20,7 +33,7 @@ convert-gaia			generates point file
 
 #include "stat.h"
 #include "exception.h"
-#include "util.h"
+#include "util.h"		//uses profile() stored in header, so cpp file not needed
 #include "defs.h"
 
 bool verbose = false;
@@ -40,7 +53,7 @@ std::string fitsGetError(int status) {
 	fits_report_error(stderr, status);
 	//then capture the 30-char-max error
 	char buffer[32];
-	bzero(buffer, sizeof(buffer));
+	memset(buffer, 0, sizeof(buffer));
 	fits_get_errstatus(status, buffer);
 	std::ostringstream ss;
 	ss << "FITS error " << status << ": " << buffer;
@@ -150,16 +163,22 @@ template<> struct GetOutputExt<float> { static std::string exec() { return "f32"
 template<> struct GetOutputExt<double> { static std::string exec() { return "f64"; } };
 
 template<typename OutputPrecision>
-struct ConvertSDSS3 {
+struct ConvertSDSS {
 	std::string getOutputExt() const { 
 		return GetOutputExt<OutputPrecision>::exec(); 
 	}
 	
-	ConvertSDSS3() {}
+	ConvertSDSS() {}
 	
 	void operator()() {
+		// well these should already be here if we're reading from datasets/gaia/source ...
+		// unless you want to automate the download steps as well?
+		//mkdir("datasets", 0775);
+		//mkdir("datasets/gaia", 0775);
+		std::filesystem::create_directory("datasets/gaia/points");
+
 		std::string pointDestFileName = std::string() + "datasets/gaia/points/points" + (outputExtra ? "-9col" : "") + "." + getOutputExt();
-		
+
 		FILE *pointDestFile = NULL;
 		if (!omitWrite) {
 			pointDestFile = fopen(pointDestFileName.c_str(), "wb");
@@ -197,11 +216,6 @@ struct ConvertSDSS3 {
 			"datasets/gaia/source/2.fits",
 			"datasets/gaia/source/3.fits",
 		}) {
-
-			mkdir("datasets", 0775);
-			mkdir("datasets/gaia", 0775);
-			mkdir("datasets/gaia/points", 0775);
-
 			fitsfile *file = NULL;
 
 			FITS_SAFE(fits_open_table(&file, sourceFileName.c_str(), READONLY, &status));
@@ -220,7 +234,7 @@ struct ConvertSDSS3 {
 				for (;;) {
 					int colNum = 0;
 					char colName[256];
-					bzero(colName, sizeof(colName));
+					memset(colName, 0, sizeof(colName));
 					fits_get_colname(file, CASESEN, (char *)"*", colName, &colNum, &status);
 					if (status == COL_NOT_FOUND) break;
 					if (status != 0 && status != COL_NOT_UNIQUE) throw Exception() << fitsGetError(status);
@@ -491,14 +505,14 @@ void showhelp() {
 int main(int argc, char **argv) {
 	bool useDouble = false;
 	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "--help")) {
+		if (!std::strcmp(argv[i], "--help")) {
 			showhelp();
 			return 0;
-		} else if (!strcmp(argv[i], "--verbose")) {
+		} else if (!std::strcmp(argv[i], "--verbose")) {
 			verbose = true;
-		} else if (!strcmp(argv[i], "--show-ranges")) {
+		} else if (!std::strcmp(argv[i], "--show-ranges")) {
 			showRanges = true;
-		} else if (!strcmp(argv[i], "--wait")) {
+		} else if (!std::strcmp(argv[i], "--wait")) {
 			verbose = true;
 			interactive = true;
 		} else if (!strcasecmp(argv[i], "--get-columns")) {
@@ -517,10 +531,14 @@ int main(int argc, char **argv) {
 		}
 	}
 	if (!useDouble) {
-		ConvertSDSS3<float> convert;
-		profile("convert-gaia", convert);
+		profile("convert-gaia", [&](){ 
+			ConvertSDSS<float> convert;
+			convert();
+		});
 	} else {
-		ConvertSDSS3<double> convert;
-		profile("convert-gaia", convert);
+		profile("convert-gaia", [&](){ 
+			ConvertSDSS<double> convert;
+			convert(); 
+		});
 	}
 }

@@ -1,6 +1,6 @@
 /*
 usage:
-convert-sdss3			generates point file
+convert-sdss			generates point file
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,7 +45,7 @@ std::string fitsGetError(int status) {
 	fits_report_error(stderr, status);
 	//then capture the 30-char-max error
 	char buffer[32];
-	bzero(buffer, sizeof(buffer));
+	memset(buffer, 0, sizeof(buffer));
 	fits_get_errstatus(status, buffer);
 	std::ostringstream ss;
 	ss << "FITS error " << status << ": " << buffer;
@@ -178,14 +178,14 @@ typedef FITSTrackBehavior<FITSStringColumn> FITSStringTrackColumn;
 struct ConvertSDSS3 {
 	ConvertSDSS3() {}
 	void operator()() {
-		const char *sourceFileName = "datasets/sdss3/source/specObj-dr16.fits";
+		const char *sourceFileName = "datasets/sdss/source/specObj-dr16.fits";
 		const char *pointDestFileName = spherical
-			? "datasets/sdss3/points/spherical.f64"
-			: "datasets/sdss3/points/points.f32";
+			? "datasets/sdss/points/spherical.f64"
+			: "datasets/sdss/points/points.f32";
 
 		mkdir("datasets", 0775);
-		mkdir("datasets/sdss3", 0775);
-		mkdir("datasets/sdss3/points", 0775);
+		mkdir("datasets/sdss", 0775);
+		mkdir("datasets/sdss/points", 0775);
 
 		fitsfile *file = NULL;
 
@@ -205,7 +205,7 @@ struct ConvertSDSS3 {
 			for (;;) {
 				int colNum = 0;
 				char colName[256];
-				bzero(colName, sizeof(colName));
+				memset(colName, 0, sizeof(colName));
 				fits_get_colname(file, CASESEN, (char *)"*", colName, &colNum, &status);
 				if (status == COL_NOT_FOUND) break;
 				if (status != 0 && status != COL_NOT_UNIQUE) throw Exception() << fitsGetError(status);
@@ -556,7 +556,7 @@ struct ConvertSDSS3 {
 
 void showhelp() {
 	std::cout
-	<< "usage: convert-sdss3 <options>" << std::endl
+	<< "usage: convert-sdss <options>" << std::endl
 	<< "options:" << std::endl
 	<< "	--verbose				output values" << std::endl
 	<< "	--wait					wait for keypress after each entry.  'q' stops" << std::endl
@@ -601,6 +601,6 @@ int main(int argc, char **argv) {
 			return 0;
 		}
 	}
-	profile("convert-sdss3", convert);
+	profile("convert-sdss", convert);
 }
 
