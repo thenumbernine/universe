@@ -1,11 +1,8 @@
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#include <sys/stat.h>
+#include <cstring>
+#include <cmath>
+#include <filesystem>
 #include "exception.h"
 #include "util.h"
-
-using namespace std;
 
 struct Convert2MRS {
 	void operator()() {
@@ -14,22 +11,22 @@ struct Convert2MRS {
 		int numEntries = 0;
 		int numReadable = 0;
 
-		mkdir("datasets/6dfgs/points", 0777);
+		std::filesystem::create_directory("datasets/6dfgs/points");
 
-		FILE *srcfile = fopen(srcfilename, "r");
+		std::ifstream srcfile(srcfilename);
 		if (!srcfile) throw Exception() << "failed to open file " << srcfilename;
 
-		FILE *dstfile = fopen(dstfilename, "wb");
+		std::ofstream dstfile(dstfilename);
 		if (!dstfile) throw Exception() << "failed to open file " << dstfilename;
-
 		
-		while (!feof(srcfile)) {
+		while (!srcfile.eof()) {
 			double lon, lat, redshift;
 			float vtx[3];
 			char line[4096];	
-			if (!fgets(line, sizeof(line), srcfile)) break;
-			if (strlen(line) == sizeof(line)-1) throw Exception() << "line buffer overflow";
-			
+			getlinen(srcfile, line, sizeof(line));
+			int const len = strlen(line);
+			if (!len) continue;
+			if (len == sizeof(line)-1) throw Exception() << "line buffer overflow";
 			if (line[0] == '#') continue;
 			numEntries++;
 
@@ -90,21 +87,19 @@ struct Convert2MRS {
 					&& vtx[2] != INFINITY && vtx[2] != -INFINITY
 				) {
 					numReadable++;
-					fwrite(vtx, sizeof(vtx), 1, dstfile);
+					dstfile.write(reinterpret_cast<char const *>(vtx), sizeof(vtx));
 				}
 			} while (0);
 		}
-		
-		fclose(srcfile);
-		fclose(dstfile);
 
-		cout << "num entries: " << numEntries << endl;
-		cout << "num readable: " << numReadable << endl;
+		std::cout << "num entries: " << numEntries << std::endl;
+		std::cout << "num readable: " << numReadable << std::endl;
 	}
 };
 
 int main() {
-	Convert2MRS convert;
-	profile("convert-2mrs", convert);
+	profile("convert-2mrs", [](){
+		Convert2MRS convert;
+		convert();
+	});
 }
-

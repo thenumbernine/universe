@@ -3,23 +3,8 @@ THIS WAS COPIED FROM convert-sdss.cpp ... maybe unify the two for a fits reader 
 
 usage:
 convert-gaia			generates point file
-
-building with msvc:
-cl /EHsc /std:c++17 /I%CFITSIO_INC_DIR% /c convert-gaia.cpp
-cl /EHsc /std:c++17 /I%CFITSIO_INC_DIR% /c stat.cpp
-cl /EHsc convert-gaia.obj stat.obj %CFITSIO_LIB_DIR%/cfitsio.lib /Fe:convert-gaia.exe
-
-building with anything else: just use 'make'
 */
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#define strcasecmp _stricmp
-#endif
-#include <string.h>	// for strcasecmp/_stricmp
-
-#include <stdio.h>
-#include <stdlib.h>
-
+#include <cstring>
 #include <filesystem>
 #include <cstring>
 #include <cmath>
@@ -28,9 +13,7 @@ building with anything else: just use 'make'
 #include <string>
 #include <sstream>
 #include <limits>
-
 #include "fitsio.h"
-
 #include "stat.h"
 #include "exception.h"
 #include "util.h"		//uses profile() stored in header, so cpp file not needed
@@ -48,6 +31,7 @@ double parsec_in_meters = 30856780000000000;
 double year_in_seconds = 31557600; 
 
 //fits is rigid and I am lazy.  use its writer to stderr and return the same status
+// TODO also in convert-sdss.cpp
 std::string fitsGetError(int status) {
 	//let the default stderr writer do its thing
 	fits_report_error(stderr, status);
@@ -179,9 +163,9 @@ struct ConvertSDSS {
 
 		std::string pointDestFileName = std::string() + "datasets/gaia/points/points" + (outputExtra ? "-9col" : "") + "." + getOutputExt();
 
-		FILE *pointDestFile = NULL;
+		std::ofstream pointDestFile;
 		if (!omitWrite) {
-			pointDestFile = fopen(pointDestFileName.c_str(), "wb");
+			pointDestFile.open(pointDestFileName);
 			if (!pointDestFile) throw Exception() << "failed to open file " << pointDestFileName << " for writing";
 		}
 	
@@ -285,12 +269,21 @@ struct ConvertSDSS {
 				}
 			}	
 
-		
 			//now cycle through rows and pick out values that we want
 			if (!interactive) {
-				printf("processing     ");
-				fflush(stdout);
+				std::cout << "processing     ";
+				std::cout.flush();
 			}
+			
+			auto const updatePercent = [&](int const percent) {
+				std::cout << "\b\b\b\b"
+					<< std::setw(3)
+					<< percent 
+					<< std::setw(0)
+					<< "%";
+				std::cout.flush();
+			};
+
 			time_t lasttime = -1;
 			for (int rowNum = 1; rowNum <= numRows; ++rowNum) {
 			
@@ -298,9 +291,7 @@ struct ConvertSDSS {
 				if (!interactive && thistime != lasttime) {
 					lasttime = thistime;
 					double frac = (double)rowNum / (double)numRows;
-					int percent = (int)(100. * sqrt(frac));
-					printf("\b\b\b\b%3d%%", percent);
-					fflush(stdout);
+					updatePercent(100. * sqrt(frac));
 				}
 
 				long long value_source_id = col_source_id->read(rowNum);
@@ -430,12 +421,12 @@ struct ConvertSDSS {
 						}
 						
 						if (!omitWrite) {
-							fwrite(position, sizeof(position), 1, pointDestFile);
+							pointDestFile.write(reinterpret_cast<char const *>(position), sizeof(position));
 							if (outputExtra) {
-								fwrite(velocity, sizeof(velocity), 1, pointDestFile);
-								fwrite(&radius, sizeof(radius), 1, pointDestFile);
-								fwrite(&temp, sizeof(temp), 1, pointDestFile);
-								fwrite(&luminosity, sizeof(luminosity), 1, pointDestFile);
+								pointDestFile.write(reinterpret_cast<char const *>(velocity), sizeof(velocity));
+								pointDestFile.write(reinterpret_cast<char const *>(&radius), sizeof(radius));
+								pointDestFile.write(reinterpret_cast<char const *>(&temp), sizeof(temp));
+								pointDestFile.write(reinterpret_cast<char const *>(&luminosity), sizeof(luminosity));
 							}
 						}
 					}
@@ -452,13 +443,12 @@ struct ConvertSDSS {
 				}
 			}
 			if (!interactive) {
-				printf("\n");
+				updatePercent(100);
+				std::cout << std::endl;
 			}
 			
 			FITS_SAFE(fits_close_file(file, &status));
 		}
-
-		if (!omitWrite) fclose(pointDestFile);
 
 		std::cout << "num readable: " << numReadable << std::endl;
 	

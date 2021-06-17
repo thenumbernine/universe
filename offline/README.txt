@@ -3,10 +3,12 @@ DIRECTORY LAYOUT:
 universe/
 	datasets/
 		allsky/
-			source/	<- put the 2MASS allsky survey gz files here.  gzip files are found at ftp://ftp.ipac.caltech.edu/pub/2mass/allsky/  
+			source/	<- put the 2MASS allsky survey gz files here.  gzip files are found at ftp://ftp.ipac.caltech.edu/pub/2mass/allsky/
 		2mrs/
 			source/	<- put the 2MASS redshift survey here.  archive is found at http://tdc-www.cfa.harvard.edu/2mrs/
 				2mrs_v240/	<- should be the only contents of the source dir
+		6dfgs/
+			source/ <- put the 6DFGS 6dFGSzDR3.txt file here, file found at http://www-wfau.roe.ac.uk/6dFGS/download.html
 		sdss/
 			source/ <- put the SDSS DR16 ~7-gigabyte FITS file here.  file found at http://data.sdss3.org/sas/dr16/sdss/spectro/redux/specObj-dr16.fits
 				specObj-dr16.fits	<- should be the only contents of the source dir

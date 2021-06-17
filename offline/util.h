@@ -1,5 +1,11 @@
 #pragma once
 
+//blehhh
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#endif
+
+#include <fstream>
 #include <chrono>
 #include <functional>
 #include <algorithm>
@@ -8,16 +14,9 @@
 #include <fstream>
 #include <iostream>
 
-bool fileexists(const std::string &filename);
+double profile(const std::string &name, std::function<void()> f);
 
-double profile(const std::string &name, std::function<void()> f) { 
-	auto startTime = std::chrono::high_resolution_clock::now();
-	f();
-	auto endTime = std::chrono::high_resolution_clock::now();
-	double deltaTime = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
-	std::cout << name << " took " << deltaTime << " seconds" << std::endl;
-	return deltaTime;
-}
+void getlinen(std::ifstream& f, char * const dst, int const dstlen);
 
 std::streamsize getFileSize(const std::string &filename);
 /*

@@ -4,9 +4,20 @@
 #include "util.h"
 #include "exception.h"
 
-bool fileexists(const std::string &filename) {
-	std::ifstream f(filename.c_str());
-	return f.is_open();
+double profile(const std::string &name, std::function<void()> f) { 
+	auto startTime = std::chrono::high_resolution_clock::now();
+	f();
+	auto endTime = std::chrono::high_resolution_clock::now();
+	double deltaTime = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
+	std::cout << name << " took " << deltaTime << " seconds" << std::endl;
+	return deltaTime;
+}
+
+void getlinen(std::ifstream& f, char * const dst, int const dstlen) {
+	std::string s;
+	std::getline(f, s);
+	std::strncpy(dst, s.c_str(), dstlen);
+	dst[dstlen-1] = '\0';
 }
 
 std::streamsize getFileSize(const std::string &filename) {

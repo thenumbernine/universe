@@ -1,8 +1,17 @@
 #CPPFLAGS= -O3 -I../libs -fPIC
-CPPFLAGS= -g -O0 -I../libs -fPIC
+CPPFLAGS= -g -O0 -I../libs -fPIC -c
 
 #LDFLAGS = -lpthread -fPIC
 LDFLAGS = -g -O0 -lpthread -fPIC
+
+CC = g++
+RM = rm
+
+OBJ = .o
+BIN = 
+
+OUTOBJFLAG = -o
+OUTBINFLAG = -o
 
 ALL =	\
 	convert-2mass \
@@ -22,101 +31,100 @@ ALL =	\
 
 all: $(ALL)
 
-convert-2mass.o: convert-2mass.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@ 
+convert-2mass$(OBJ): convert-2mass.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@ 
 
-convert-2mrs.o: convert-2mrs.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+convert-2mrs$(OBJ): convert-2mrs.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-convert-6dfgs.o: convert-6dfgs.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@ 
+convert-6dfgs$(OBJ): convert-6dfgs.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@ 
 
-convert-sdss.o: convert-sdss.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+convert-sdss$(OBJ): convert-sdss.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-convert-gaia.o: convert-gaia.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+convert-gaia$(OBJ): convert-gaia.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-util.o: util.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+util$(OBJ): util.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-stat.o: stat.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+stat$(OBJ): stat.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-octree.o: octree.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+octree$(OBJ): octree.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-writebmp.o: writebmp.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+writebmp$(OBJ): writebmp.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-genvolume.o: genvolume.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+genvolume$(OBJ): genvolume.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-genoctree.o: genoctree.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+genoctree$(OBJ): genoctree.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-genisos.o: genisos.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+genisos$(OBJ): genisos.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-mark-clusters.o: mark-clusters.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+mark-clusters$(OBJ): mark-clusters.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-flatten-clusters.o: flatten-clusters.cpp
-	g++ $(CPPFLAGS) -c $^ -o $@
+flatten-clusters$(OBJ): flatten-clusters.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
-show.o: show.cpp
-	g++  $(CPPFLAGS) -I../SDL-1.2.15/include -c $^ -o $@
+show$(OBJ): show.cpp
+	$(CC)  $(CPPFLAGS) -I../SDL-1.2.15/include $^ $(OUTOBJFLAG) $@
 
-show-still.o: show-still.cpp
-	g++  $(CPPFLAGS) -I../SDL-1.2.15/include -I../SDL_image-1.2.12/include -c $^ -o $@
+show-still$(OBJ): show-still.cpp
+	$(CC)  $(CPPFLAGS) -I../SDL-1.2.15/include -I../SDL_image-1.2.12/include $^ $(OUTOBJFLAG) $@
 
 
-convert-2mass: convert-2mass.o util.o
-	g++ $^ $(LDFLAGS) -o $@
+convert-2mass: convert-2mass$(OBJ) util$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-convert-2mrs: convert-2mrs.o util.o stat.o
-	g++ $^ $(LDFLAGS) -o $@
+convert-2mrs: convert-2mrs$(OBJ) util$(OBJ) stat$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-convert-6dfgs: convert-6dfgs.o util.o
-	g++ $^ $(LDFLAGS) -o $@
+convert-6dfgs: convert-6dfgs$(OBJ) util$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-convert-sdss: convert-sdss.o stat.o util.o
-	g++ $^ $(LDFLAGS) -lcfitsio -o $@
+convert-sdss: convert-sdss$(OBJ) stat$(OBJ) util$(OBJ)
+	$(CC) $^ $(LDFLAGS) -lcfitsio $(OUTBINFLAG) $@
 
-convert-gaia: convert-gaia.o stat.o util.o
-	g++ $^ $(LDFLAGS) -lcfitsio -o $@
+convert-gaia: convert-gaia$(OBJ) stat$(OBJ) util$(OBJ)
+	$(CC) $^ $(LDFLAGS) -lcfitsio $(OUTBINFLAG) $@
 
-genvolume: 	genvolume.o stat.o util.o
-	g++ $^ $(LDFLAGS) -o $@
+genvolume: 	genvolume$(OBJ) stat$(OBJ) util$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-getstats: getstats.o stat.o util.o
-	g++ $^ $(LDFLAGS) -o $@
+getstats: getstats$(OBJ) stat$(OBJ) util$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-gettotalstats: gettotalstats.o stat.o util.o
-	g++ $^ $(LDFLAGS) -o $@
+gettotalstats: gettotalstats$(OBJ) stat$(OBJ) util$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-genoctree: genoctree.o octree.o stat.o util.o
-	g++ $^ $(LDFLAGS) -o $@
+genoctree: genoctree$(OBJ) octree$(OBJ) stat$(OBJ) util$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-genisos: genisos.o util.o stat.o
-	g++ $^ $(LDFLAGS) -o $@
+genisos: genisos$(OBJ) util$(OBJ) stat$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-mark-clusters: mark-clusters.o util.o stat.o octree.o
-	g++ $^ $(LDFLAGS) -o $@
+mark-clusters: mark-clusters$(OBJ) util$(OBJ) stat$(OBJ) octree$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-flatten-clusters: flatten-clusters.o util.o stat.o octree.o
-	g++ $^ $(LDFLAGS) -o $@
+flatten-clusters: flatten-clusters$(OBJ) util$(OBJ) stat$(OBJ) octree$(OBJ)
+	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-show: show.o stat.o octree.o util.o
-	g++  -O3 $^ -o $@ $(LDFLAGS) -lmingw32 -lwinmm -lgdi32 -lSDLmain -lSDL.dll -lopengl32 -lglew32
+show: show$(OBJ) stat$(OBJ) octree$(OBJ) util$(OBJ)
+	$(CC)  -O3 $^ $(OUTBINFLAG) $@ $(LDFLAGS) -lmingw32 -lwinmm -lgdi32 -lSDLmain -lSDL.dll -lopengl32 -lglew32
 
-show-still: show-still.o stat.o util.o writebmp.o
-	g++ -O3 $^ -o $@ 
+show-still: show-still$(OBJ) stat$(OBJ) util$(OBJ) writebmp$(OBJ)
+	$(CC) -O3 $^ $(OUTBINFLAG) $@ 
 
 clean:
-	-rm *.o
-	-rm $(ALL)
+	-$(RM) *$(OBJ)
+	-$(RM) $(ALL)
 
 install:
 	$(foreach FILE, $(ALL), $(shell cp $(FILE) /data/local/bin/))
-

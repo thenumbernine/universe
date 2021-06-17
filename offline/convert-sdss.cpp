@@ -2,21 +2,16 @@
 usage:
 convert-sdss			generates point file
 */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <sys/stat.h>
-
+#include <cstring>
+#include <cmath>
+#include <filesystem>
 #include <vector>
 #include <map>
 #include <string>
 #include <sstream>
 #include <memory>
 #include <limits>
-
 #include "fitsio.h"
-
 #include "stat.h"
 #include "exception.h"
 #include "util.h"
@@ -40,6 +35,7 @@ bool showRanges = false;
 double minRedshift = -std::numeric_limits<double>::infinity();
 
 //fits is rigid and I am lazy.  use its writer to stderr and return the same status
+// TODO also in convert-gaia.cpp
 std::string fitsGetError(int status) {
 	//let the default stderr writer do its thing
 	fits_report_error(stderr, status);
@@ -183,9 +179,7 @@ struct ConvertSDSS3 {
 			? "datasets/sdss/points/spherical.f64"
 			: "datasets/sdss/points/points.f32";
 
-		mkdir("datasets", 0775);
-		mkdir("datasets/sdss", 0775);
-		mkdir("datasets/sdss/points", 0775);
+		std::filesystem::create_directory("datasets/sdss/points");
 
 		fitsfile *file = NULL;
 
@@ -215,9 +209,9 @@ struct ConvertSDSS3 {
 			if (getColumns) return;
 		}
 		
-		FILE *pointDestFile = NULL;
+		std::ofstream pointDestFile;
 		if (!omitWrite) {
-			pointDestFile = fopen(pointDestFileName, "wb");
+			pointDestFile.open(pointDestFileName);
 			if (!pointDestFile) throw Exception() << "failed to open file " << pointDestFileName << " for writing";
 		}
 
@@ -405,9 +399,19 @@ struct ConvertSDSS3 {
 		
 		//now cycle through rows and pick out values that we want
 		if (!interactive) {
-			printf("processing     ");
-			fflush(stdout);
+			std::cout << "processing     ";
+			std::cout.flush();
 		}
+		
+		auto const updatePercent = [&](int const percent) {
+			std::cout << "\b\b\b\b" 
+				<< std::setw(3)
+				<< percent 
+				<< std::setw(0)
+				<< "%";
+			std::cout.flush();
+		};
+
 		time_t lasttime = -1;
 		for (int rowNum = 1; rowNum <= numRows; ++rowNum) {
 		
@@ -415,9 +419,7 @@ struct ConvertSDSS3 {
 			if (!interactive && thistime != lasttime) {
 				lasttime = thistime;
 				double frac = (double)rowNum / (double)numRows;
-				int percent = (int)(100. * sqrt(frac));
-				printf("\b\b\b\b%3d%%", percent);
-				fflush(stdout);
+				updatePercent(100. * sqrt(frac));
 			}
 
 			for (std::vector<std::shared_ptr<IFITSTrackBehavior>>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
@@ -473,7 +475,7 @@ struct ConvertSDSS3 {
 						stat_cz.accum(value_CZ, numReadable);
 					}
 					
-					if (!omitWrite) fwrite(vtx, sizeof(vtx), 1, pointDestFile);
+					if (!omitWrite) pointDestFile.write(reinterpret_cast<char const *>(vtx), sizeof(vtx));
 				}
 				if (verbose) {
 					std::cout << "distance (Mpc) " << distance << std::endl;
@@ -506,7 +508,7 @@ struct ConvertSDSS3 {
 						stat_dec.accum(value_DEC, numReadable);
 					}
 					
-					if (!omitWrite) fwrite(vtx, sizeof(vtx), 1, pointDestFile);
+					if (!omitWrite) pointDestFile.write(reinterpret_cast<char const *>(vtx), sizeof(vtx));
 				}	
 			}
 
@@ -521,7 +523,8 @@ struct ConvertSDSS3 {
 			}
 		}
 		if (!interactive) {
-			printf("\n");
+			updatePercent(100);
+			std::cout << std::endl;
 		}
 
 		for (std::vector<std::shared_ptr<IFITSTrackBehavior>>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
@@ -529,7 +532,6 @@ struct ConvertSDSS3 {
 		}
 
 		FITS_SAFE(fits_close_file(file, &status));
-		if (!omitWrite) fclose(pointDestFile);
 		
 		std::cout << "num readable: " << numReadable << std::endl;
 	

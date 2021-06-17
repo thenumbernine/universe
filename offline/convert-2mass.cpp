@@ -364,14 +364,14 @@ void runOnGZip(const char *basename) {
 	char rawname[FILENAME_MAX];
 
 	snprintf(dstname, sizeof(dstname), "datasets/allsky/points/%s.f32", basename);
-	if (!FORCE && fileexists(dstname)) {
+	if (!FORCE && std::filesystem::exists(dstname)) {
 		printf("file %s already exists\n", dstname);
 		return;
 	}
 
 	snprintf(rawname, sizeof(rawname), "datasets/allsky/raw/%s", basename);
 
-	if (!fileexists(rawname)) {
+	if (!std::filesystem::exists(rawname)) {
 		char cmd[FILENAME_MAX];
 		snprintf(cmd, sizeof(cmd), "7z x -odatasets/allsky/raw datasets/allsky/source/%s.gz", basename);
 		printf("extracting %s\n", basename);
