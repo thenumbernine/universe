@@ -291,7 +291,7 @@ struct ConvertSDSS {
 				if (!interactive && thistime != lasttime) {
 					lasttime = thistime;
 					double frac = (double)rowNum / (double)numRows;
-					updatePercent(100. * sqrt(frac));
+					updatePercent(100. * frac);
 				}
 
 				long long value_source_id = col_source_id->read(rowNum);
@@ -334,10 +334,11 @@ struct ConvertSDSS {
 				}
 			
 				//distance from parallax
-				double arcsec_parallax = value_parallax * .001;	//convert from milliarcseconds to arcseconds
+				double arcsec_parallax = value_parallax * 1e-3;	//convert from milliarcseconds to arcseconds
 				double distance = 1./arcsec_parallax;	//convert from arcseconds to parsecs 
 				// comment this for universe visualizer
-				//distance *= .0001;	//parsec to kparsec
+				//distance *= 1e-3;	//parsec to Kpc
+				distance *= 1e-6;	//parsec to Mpc
 
 				if (keepNegativeParallax || distance > 0) {	// what do we do with negative parallax?
 

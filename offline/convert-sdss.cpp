@@ -419,7 +419,7 @@ struct ConvertSDSS3 {
 			if (!interactive && thistime != lasttime) {
 				lasttime = thistime;
 				double frac = (double)rowNum / (double)numRows;
-				updatePercent(100. * sqrt(frac));
+				updatePercent(100. * frac);
 			}
 
 			for (std::vector<std::shared_ptr<IFITSTrackBehavior>>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
