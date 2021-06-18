@@ -104,12 +104,12 @@ struct Convert2MRS {
 			std::ifstream sourceFile(sourceFileName);
 			if (!sourceFile) throw Exception() << "failed to open file " << sourceFileName;
 
-			std::ofstream pointDestFile(pointDestFileName);
+			std::ofstream pointDestFile(pointDestFileName, std::ios::binary);
 			if (!pointDestFile) throw Exception() << "failed to open file " << pointDestFileName;
 
 			std::ofstream catalogDestFile;
 			if (writingCatalog) {	
-				catalogDestFile.open(catalogDestFileName);	//binary so it is byte-accurate, so i can fseek through it
+				catalogDestFile.open(catalogDestFileName, std::ios::binary);	//binary so it is byte-accurate, so i can fseek through it
 				if (!catalogDestFile) throw Exception() << "failed to open file " << catalogDestFileName;
 			}
 

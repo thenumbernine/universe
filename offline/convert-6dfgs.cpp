@@ -16,7 +16,7 @@ struct Convert2MRS {
 		std::ifstream srcfile(srcfilename);
 		if (!srcfile) throw Exception() << "failed to open file " << srcfilename;
 
-		std::ofstream dstfile(dstfilename);
+		std::ofstream dstfile(dstfilename, std::ios::binary);
 		if (!dstfile) throw Exception() << "failed to open file " << dstfilename;
 		
 		while (!srcfile.eof()) {

@@ -48,7 +48,7 @@ struct ConvertSDSS {
 
 		std::ofstream pointDestFile;
 		if (!omitWrite) {
-			pointDestFile.open(pointDestFileName);
+			pointDestFile.open(pointDestFileName, std::ios::binary);
 			if (!pointDestFile) throw Exception() << "failed to open file " << pointDestFileName << " for writing";
 		}
 	
