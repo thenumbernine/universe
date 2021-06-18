@@ -1,4 +1,4 @@
-CPPFLAGS=/EHsc /c /std:c++17 /D_USE_MATH_DEFINES
+CPPFLAGS=/EHsc /c /std:c++17 /D_USE_MATH_DEFINES /Dstrcasecmp=_stricmp
 LDFLAGS=
 
 CC = cl.exe

@@ -67,15 +67,15 @@ struct ConvertSDSS3 {
 
 		std::filesystem::create_directory("datasets/sdss/points");
 
-		fitsfile *file = NULL;
+		fitsfile *file = nullptr;
 
-		FITS_SAFE(fits_open_table(&file, sourceFileName, READONLY, &status));
+		fitsSafe(fits_open_table, &file, sourceFileName, READONLY);
 	
 		long numRows = 0;
-		FITS_SAFE(fits_get_num_rows(file, &numRows, &status));
+		fitsSafe(fits_get_num_rows, file, &numRows);
 		
 		int numCols = 0;
-		FITS_SAFE(fits_get_num_cols(file, &numCols, &status));
+		fitsSafe(fits_get_num_cols, file, &numCols);
 
 		std::cout << "numCols: " << numCols << std::endl;
 		std::cout << "numRows: " << numRows << std::endl;
@@ -301,7 +301,7 @@ struct ConvertSDSS3 {
 		time_t lasttime = -1;
 		for (int rowNum = 1; rowNum <= numRows; ++rowNum) {
 		
-			time_t thistime = time(NULL);
+			time_t thistime = time(nullptr);
 			if (!interactive && thistime != lasttime) {
 				lasttime = thistime;
 				double frac = (double)rowNum / (double)numRows;
@@ -417,7 +417,7 @@ struct ConvertSDSS3 {
 			(*i)->printAll();
 		}
 
-		FITS_SAFE(fits_close_file(file, &status));
+		fitsSafe(fits_close_file, file);
 		
 		std::cout << "num readable: " << numReadable << std::endl;
 	

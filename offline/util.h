@@ -1,10 +1,5 @@
 #pragma once
 
-//blehhh
-#ifdef _WIN32
-#define strcasecmp _stricmp
-#endif
-
 #include <fstream>
 #include <chrono>
 #include <functional>
@@ -13,6 +8,9 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+
+#define numberof(x)	(sizeof(x)/sizeof((x)[0]))
+#define endof(x)	((x)+numberof(x))
 
 double profile(const std::string &name, std::function<void()> f);
 

@@ -8,9 +8,6 @@
 #include "stat.h"
 #include "util.h"
 
-#define numberof(x)	(sizeof(x)/sizeof(*(x)))
-#define endof(x)	((x)+numberof(x))
-
 using namespace std;
 
 struct TotalStatWorker {

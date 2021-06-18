@@ -88,13 +88,13 @@ struct ConvertSDSS {
 		}) {
 			fitsfile *file = NULL;
 
-			FITS_SAFE(fits_open_table(&file, sourceFileName.c_str(), READONLY, &status));
+			fitsSafe(fits_open_table, &file, sourceFileName.c_str(), READONLY);
 		
 			long numRows = 0;
-			FITS_SAFE(fits_get_num_rows(file, &numRows, &status));
+			fitsSafe(fits_get_num_rows, file, &numRows);
 			
 			int numCols = 0;
-			FITS_SAFE(fits_get_num_cols(file, &numCols, &status));
+			fitsSafe(fits_get_num_cols, file, &numCols);
 
 			std::cout << "numCols: " << numCols << std::endl;
 			std::cout << "numRows: " << numRows << std::endl;
@@ -334,7 +334,7 @@ struct ConvertSDSS {
 				std::cout << std::endl;
 			}
 			
-			FITS_SAFE(fits_close_file(file, &status));
+			fitsSafe(fits_close_file, file);
 		}
 
 		std::cout << "num readable: " << numReadable << std::endl;
