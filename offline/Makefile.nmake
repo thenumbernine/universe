@@ -9,6 +9,7 @@ BIN = .exe
 
 OUTOBJFLAG = /Fo:
 OUTBINFLAG = /Fe:
+INCFLAG = /I
 
 CFITSINCDIR=$(USERPROFILE)\include
 CFITSLIBDIR=$(USERPROFILE)\bin\x64
@@ -33,10 +34,13 @@ convert-6dfgs$(OBJ): convert-6dfgs.cpp
 	$(CC) $(CPPFLAGS) $** $(OUTOBJFLAG) $@ 
 
 convert-sdss$(OBJ): convert-sdss.cpp
-	$(CC) $(CPPFLAGS) /I$(CFITSINCDIR) $** $(OUTOBJFLAG) $@
+	$(CC) $(CPPFLAGS) $(INCFLAG)$(CFITSINCDIR) $** $(OUTOBJFLAG) $@
 
 convert-gaia$(OBJ): convert-gaia.cpp
-	$(CC) $(CPPFLAGS) /I$(CFITSINCDIR) $** $(OUTOBJFLAG) $@
+	$(CC) $(CPPFLAGS) $(INCFLAG)$(CFITSINCDIR) $** $(OUTOBJFLAG) $@
+
+fits-util$(OBJ): fits-util.cpp
+	$(CC) $(CPPFLAGS) $(INCFLAG)$(CFITSINCDIR) $** $(OUTOBJFLAG) $@
 
 util$(OBJ): util.cpp
 	$(CC) $(CPPFLAGS) $** $(OUTOBJFLAG) $@
@@ -53,10 +57,10 @@ convert-2mrs$(BIN): convert-2mrs$(OBJ) util$(OBJ) stat$(OBJ)
 convert-6dfgs$(BIN): convert-6dfgs$(OBJ) util$(OBJ)
 	$(CC) $(LDFLAGS) $** $(OUTBINFLAG) $@
 
-convert-sdss$(BIN): convert-sdss$(OBJ) stat$(OBJ) util$(OBJ)
+convert-sdss$(BIN): convert-sdss$(OBJ) stat$(OBJ) util$(OBJ) fits-util$(OBJ)
 	$(CC) $(LDFLAGS) $** $(CFITSLIB) $(OUTBINFLAG) $@
 
-convert-gaia$(BIN): convert-gaia$(OBJ) stat$(OBJ) util$(OBJ)
+convert-gaia$(BIN): convert-gaia$(OBJ) stat$(OBJ) util$(OBJ) fits-util$(OBJ)
 	$(CC) $(LDFLAGS) $** $(CFITSLIB) $(OUTBINFLAG) $@
 
 clean:

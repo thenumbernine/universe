@@ -1,5 +1,7 @@
-#CPPFLAGS= -O3 -I../libs -fPIC
-CPPFLAGS= -g -O0 -I../libs -fPIC -c
+INCFLAG = -I
+
+#CPPFLAGS= -O3 $(INCFLAG)../libs -fPIC
+CPPFLAGS= -g -O0 $(INCFLAG)../libs -fPIC -c
 
 #LDFLAGS = -lpthread -fPIC
 LDFLAGS = -g -O0 -lpthread -fPIC
@@ -49,6 +51,9 @@ convert-gaia$(OBJ): convert-gaia.cpp
 util$(OBJ): util.cpp
 	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
+fits-util$(OBJ): fits-util.cpp
+	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+
 stat$(OBJ): stat.cpp
 	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
@@ -74,10 +79,10 @@ flatten-clusters$(OBJ): flatten-clusters.cpp
 	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
 
 show$(OBJ): show.cpp
-	$(CC)  $(CPPFLAGS) -I../SDL-1.2.15/include $^ $(OUTOBJFLAG) $@
+	$(CC)  $(CPPFLAGS) $(INCFLAG)../SDL-1.2.15/include $^ $(OUTOBJFLAG) $@
 
 show-still$(OBJ): show-still.cpp
-	$(CC)  $(CPPFLAGS) -I../SDL-1.2.15/include -I../SDL_image-1.2.12/include $^ $(OUTOBJFLAG) $@
+	$(CC)  $(CPPFLAGS) $(INCFLAG)../SDL-1.2.15/include $(INCFLAG)../SDL_image-1.2.12/include $^ $(OUTOBJFLAG) $@
 
 
 convert-2mass: convert-2mass$(OBJ) util$(OBJ)
@@ -89,10 +94,10 @@ convert-2mrs: convert-2mrs$(OBJ) util$(OBJ) stat$(OBJ)
 convert-6dfgs: convert-6dfgs$(OBJ) util$(OBJ)
 	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
 
-convert-sdss: convert-sdss$(OBJ) stat$(OBJ) util$(OBJ)
+convert-sdss: convert-sdss$(OBJ) stat$(OBJ) util$(OBJ) fits-util$(OBJ)
 	$(CC) $^ $(LDFLAGS) -lcfitsio $(OUTBINFLAG) $@
 
-convert-gaia: convert-gaia$(OBJ) stat$(OBJ) util$(OBJ)
+convert-gaia: convert-gaia$(OBJ) stat$(OBJ) util$(OBJ) fits-util$(OBJ)
 	$(CC) $^ $(LDFLAGS) -lcfitsio $(OUTBINFLAG) $@
 
 genvolume: 	genvolume$(OBJ) stat$(OBJ) util$(OBJ)
