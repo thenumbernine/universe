@@ -53,7 +53,7 @@ struct StatSet {
 	StatSet() : count(0) {}
 	Stat *vars() { return &x; }
 	const Stat *vars() const { return &x; }
-	void read(const char *filename);
+	void read(std::string const & filename);
 	void calcSqAvg();
 	void calcStdDev();
 	void accum(const double *value);

@@ -55,10 +55,10 @@ void getFileNameParts(const std::string &filename, std::string &base, std::strin
 	}
 }
 
-std::list<std::string> getDirFileNames(const std::string &dir) {
+std::list<std::string> getDirFileNames(std::string const & dir) {
 	std::list<std::string> destList; 
 	for (auto& p : std::filesystem::directory_iterator(dir)) {
-		destList.push_back(p.path().string());
+		destList.push_back(p.path().filename().string());
 	}
 	return destList;
 }

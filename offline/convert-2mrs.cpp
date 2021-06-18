@@ -3,7 +3,6 @@ usage:
 first pass: 	convert-2mrs			generates point file and generate catalog.specs
 second pass: 	convert-2mrs --catalog	generates catalog.dat using catalog.specs
 */
-#include <cstring>
 #include <cmath>
 #include <filesystem>
 #include <map>
@@ -318,10 +317,10 @@ struct Convert2MRS {
 	
 		if (showRanges) {
 			std::cout 
-			<< statRedshift.rw("redshift") << std::endl
-			<< statDistance.rw("distance") << std::endl
-			<< statLatitude.rw("latitude") << std::endl
-			<< statLongitude.rw("longitude") << std::endl
+				<< statRedshift.rw("redshift") << std::endl
+				<< statDistance.rw("distance") << std::endl
+				<< statLatitude.rw("latitude") << std::endl
+				<< statLongitude.rw("longitude") << std::endl
 			;
 		}
 	}
@@ -331,34 +330,36 @@ void showhelp() {
 	std::cout
 	<< "usage: convert-2mrs <options>" << std::endl
 	<< "options:" << std::endl
-	<< "	--verbose		output values" << std::endl
-	<< "	--show-ranges	show ranges of certain fields" << std::endl
-	<< "	--wait			wait for keypress after each entry.  'q' stops" << std::endl
-	<< "	--catalog 		use the datasets/2mrs/catalog.spec file " << std::endl
-	<< "					to generate datasets/2mrs/catalog.dat" << std::endl
-	<< "	--min-redshift <cz> 	specify minimum redshift" << std::endl
-	<< "	--add-milky-way			artificially add the milky way" << std::endl
+	<< "    --verbose            output values" << std::endl
+	<< "    --show-ranges        show ranges of certain fields" << std::endl
+	<< "    --wait               wait for keypress after each entry.  'q' stops" << std::endl
+	<< "    --catalog            use the datasets/2mrs/catalog.spec file " << std::endl
+	<< "                         to generate datasets/2mrs/catalog.dat" << std::endl
+	<< "    --min-redshift <cz>  specify minimum redshift" << std::endl
+	<< "    --add-milky-way      artificially add the milky way" << std::endl
 	;
 }
 
 int main(int argc, char **argv) {
+	std::vector<std::string> args(argv, argv + argc);
+	
 	Convert2MRS convert;
-	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "--help")) {
+	for (int i = 1; i < args.size(); i++) {
+		if (args[i] == "--help") {
 			showhelp();
 			return 0;
-		} else if (!strcmp(argv[i], "--verbose")) {
+		} else if (args[i] == "--verbose") {
 			VERBOSE = true;
-		} else if (!strcmp(argv[i], "--show-ranges")) {
+		} else if (args[i] == "--show-ranges") {
 			showRanges = true;
-		} else if (!strcmp(argv[i], "--wait")) {
+		} else if (args[i] == "--wait") {
 			INTERACTIVE = true;
-		} else if (!strcmp(argv[i], "--catalog")) {
+		} else if (args[i] == "--catalog") {
 			convert.writingCatalog = true;
-		} else if (!strcmp(argv[i], "--min-redshift") && i < argc-1) {
+		} else if (args[i] == "--min-redshift" && i < args.size()-1) {
 			useRedshiftMinThreshold = true;
 			redshiftMinThreshold = atof(argv[++i]);
-		} else if (!strcmp(argv[i], "--add-milky-way")) {
+		} else if (args[i] == "--add-milky-way") {
 			addMilkyWay = true;
 		} else {
 			showhelp();

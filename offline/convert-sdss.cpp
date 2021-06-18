@@ -463,28 +463,28 @@ int main(int argc, char **argv) {
 	
 	ConvertSDSS3 convert;
 	for (int i = 1; i < args.size(); i++) {
-		if (argv[i] == "--help") {
+		if (args[i] == "--help") {
 			showhelp();
 			return 0;
-		} else if (argv[i] == "--verbose") {
+		} else if (args[i] == "--verbose") {
 			verbose = true;
-		} else if (argv[i] == "--spherical") {
+		} else if (args[i] == "--spherical") {
 			spherical = true;
-		} else if (argv[i] == "--wait") {
+		} else if (args[i] == "--wait") {
 			verbose = true;
 			interactive = true;
-		} else if (argv[i] == "--min-redshift" && i < args.size()-1) {
+		} else if (args[i] == "--min-redshift" && i < args.size()-1) {
 			useMinRedshift = true;
 			minRedshift = atof(args[++i].c_str());
-		} else if (argv[i] == "--show-ranges") {
+		} else if (args[i] == "--show-ranges") {
 			showRanges = true;
-		} else if (argv[i] == "--read-desc") {
+		} else if (args[i] == "--read-desc") {
 			readStringDescs  = true;
-		} else if (argv[i] == "--enum-class") {
+		} else if (args[i] == "--enum-class") {
 			trackStrings = true;
-		} else if (argv[i] == "--get-columns") {
+		} else if (args[i] == "--get-columns") {
 			getColumns = true;
-		} else if (argv[i] == "--nowrite") {
+		} else if (args[i] == "--nowrite") {
 			omitWrite = true;
 		} else {
 			showhelp();

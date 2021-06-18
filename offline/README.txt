@@ -3,7 +3,7 @@ DIRECTORY LAYOUT:
 universe/
 	datasets/
 		allsky/
-			source/	<- put the 2MASS allsky survey gz files here.  gzip files are found at ftp://ftp.ipac.caltech.edu/pub/2mass/allsky/
+			source/	<- put the 2MASS allsky survey gz files here.  gzip files are found at https://irsa.ipac.caltech.edu/2MASS/download/allsky/	
 		2mrs/
 			source/	<- put the 2MASS redshift survey here.  archive is found at http://tdc-www.cfa.harvard.edu/2mrs/
 				2mrs_v240/	<- should be the only contents of the source dir

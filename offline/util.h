@@ -27,7 +27,7 @@ void *getFile(const std::string &filename, std::streamsize *size = NULL, void *b
 
 void getFileNameParts(const std::string &filename, std::string &base, std::string &ext);
 
-std::list<std::string> getDirFileNames(const std::string &dir);
+std::list<std::string> getDirFileNames(std::string const & dir);
 
 //eh seems like it would be useful if it didn't take a callback function ...
 template<typename IteratedType, typename Function>

@@ -2,11 +2,9 @@
 TODO
 perf test, strtok vs std::getline, buffer all vs explicit unrolled (current) method
 */
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdlib>		// system()
 #include <filesystem>
 #include <cmath>
-#include <cstring>
 #include <iostream>
 #include "batch.h"
 #include "util.h"
@@ -114,21 +112,30 @@ double dist(double magn, double zeroMagnFlux, double wavelength, double restFlux
 	double d = sqrt(1. / fluxRatio);
 	d *= DISTANCE_SCALE;
 	if (VERBOSE) {
-		printf("magn %e zeroMagnFlux %e wavelength %e restFlux %e dist %e\n", magn, zeroMagnFlux, wavelength, restFlux, d);
+		std::cout 
+			<< std::scientific
+			<< "magn " << magn
+			<< " zeroMagnFlux " << zeroMagnFlux
+			<< " wavelength " << wavelength
+			<< " restFlux " << restFlux
+			<< " dist " << d
+			<< std::defaultfloat
+			<< std::endl
+		;
 	}
 	return d;
 }
 
-void process(const char *srcfilename, const char *dstfilename) {
+void process(std::string const & srcfilename, std::string const & dstfilename) {
 	int numEntries = 0;
 	int numReadable = 0;
 
-	FILE *srcfile = fopen(srcfilename, "r");
+	std::ifstream srcfile(srcfilename);
 	if (!srcfile) throw Exception() << "failed to open file " << srcfilename;
 
-	FILE *dstfile = NULL;
+	std::ofstream dstfile;
 	if (!OMIT_WRITE) {
-		dstfile = fopen(dstfilename, "wb");
+		dstfile.open(dstfilename, std::ios::binary);
 		if (!dstfile) throw Exception() << "failed to open file " << dstfilename;
 	}
 
@@ -142,7 +149,7 @@ void process(const char *srcfilename, const char *dstfilename) {
 	double dec_min = INFINITY;
 	double dec_max = -INFINITY;
 
-	while (!feof(srcfile)) {
+	while (!srcfile.eof()) {
 		int i = 0;
 		double ra, dec;
 		double j_m, h_m, k_m, dist_opt;
@@ -150,11 +157,14 @@ void process(const char *srcfilename, const char *dstfilename) {
 		double r = 0, rDensity = 0;
 		float vtx[3];
 		char line[4096];	
-		if (!fgets(line, sizeof(line), srcfile)) break;
-		if (std::strlen(line) == sizeof(line)-1) throw Exception() << "line buffer overflow";
+		
+		getlinen(srcfile, line, sizeof(line));
+		
+		auto len = std::strlen(line);
+		if (len == sizeof(line)-1) throw Exception() << "line buffer overflow";
 		
 		if (VERBOSE) {
-			printf("got length %ld line %s\n", std::strlen(line), line);
+			std::cout << "got length " << len << " line " << line << std::endl;
 		}
 		numEntries++;
 		
@@ -163,55 +173,55 @@ void process(const char *srcfilename, const char *dstfilename) {
 			if (VERBOSE) std::cout << "ra: " << v << std::endl; 
 			if (!sscanf(v, "%lf", &ra)) break;
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //dec
+			v = std::strtok(nullptr, "|"); if (!v) break; //dec
 			if (VERBOSE) std::cout << "dec: " << v << std::endl; 
 			if (!sscanf(v, "%lf", &dec)) break;
 
-			v = std::strtok(NULL, "|"); if (!v) break; //err-maj
+			v = std::strtok(nullptr, "|"); if (!v) break; //err-maj
 			if (VERBOSE) std::cout << "err-maj: " << v << std::endl; 
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //err-min
+			v = std::strtok(nullptr, "|"); if (!v) break; //err-min
 			if (VERBOSE) std::cout << "err-min: " << v << std::endl; 
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //err-ang
+			v = std::strtok(nullptr, "|"); if (!v) break; //err-ang
 			if (VERBOSE) std::cout << "err-ang: " << v << std::endl; 
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //designation
+			v = std::strtok(nullptr, "|"); if (!v) break; //designation
 			if (VERBOSE) std::cout << "designation: " << v << std::endl; 
 
-			v = std::strtok(NULL, "|"); if (!v) break; //j_m
+			v = std::strtok(nullptr, "|"); if (!v) break; //j_m
 			if (VERBOSE) std::cout << "j_m: " << v << std::endl; 
 			if (sscanf(v, "%lf", &j_m)) {
 				r += dist(j_m, 1594., 1.235, 3.129e-13);
 				rDensity++;
 			}
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //j_csmig
+			v = std::strtok(nullptr, "|"); if (!v) break; //j_csmig
 			if (VERBOSE) std::cout << "j_csmig: " << v << std::endl; 
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //j_msigcom
+			v = std::strtok(nullptr, "|"); if (!v) break; //j_msigcom
 			if (VERBOSE) std::cout << "j_msigcom: " << v << std::endl; 
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //j_snr
+			v = std::strtok(nullptr, "|"); if (!v) break; //j_snr
 			if (VERBOSE) std::cout << "j_snr: " << v << std::endl; 
 		
-			v = std::strtok(NULL, "|"); if (!v) break; //h_m
+			v = std::strtok(nullptr, "|"); if (!v) break; //h_m
 			if (VERBOSE) std::cout << "h_m: " << v << std::endl; 
 			if (sscanf(v, "%lf", &h_m)) {
 				r += dist(h_m, 1024, 1.662, 1.133e-13);
 				rDensity++;
 			}
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //h_csmig
+			v = std::strtok(nullptr, "|"); if (!v) break; //h_csmig
 			if (VERBOSE) std::cout << "h_csmig: " << v << std::endl; 
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //h_msigcom
+			v = std::strtok(nullptr, "|"); if (!v) break; //h_msigcom
 			if (VERBOSE) std::cout << "h_msigcom: " << v << std::endl; 
 			
-			v = std::strtok(NULL, "|"); if (!v) break; //h_snr
+			v = std::strtok(nullptr, "|"); if (!v) break; //h_snr
 			if (VERBOSE) std::cout << "h_snr: " << v << std::endl; 
 		
-			v = std::strtok(NULL, "|"); if (!v) break; //k_m
+			v = std::strtok(nullptr, "|"); if (!v) break; //k_m
 			if (VERBOSE) std::cout << "k_m: " << v << std::endl; 
 			if (sscanf(v, "%lf", &k_m)) {
 				r += dist(k_m, 666.7, 2.159, 4.283e-14);
@@ -221,53 +231,53 @@ void process(const char *srcfilename, const char *dstfilename) {
 			//look for dist_opt ...
 			int got_dist_opt = 0;
 			do {
-				v = std::strtok(NULL, "|"); if (!v) break;	///k_cmsig
-				v = std::strtok(NULL, "|"); if (!v) break;	///k_msigcom
-				v = std::strtok(NULL, "|"); if (!v) break;	///k_snr
-				v = std::strtok(NULL, "|"); if (!v) break;	///ph_qual
-				v = std::strtok(NULL, "|"); if (!v) break;	///rd_flg
-				v = std::strtok(NULL, "|"); if (!v) break;	///bl_flg
-				v = std::strtok(NULL, "|"); if (!v) break;	///cc_flg
-				v = std::strtok(NULL, "|"); if (!v) break;	///ndet
-				v = std::strtok(NULL, "|"); if (!v) break;	///prox
-				v = std::strtok(NULL, "|"); if (!v) break;	///pxpa
-				v = std::strtok(NULL, "|"); if (!v) break;	///pxcntr
-				v = std::strtok(NULL, "|"); if (!v) break;	///gal_contam
-				v = std::strtok(NULL, "|"); if (!v) break;	///mp_flg
-				v = std::strtok(NULL, "|"); if (!v) break;	///pts_key/cntr
-				v = std::strtok(NULL, "|"); if (!v) break;	///hemis
-				v = std::strtok(NULL, "|"); if (!v) break;	///date
-				v = std::strtok(NULL, "|"); if (!v) break;	///scan
-				v = std::strtok(NULL, "|"); if (!v) break;	///glon
-				v = std::strtok(NULL, "|"); if (!v) break;	///glat
-				v = std::strtok(NULL, "|"); if (!v) break;	///x_scan
-				v = std::strtok(NULL, "|"); if (!v) break;	///jdate
-				v = std::strtok(NULL, "|"); if (!v) break;	///j_psfchi
-				v = std::strtok(NULL, "|"); if (!v) break;	///h_psfchi
-				v = std::strtok(NULL, "|"); if (!v) break;	///k_psfchi
-				v = std::strtok(NULL, "|"); if (!v) break;	///j_m_stdap
-				v = std::strtok(NULL, "|"); if (!v) break;	///j_msig_stdap
-				v = std::strtok(NULL, "|"); if (!v) break;	///h_m_stdap
-				v = std::strtok(NULL, "|"); if (!v) break;	///h_msig_stdap
-				v = std::strtok(NULL, "|"); if (!v) break;	///k_m_stdap
-				v = std::strtok(NULL, "|"); if (!v) break;	///k_msig_stdap
-				v = std::strtok(NULL, "|"); if (!v) break;	///dist_edge_ns
-				v = std::strtok(NULL, "|"); if (!v) break;	///dist_edge_ew
-				v = std::strtok(NULL, "|"); if (!v) break;	///dist_edge_flg
-				v = std::strtok(NULL, "|"); if (!v) break;	///dup_src
-				v = std::strtok(NULL, "|"); if (!v) break;	///use_src
-				v = std::strtok(NULL, "|"); if (!v) break;	///a
-				v = std::strtok(NULL, "|"); if (!v) break;	///dist_opt
+				v = std::strtok(nullptr, "|"); if (!v) break;	///k_cmsig
+				v = std::strtok(nullptr, "|"); if (!v) break;	///k_msigcom
+				v = std::strtok(nullptr, "|"); if (!v) break;	///k_snr
+				v = std::strtok(nullptr, "|"); if (!v) break;	///ph_qual
+				v = std::strtok(nullptr, "|"); if (!v) break;	///rd_flg
+				v = std::strtok(nullptr, "|"); if (!v) break;	///bl_flg
+				v = std::strtok(nullptr, "|"); if (!v) break;	///cc_flg
+				v = std::strtok(nullptr, "|"); if (!v) break;	///ndet
+				v = std::strtok(nullptr, "|"); if (!v) break;	///prox
+				v = std::strtok(nullptr, "|"); if (!v) break;	///pxpa
+				v = std::strtok(nullptr, "|"); if (!v) break;	///pxcntr
+				v = std::strtok(nullptr, "|"); if (!v) break;	///gal_contam
+				v = std::strtok(nullptr, "|"); if (!v) break;	///mp_flg
+				v = std::strtok(nullptr, "|"); if (!v) break;	///pts_key/cntr
+				v = std::strtok(nullptr, "|"); if (!v) break;	///hemis
+				v = std::strtok(nullptr, "|"); if (!v) break;	///date
+				v = std::strtok(nullptr, "|"); if (!v) break;	///scan
+				v = std::strtok(nullptr, "|"); if (!v) break;	///glon
+				v = std::strtok(nullptr, "|"); if (!v) break;	///glat
+				v = std::strtok(nullptr, "|"); if (!v) break;	///x_scan
+				v = std::strtok(nullptr, "|"); if (!v) break;	///jdate
+				v = std::strtok(nullptr, "|"); if (!v) break;	///j_psfchi
+				v = std::strtok(nullptr, "|"); if (!v) break;	///h_psfchi
+				v = std::strtok(nullptr, "|"); if (!v) break;	///k_psfchi
+				v = std::strtok(nullptr, "|"); if (!v) break;	///j_m_stdap
+				v = std::strtok(nullptr, "|"); if (!v) break;	///j_msig_stdap
+				v = std::strtok(nullptr, "|"); if (!v) break;	///h_m_stdap
+				v = std::strtok(nullptr, "|"); if (!v) break;	///h_msig_stdap
+				v = std::strtok(nullptr, "|"); if (!v) break;	///k_m_stdap
+				v = std::strtok(nullptr, "|"); if (!v) break;	///k_msig_stdap
+				v = std::strtok(nullptr, "|"); if (!v) break;	///dist_edge_ns
+				v = std::strtok(nullptr, "|"); if (!v) break;	///dist_edge_ew
+				v = std::strtok(nullptr, "|"); if (!v) break;	///dist_edge_flg
+				v = std::strtok(nullptr, "|"); if (!v) break;	///dup_src
+				v = std::strtok(nullptr, "|"); if (!v) break;	///use_src
+				v = std::strtok(nullptr, "|"); if (!v) break;	///a
+				v = std::strtok(nullptr, "|"); if (!v) break;	///dist_opt
 				got_dist_opt = sscanf(v, "%lf", &dist_opt);
 #if 0	
-				v = std::strtok(NULL, "|"); if (!v) break;	///phi_opt
-				v = std::strtok(NULL, "|"); if (!v) break;	///b_m_opt
-				v = std::strtok(NULL, "|"); if (!v) break;	///vr_m_opt
-				v = std::strtok(NULL, "|"); if (!v) break;	///nopt_mchs
-				v = std::strtok(NULL, "|"); if (!v) break;	///ext_key
-				v = std::strtok(NULL, "|"); if (!v) break;	///scan_key
-				v = std::strtok(NULL, "|"); if (!v) break;	///coadd_key
-				v = std::strtok(NULL, "|"); if (!v) break;	///coadd
+				v = std::strtok(nullptr, "|"); if (!v) break;	///phi_opt
+				v = std::strtok(nullptr, "|"); if (!v) break;	///b_m_opt
+				v = std::strtok(nullptr, "|"); if (!v) break;	///vr_m_opt
+				v = std::strtok(nullptr, "|"); if (!v) break;	///nopt_mchs
+				v = std::strtok(nullptr, "|"); if (!v) break;	///ext_key
+				v = std::strtok(nullptr, "|"); if (!v) break;	///scan_key
+				v = std::strtok(nullptr, "|"); if (!v) break;	///coadd_key
+				v = std::strtok(nullptr, "|"); if (!v) break;	///coadd
 #endif
 			} while (0);
 			if (got_dist_opt) num_dist_opts++;
@@ -282,7 +292,7 @@ void process(const char *srcfilename, const char *dstfilename) {
 			}
 			
 			if (R_VS_DIST_OPT && got_dist_opt) {
-				printf("%f\t%f\n", r, 1./dist_opt);
+				std::cout << r << "\t" << (1./dist_opt) << std::endl;
 			}
 			double rad_ra = ra * M_PI / 180.0;
 			double rad_dec = dec * M_PI / 180.0;
@@ -292,20 +302,22 @@ void process(const char *srcfilename, const char *dstfilename) {
 			vtx[2] = (float)(usingR * sin(rad_dec));
 			if (VERBOSE) {
 				std::cout << " -- calculated values -- " << std::endl;
-				printf("ra %f\n", ra);
-				printf("dec %f\n", dec);
-				printf("j_m %f\n", j_m);
-				printf("h_m %f\n", h_m);
-				printf("k_m %f\n", k_m);
-				printf("r %f\n", r);
-				printf("rDensity %f\n", rDensity);	//TODO weight by errors?
-				printf("1/dist_opt %f\n", got_dist_opt ? 1./dist_opt : (0./0.));
-				printf("rad_ra %f\n", rad_ra);
-				printf("rad_dec %f\n", rad_dec);
-				printf("x %f\n", vtx[0]);
-				printf("y %f\n", vtx[1]);
-				printf("z %f\n", vtx[2]);
-				printf("\n");
+				std::cout
+					<< "ra " << ra
+					<< "dec" << dec
+					<< "j_m" << j_m
+					<< "h_m" << h_m
+					<< "k_m" << k_m
+					<< "r" << r
+					<< "rDensity" << rDensity	//TODO weight by errors?
+					<< "1/dist_opt" << (got_dist_opt ? 1./dist_opt : NAN)
+					<< "rad_ra" << rad_ra
+					<< "rad_dec" << rad_dec
+					<< "x" << vtx[0]
+					<< "y" << vtx[1]
+					<< "z" << vtx[2]
+					<< std::endl
+				;
 			}
 			if (!isnan(vtx[0]) && !isnan(vtx[1]) && !isnan(vtx[2])
 				&& vtx[0] != INFINITY && vtx[0] != -INFINITY 
@@ -326,9 +338,9 @@ void process(const char *srcfilename, const char *dstfilename) {
 				
 				if (!OMIT_WRITE) {
 					if (VERBOSE) {
-						printf("writing...\n");
+						std::cout << "writing..." << std::endl;
 					}
-					fwrite(vtx, sizeof(vtx), 1, dstfile);
+					dstfile.write(reinterpret_cast<char const *>(vtx), sizeof(vtx));
 				}
 			}
 
@@ -340,51 +352,55 @@ void process(const char *srcfilename, const char *dstfilename) {
 		} while (0);
 	}
 
-	fclose(srcfile);
-	if (!OMIT_WRITE) {
-		fclose(dstfile);
-	}
-
-	printf("num entries: %d\n", numEntries);
-	printf("num readable entries: %d\n", numReadable);
-
-	printf("num dist_opts: %d\n", num_dist_opts);
+	std::cout 
+		<< "num entries: " << numEntries
+		<< "num readable entries: " << numReadable
+		<< "num dist_opts: " << num_dist_opts 
+		<< std::endl
+	;
 #if 0	//now in getstats
 	if (numReadable) {
 		double ra_stddev = sqrt(ra_sqavg - ra_avg * ra_avg);
 		double dec_stddev = sqrt(dec_sqavg - dec_avg * dec_avg);
-		printf("ra min %f max %f avg %f stddev %f\n", ra_min, ra_max, ra_avg, ra_stddev);
-		printf("dec min %f max %f avg %f\n", dec_min, dec_max, dec_avg, dec_stddev);
+		std::cout 
+			<< "ra min " << ra_min
+			<< " max "  << ra_max
+			<< " avg "  << ra_avg
+			<< " stddev "  << ra_stddev
+			<< std::endl
+			<< "dec min " << dec_min
+			<< " max "  << dec_max
+			<< " avg "  << dec_avg
+			<< " stddev " << dec_stddev
+			<< std::endl
+		;
 	}
 #endif
 }
 
 void runOnGZip(const char *basename) {
-	char dstname[FILENAME_MAX];
-	char rawname[FILENAME_MAX];
+	std::string dstname = std::string() + "datasets/allsky/points/" + basename + ".f32";
 
-	snprintf(dstname, sizeof(dstname), "datasets/allsky/points/%s.f32", basename);
 	if (!FORCE && std::filesystem::exists(dstname)) {
-		printf("file %s already exists\n", dstname);
+		std::cout << "file " << dstname << " already exists" << std::endl;
 		return;
 	}
 
-	snprintf(rawname, sizeof(rawname), "datasets/allsky/raw/%s", basename);
+	std::string rawname = std::string() + "datasets/allsky/raw/" + basename;
 
 	if (!std::filesystem::exists(rawname)) {
-		char cmd[FILENAME_MAX];
-		snprintf(cmd, sizeof(cmd), "7z x -odatasets/allsky/raw datasets/allsky/source/%s.gz", basename);
-		printf("extracting %s\n", basename);
-		system(cmd);
+		std::string cmd = std::string() + "7z x -odatasets/allsky/raw datasets/allsky/source/" + basename + ".gz";
+		std::cout << "extracting " << cmd << std::endl;
+		std::system(cmd.c_str());
 	}
 	
 	//for all files named psc_???.gz
-	printf("processing %s\n", rawname);
+	std::cout << "processing " << rawname << std::endl;;
 	process(rawname, dstname);
 
 	if (!PRESERVE) {
-		printf("deleting %s\n", rawname);
-		if (remove(rawname) == -1) throw Exception() << "failed to delete file " << rawname;
+		std::cout << "deleting " << rawname << std::endl;
+		if (!std::filesystem::remove(rawname)) throw Exception() << "failed to delete file " << rawname;
 	}
 }
 
@@ -418,28 +434,30 @@ void showhelp(void) {
 }
 
 int main(int argc, char **argv) {
+	std::vector<std::string> args(argv, argv + argc);
+	
 	BatchProcessor<ConvertWorker> batch;
 	
 	bool gotFile = false, gotDir = false;
 	int totalFiles = 0;
 	
-	for (int k = 1; k < argc; k++) {
-		if (!std::strcmp(argv[k], "--verbose")) {
+	for (int k = 1; k < args.size(); k++) {
+		if (args[k] == "--verbose") {
 			VERBOSE = true;
-		} else if (!std::strcmp(argv[k], "--wait")) {
+		} else if (args[k] == "--wait") {
 			VERBOSE = true;
 			INTERACTIVE = true;
-		} else if (!std::strcmp(argv[k], "--keep")) {
+		} else if (args[k] == "--keep") {
 			PRESERVE = true;
-		} else if (!std::strcmp(argv[k], "--nowrite")) {
+		} else if (args[k] == "--nowrite") {
 			OMIT_WRITE = true;
-		} else if (!std::strcmp(argv[k], "--use_dist_opt")) {
+		} else if (args[k] == "--use_dist_opt") {
 			USE_DIST_OPT = true;
-		} else if (!std::strcmp(argv[k], "--r_vs_dist_opt")) {
+		} else if (args[k] == "--r_vs_dist_opt") {
 			R_VS_DIST_OPT = true;
-		} else if (!std::strcmp(argv[k], "--force")) { 
+		} else if (args[k] == "--force") { 
 			FORCE = true;
-		} else if (!std::strcmp(argv[k], "--all")) {
+		} else if (args[k] == "--all") {
 			gotDir = true;
 			std::list<std::string> dirFilenames;
 			for (std::list<std::string>::iterator i = dirFilenames.begin(); i != dirFilenames.end(); ++i) {
@@ -450,12 +468,12 @@ int main(int argc, char **argv) {
 					batch.addThreadArg(base);
 				}
 			}
-		} else if (!std::strcmp(argv[k], "--file") && k < argc-1) {
+		} else if (args[k] == "--file" && k < args.size()-1) {
 			gotFile = true;
 			totalFiles++;
-			batch.addThreadArg(argv[++k]);
-		} else if (!std::strcmp(argv[k], "--threads") && k < argc-1) {
-			batch.setNumThreads(atoi(argv[++k]));
+			batch.addThreadArg(args[++k]);
+		} else if (args[k] == "--threads" && k < args.size()-1) {
+			batch.setNumThreads(atoi(args[++k]));
 		} else {
 			showhelp();
 			return 0;

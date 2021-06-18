@@ -1,21 +1,21 @@
-#ifndef BATCH_H
-#define BATCH_H
+#pragma once
 
 #include <cassert>
 #include <vector>
 #include <list>
-#include <pthread.h>
-
+#include <mutex>
+#include <thread>
 #include "exception.h"
 #include "util.h"
 
+#if 0
 class CritSec;
 
 class Mutex {
 	pthread_mutex_t m; 
 	friend class CritSec;
 public:
-	Mutex() { pthread_mutex_init(&m, NULL); }
+	Mutex() { pthread_mutex_init(&m, nullptr); }
 	~Mutex() { pthread_mutex_destroy(&m); }
 
 	bool lock() { return !pthread_mutex_lock(&m); }
@@ -43,73 +43,70 @@ public:
 	bool trylock() { success = m.trylock(); return success; }
 	bool fail() { return !success; }
 };
+#endif
 
 template<typename Worker>
-class BatchProcessor {
+struct BatchProcessor {
 protected:
 	typedef typename Worker::ArgType ArgType;
-	Mutex threadArgMutex, runningMutex;
+	std::mutex threadArgMutex, runningMutex;
 	std::list<ArgType> threadArgs;
-	std::vector<pthread_t> threads;
+	std::vector<std::shared_ptr<std::thread>> threads;
 public:
 	BatchProcessor() {
-		threads.resize(1);
+		threads.resize(std::thread::hardware_concurrency());
 	}
 	
 	void setNumThreads(int numThreads) {
-		CritSec runningCS(runningMutex, true);
-		if (runningCS.fail()) throw Exception() << "can't modify while running";
+		std::unique_lock<std::mutex> runningCS(runningMutex, std::try_to_lock);
+		if (!runningCS) throw Exception() << "can't modify while running";
 		threads.resize(numThreads);
 	}
 	void addThreadArg(const ArgType &arg) {
-		CritSec runningCS(runningMutex, true);
-		if (runningCS.fail()) throw Exception() << "can't modify while running";
+		std::unique_lock<std::mutex> runningCS(runningMutex, std::try_to_lock);
+		if (!runningCS) throw Exception() << "can't modify while running";
 		threadArgs.push_back(arg);
 	}
 
 	//execute batch
 	void operator()() {
-		CritSec runningCS(runningMutex);
+		std::unique_lock<std::mutex> runningCS(runningMutex);
 
 		for (int i = 0; i < threads.size(); i++) {
-			int res = pthread_create(&threads[i], NULL, processThreadLoop, (void*)this);
-			assert(res == 0);
+			threads[i] = std::make_shared<std::thread>([this]() {
+				this->threadLoop();
+			});
 		}
 
 		for (int i = 0; i < threads.size(); i++) {
-			void *status;
-			int result = pthread_join(threads[i], &status);
-			if (result) throw Exception() << "pthread_join failed";
+			threads[i]->join();
 		}
 	}
 
 	void runSingleThreaded() {
 		Worker pf(this);
-		for (typename std::list<ArgType>::iterator i = threadArgs.begin(); i != threadArgs.end(); ++i) {
-			pf(*i);
+		for (const auto& i : threadArgs) {
+			pf(i);
 		}
 	}
 
-	static void *processThreadLoop(void *batch_) {
-		BatchProcessor<Worker> *batch = (BatchProcessor<Worker>*)batch_;
-		return batch->threadLoop();
-	}
-
 	//individual thread loop:
-	void *threadLoop() {
+	void threadLoop() {
 		Worker pf(this);
 		for (;;) {
-			CritSec threadArgCS(threadArgMutex);
+			std::unique_lock<std::mutex> threadArgCS(threadArgMutex);
 			if (threadArgs.size() == 0) break;
 			ArgType threadArg = threadArgs.front();
 			threadArgs.pop_front();
 			threadArgCS.unlock();
 			
-			profile(pf.desc(threadArg), pf, threadArg);
+			profile(pf.desc(threadArg), [&](){
+				try {
+					pf(threadArg);
+				} catch (std::exception &t) {
+					std::cerr << "error: " << t.what() << std::endl;
+				}
+			});
 		}
-		return NULL;
 	}
 };
-
-#endif
-

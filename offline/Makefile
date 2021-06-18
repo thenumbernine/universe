@@ -1,135 +1,193 @@
-INCFLAG = -I
-
-#CPPFLAGS= -O3 $(INCFLAG)../libs -fPIC
-CPPFLAGS= -g -O0 $(INCFLAG)../libs -fPIC -c
-
-#LDFLAGS = -lpthread -fPIC
-LDFLAGS = -g -O0 -lpthread -fPIC
+# https://stackoverflow.com/a/30906085
+# NMAKE code here \
+!ifndef 0 # \
+ # \
+CC = cl.exe # \
+MV = move # \
+RM = del # \
+CP = copy # \
+# \
+INCFLAG = /I # \
+DEPS = $** # \
+ # \
+OBJEXT = .obj # \
+BINEXT = .exe # \
+ # \
+OUTOBJFLAG = /Fo: # \
+OUTBINFLAG = /Fe: # \
+ # \
+CFITSINCDIR=$(USERPROFILE)\include # \
+CFITSLIBDIR=$(USERPROFILE)\bin\x64 # \
+CFITSLIB=$(CFITSLIBDIR)\cfitsio.lib # \
+ # \
+CPPFLAGS=/EHsc /c /O2 /std:c++17 /D_USE_MATH_DEFINES # \
+LDFLAGS= # \
+ # \
+!else
+# Make code here
 
 CC = g++
-RM = rm
+MV = mv -f
+RM = rm -f
+CP = cp -f
 
-OBJ = .o
-BIN = 
+INCFLAG = -I
+DEPS = $^
+
+OBJEXT = .o
+BINEXT =
 
 OUTOBJFLAG = -o
 OUTBINFLAG = -o
 
+CFITSINCDIR=../libs
+CFITSLIB= -lcfitsio
+OPENGLLIB=-lmingw32 -lwinmm -lgdi32 -lSDLmain -lSDL.dll -lopengl32 -lglew32
+
+SDLINCDIR=../SDL-1.2.15/include
+SDLIMAGEINCDIR=../SDL_image-1.2.12/include
+
+# release:
+CPPFLAGS= -O3 -fPIC -c
+LDFLAGS = -fPIC
+
+# debugging:
+#CPPFLAGS= -g -O0 -fPIC -c
+#LDFLAGS = -g -O0 -fPIC
+
+# \
+!endif
+
+
 ALL =	\
-	convert-2mass \
-	convert-2mrs \
-	convert-6dfgs \
-	convert-sdss \
-	convert-gaia \
-	genvolume \
-	getstats \
-	gettotalstats \
-	genoctree \
-	show-still \
-	genisos	\
-	flatten-clusters	\
-	mark-clusters
-#	show
+	convert-2mrs$(BINEXT) \
+	convert-6dfgs$(BINEXT) \
+	convert-sdss$(BINEXT) \
+	convert-gaia$(BINEXT) \
+	getstats$(BINEXT) \
+	gettotalstats$(BINEXT) \
+	genvolume$(BINEXT) \
+# not building in msvc yet
+#	genoctree$(BINEXT) \
+#	show-still$(BINEXT) \
+#	genisos$(BINEXT) \
+#	flatten-clusters$(BINEXT) \
+#	mark-clusters$(BINEXT) \
+#	convert-2mass$(BINEXT) \
+# not done at all:
+#	show$(BINEXT) \
 
 all: $(ALL)
 
-convert-2mass$(OBJ): convert-2mass.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@ 
+convert-2mass$(OBJEXT): convert-2mass.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-convert-2mrs$(OBJ): convert-2mrs.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+convert-2mrs$(OBJEXT): convert-2mrs.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-convert-6dfgs$(OBJ): convert-6dfgs.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@ 
+convert-6dfgs$(OBJEXT): convert-6dfgs.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-convert-sdss$(OBJ): convert-sdss.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+convert-sdss$(OBJEXT): convert-sdss.cpp
+	$(CC) $(CPPFLAGS) $(INCFLAG)$(CFITSINCDIR) $(DEPS) $(OUTOBJFLAG) $@
 
-convert-gaia$(OBJ): convert-gaia.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+convert-gaia$(OBJEXT): convert-gaia.cpp
+	$(CC) $(CPPFLAGS) $(INCFLAG)$(CFITSINCDIR) $(DEPS) $(OUTOBJFLAG) $@
 
-util$(OBJ): util.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+util$(OBJEXT): util.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-fits-util$(OBJ): fits-util.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+fits-util$(OBJEXT): fits-util.cpp
+	$(CC) $(CPPFLAGS) $(INCFLAG)$(CFITSINCDIR) $(DEPS) $(OUTOBJFLAG) $@
 
-stat$(OBJ): stat.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+stat$(OBJEXT): stat.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-octree$(OBJ): octree.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+octree$(OBJEXT): octree.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-writebmp$(OBJ): writebmp.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+writebmp$(OBJEXT): writebmp.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-genvolume$(OBJ): genvolume.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+getstats$(OBJEXT): getstats.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-genoctree$(OBJ): genoctree.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+gettotalstats$(OBJEXT): gettotalstats.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-genisos$(OBJ): genisos.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+genvolume$(OBJEXT): genvolume.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-mark-clusters$(OBJ): mark-clusters.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+genoctree$(OBJEXT): genoctree.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-flatten-clusters$(OBJ): flatten-clusters.cpp
-	$(CC) $(CPPFLAGS) $^ $(OUTOBJFLAG) $@
+genisos$(OBJEXT): genisos.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-show$(OBJ): show.cpp
-	$(CC)  $(CPPFLAGS) $(INCFLAG)../SDL-1.2.15/include $^ $(OUTOBJFLAG) $@
+mark-clusters$(OBJEXT): mark-clusters.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
 
-show-still$(OBJ): show-still.cpp
-	$(CC)  $(CPPFLAGS) $(INCFLAG)../SDL-1.2.15/include $(INCFLAG)../SDL_image-1.2.12/include $^ $(OUTOBJFLAG) $@
+flatten-clusters$(OBJEXT): flatten-clusters.cpp
+	$(CC) $(CPPFLAGS) $(DEPS) $(OUTOBJFLAG) $@
+
+show$(OBJEXT): show.cpp
+	$(CC) $(CPPFLAGS) $(INCFLAG)$(SDLINCDIR) $(DEPS) $(OUTOBJFLAG) $@
+
+show-still$(OBJEXT): show-still.cpp
+	$(CC) $(CPPFLAGS) $(INCFLAG)$(SDLINCDIR) $(INCFLAG)$(SDLIMAGEINCDIR) $(DEPS) $(OUTOBJFLAG) $@
 
 
-convert-2mass: convert-2mass$(OBJ) util$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+convert-2mass$(BINEXT): convert-2mass$(OBJEXT) util$(OBJEXT)
+	$(CC) $(LDFLAGS) $(DEPS) $(OUTBINFLAG) $@
 
-convert-2mrs: convert-2mrs$(OBJ) util$(OBJ) stat$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+convert-2mrs$(BINEXT): convert-2mrs$(OBJEXT) util$(OBJEXT) stat$(OBJEXT)
+	$(CC) $(LDFLAGS) $(DEPS) $(OUTBINFLAG) $@
 
-convert-6dfgs: convert-6dfgs$(OBJ) util$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+convert-6dfgs$(BINEXT): convert-6dfgs$(OBJEXT) util$(OBJEXT)
+	$(CC) $(LDFLAGS) $(DEPS) $(OUTBINFLAG) $@
 
-convert-sdss: convert-sdss$(OBJ) stat$(OBJ) util$(OBJ) fits-util$(OBJ)
-	$(CC) $^ $(LDFLAGS) -lcfitsio $(OUTBINFLAG) $@
+convert-sdss$(BINEXT): convert-sdss$(OBJEXT) stat$(OBJEXT) util$(OBJEXT) fits-util$(OBJEXT)
+	$(CC) $(LDFLAGS) $(DEPS) $(CFITSLIB) $(OUTBINFLAG) $@
 
-convert-gaia: convert-gaia$(OBJ) stat$(OBJ) util$(OBJ) fits-util$(OBJ)
-	$(CC) $^ $(LDFLAGS) -lcfitsio $(OUTBINFLAG) $@
+convert-gaia$(BINEXT): convert-gaia$(OBJEXT) stat$(OBJEXT) util$(OBJEXT) fits-util$(OBJEXT)
+	$(CC) $(LDFLAGS) $(DEPS) $(CFITSLIB) $(OUTBINFLAG) $@
 
-genvolume: 	genvolume$(OBJ) stat$(OBJ) util$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+getstats$(BINEXT): getstats$(OBJEXT) stat$(OBJEXT) util$(OBJEXT)
+	$(CC) $(DEPS) $(LDFLAGS) $(OUTBINFLAG) $@
 
-getstats: getstats$(OBJ) stat$(OBJ) util$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+gettotalstats$(BINEXT): gettotalstats$(OBJEXT) stat$(OBJEXT) util$(OBJEXT)
+	$(CC) $(DEPS) $(LDFLAGS) $(OUTBINFLAG) $@
 
-gettotalstats: gettotalstats$(OBJ) stat$(OBJ) util$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+genvolume$(BINEXT): genvolume$(OBJEXT) stat$(OBJEXT) util$(OBJEXT)
+	$(CC) $(DEPS) $(LDFLAGS) $(OUTBINFLAG) $@
 
-genoctree: genoctree$(OBJ) octree$(OBJ) stat$(OBJ) util$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+genoctree$(BINEXT): genoctree$(OBJEXT) octree$(OBJEXT) stat$(OBJEXT) util$(OBJEXT)
+	$(CC) $(DEPS) $(LDFLAGS) $(OUTBINFLAG) $@
 
-genisos: genisos$(OBJ) util$(OBJ) stat$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+genisos$(BINEXT): genisos$(OBJEXT) util$(OBJEXT) stat$(OBJEXT)
+	$(CC) $(DEPS) $(LDFLAGS) $(OUTBINFLAG) $@
 
-mark-clusters: mark-clusters$(OBJ) util$(OBJ) stat$(OBJ) octree$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+mark-clusters$(BINEXT): mark-clusters$(OBJEXT) util$(OBJEXT) stat$(OBJEXT) octree$(OBJEXT)
+	$(CC) $(DEPS) $(LDFLAGS) $(OUTBINFLAG) $@
 
-flatten-clusters: flatten-clusters$(OBJ) util$(OBJ) stat$(OBJ) octree$(OBJ)
-	$(CC) $^ $(LDFLAGS) $(OUTBINFLAG) $@
+flatten-clusters$(BINEXT): flatten-clusters$(OBJEXT) util$(OBJEXT) stat$(OBJEXT) octree$(OBJEXT)
+	$(CC) $(DEPS) $(LDFLAGS) $(OUTBINFLAG) $@
 
-show: show$(OBJ) stat$(OBJ) octree$(OBJ) util$(OBJ)
-	$(CC)  -O3 $^ $(OUTBINFLAG) $@ $(LDFLAGS) -lmingw32 -lwinmm -lgdi32 -lSDLmain -lSDL.dll -lopengl32 -lglew32
+show$(BINEXT): show$(OBJEXT) stat$(OBJEXT) octree$(OBJEXT) util$(OBJEXT)
+	$(CC) $(DEPS) $(OUTBINFLAG) $@ $(LDFLAGS) $(OPENGLLIB)
 
-show-still: show-still$(OBJ) stat$(OBJ) util$(OBJ) writebmp$(OBJ)
-	$(CC) -O3 $^ $(OUTBINFLAG) $@ 
+show-still$(BINEXT): show-still$(OBJEXT) stat$(OBJEXT) util$(OBJEXT) writebmp$(OBJEXT)
+	$(CC) $(DEPS) $(OUTBINFLAG) $@
 
+
+.PHONY: clean
 clean:
-	-$(RM) *$(OBJ)
+	-$(RM) *$(OBJEXT)
 	-$(RM) $(ALL)
 
-install:
-	$(foreach FILE, $(ALL), $(shell cp $(FILE) /data/local/bin/))
+
+# idk what this was for.  did I start this makefile on android?
+# doesn't work in nmake anyways
+#.PHONY: install
+#install:
+#	$(foreach FILE, $(ALL), $(shell cp $(FILE) /data/local/bin/))

@@ -37,7 +37,7 @@ const char *StatSet::varnames[NUM_STATSET_VARS] = {
 	"x", "y", "z", "r", "phi", "theta"	
 };
 	
-void StatSet::read(const char *filename) {
+void StatSet::read(std::string const & filename) {
 	//read all first so we can complain if any fields are missing
 	std::ifstream f(filename);
 	if (!f.is_open()) throw Exception() << "failed to open file " << filename;	
