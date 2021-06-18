@@ -2,12 +2,10 @@
 usage:
 convert-sdss			generates point file
 */
-#include <cstring>
 #include <filesystem>
 #include <vector>
 #include <map>
 #include <string>
-#include <sstream>
 #include <limits>
 #include "stat.h"
 #include "exception.h"
@@ -68,7 +66,6 @@ struct ConvertSDSS3 {
 		std::filesystem::create_directory("datasets/sdss/points");
 
 		fitsfile *file = nullptr;
-
 		fitsSafe(fits_open_table, &file, sourceFileName, READONLY);
 	
 		long numRows = 0;
@@ -148,20 +145,20 @@ struct ConvertSDSS3 {
 		}
 	
 		//cartesian
-		std::shared_ptr<FITSTypedColumn<double>> col_CX = std::make_shared<FITSTypedColumn<double>>(file, "CX"); columns.push_back(col_CX);
-		std::shared_ptr<FITSTypedColumn<double>> col_CY = std::make_shared<FITSTypedColumn<double>>(file, "CY"); columns.push_back(col_CY);
-		std::shared_ptr<FITSTypedColumn<double>> col_CZ = std::make_shared<FITSTypedColumn<double>>(file, "CZ"); columns.push_back(col_CZ);
+		auto col_CX = std::make_shared<FITSTypedColumn<double>>(file, "CX"); columns.push_back(col_CX);
+		auto col_CY = std::make_shared<FITSTypedColumn<double>>(file, "CY"); columns.push_back(col_CY);
+		auto col_CZ = std::make_shared<FITSTypedColumn<double>>(file, "CZ"); columns.push_back(col_CZ);
 	
 		//spherical
-		std::shared_ptr<FITSTypedColumn<double>> col_PLUG_RA = std::make_shared<FITSTypedColumn<double>>(file, "PLUG_RA"); columns.push_back(col_PLUG_RA);
-		std::shared_ptr<FITSTypedColumn<double>> col_PLUG_DEC = std::make_shared<FITSTypedColumn<double>>(file, "PLUG_DEC"); columns.push_back(col_PLUG_DEC);
+		auto col_PLUG_RA = std::make_shared<FITSTypedColumn<double>>(file, "PLUG_RA"); columns.push_back(col_PLUG_RA);
+		auto col_PLUG_DEC = std::make_shared<FITSTypedColumn<double>>(file, "PLUG_DEC"); columns.push_back(col_PLUG_DEC);
 
 		if (readStringDescs) {
 			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "XFOCAL"));
 			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "YFOCAL"));
 		}
-		std::shared_ptr<FITSStringTrackColumn> col_SOURCETYPE = std::make_shared<FITSStringTrackColumn>(file, "SOURCETYPE"); columns.push_back(col_SOURCETYPE);
-		std::shared_ptr<FITSStringTrackColumn> col_TARGETTYPE = std::make_shared<FITSStringTrackColumn>(file, "TARGETTYPE"); columns.push_back(col_TARGETTYPE);
+		auto col_SOURCETYPE = std::make_shared<FITSStringTrackColumn>(file, "SOURCETYPE"); columns.push_back(col_SOURCETYPE);
+		auto col_TARGETTYPE = std::make_shared<FITSStringTrackColumn>(file, "TARGETTYPE"); columns.push_back(col_TARGETTYPE);
 		if (readStringDescs) {
 			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "PRIMTARGET"));
 			columns.push_back(std::make_shared<FITSTypedColumn<int>>(file, "SECTARGET"));
@@ -188,9 +185,9 @@ struct ConvertSDSS3 {
 			columns.push_back(std::make_shared<FITSTypedColumn<double>>(file, "PLUG_RA"));
 			columns.push_back(std::make_shared<FITSTypedColumn<double>>(file, "PLUG_DEC"));
 		}
-		std::shared_ptr<FITSStringTrackColumn> col_CLASS = std::make_shared<FITSStringTrackColumn>(file, "CLASS"); columns.push_back(col_CLASS);
-		std::shared_ptr<FITSStringTrackColumn> col_SUBCLASS = std::make_shared<FITSStringTrackColumn>(file, "SUBCLASS"); columns.push_back(col_SUBCLASS);
-		std::shared_ptr<FITSTypedColumn<float>> col_Z = std::make_shared<FITSTypedColumn<float>>(file, "Z"); columns.push_back(col_Z);
+		auto col_CLASS = std::make_shared<FITSStringTrackColumn>(file, "CLASS"); columns.push_back(col_CLASS);
+		auto col_SUBCLASS = std::make_shared<FITSStringTrackColumn>(file, "SUBCLASS"); columns.push_back(col_SUBCLASS);
+		auto col_Z = std::make_shared<FITSTypedColumn<float>>(file, "Z"); columns.push_back(col_Z);
 		if (readStringDescs) {
 			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "Z_ERR"));
 			columns.push_back(std::make_shared<FITSTypedColumn<float>>(file, "RCHI2"));
@@ -263,7 +260,6 @@ struct ConvertSDSS3 {
 			trackColumns.push_back(col_CLASS);
 			trackColumns.push_back(col_SUBCLASS);
 		}
-
 
 		if (verbose) {
 			for (std::vector<std::shared_ptr<FITSColumn>>::iterator i = columns.begin(); i != columns.end(); ++i) {
@@ -361,7 +357,9 @@ struct ConvertSDSS3 {
 						stat_cz.accum(value_CZ, numReadable);
 					}
 					
-					if (!omitWrite) pointDestFile.write(reinterpret_cast<char const *>(vtx), sizeof(vtx));
+					if (!omitWrite) {
+						pointDestFile.write(reinterpret_cast<char const *>(vtx), sizeof(vtx));
+					}
 				}
 				if (verbose) {
 					std::cout << "distance (Mpc) " << distance << std::endl;
@@ -394,7 +392,9 @@ struct ConvertSDSS3 {
 						stat_dec.accum(value_DEC, numReadable);
 					}
 					
-					if (!omitWrite) pointDestFile.write(reinterpret_cast<char const *>(vtx), sizeof(vtx));
+					if (!omitWrite) {
+						pointDestFile.write(reinterpret_cast<char const *>(vtx), sizeof(vtx));
+					}
 				}	
 			}
 
@@ -444,45 +444,48 @@ struct ConvertSDSS3 {
 
 void showhelp() {
 	std::cout
-	<< "usage: convert-sdss <options>" << std::endl
-	<< "options:" << std::endl
-	<< "	--verbose				output values" << std::endl
-	<< "	--wait					wait for keypress after each entry.  'q' stops" << std::endl
-	<< "	--show-ranges			show ranges of certain fields" << std::endl
-	<< "	--read-desc				reads string descriptions" << std::endl
-	<< "	--min-redshift <cz> 	specify minimum redshift" << std::endl
-	<< "	--enum-class			enumerate all classes" << std::endl
-	<< "	--get-columns			print all column names" << std::endl
-	<< "	--nowrite				don't write results.  useful with --verbose or --read-desc" << std::endl
-	<< "	--spherical				output spherical coordinates: z, ra, dec (default outputs xyz)" << std::endl
+		<< "usage: convert-sdss <options>" << std::endl
+		<< "options:" << std::endl
+		<< "    --verbose               output values" << std::endl
+		<< "    --wait                  wait for keypress after each entry.  'q' stops" << std::endl
+		<< "    --show-ranges           show ranges of certain fields" << std::endl
+		<< "    --read-desc             reads string descriptions" << std::endl
+		<< "    --min-redshift <cz>     specify minimum redshift" << std::endl
+		<< "    --enum-class            enumerate all classes" << std::endl
+		<< "    --get-columns           print all column names" << std::endl
+		<< "    --nowrite               don't write results.  useful with --verbose or --read-desc" << std::endl
+		<< "    --spherical             output spherical coordinates: z, ra, dec (default outputs xyz)" << std::endl
 	;
 }
 
 int main(int argc, char **argv) {
+	std::vector<std::string> args;
+	std::copy(argv, argv+argc, std::back_inserter<std::vector<std::string>>(args));
+	
 	ConvertSDSS3 convert;
-	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "--help")) {
+	for (int i = 1; i < args.size(); i++) {
+		if (argv[i] == "--help") {
 			showhelp();
 			return 0;
-		} else if (!strcmp(argv[i], "--verbose")) {
+		} else if (argv[i] == "--verbose") {
 			verbose = true;
-		} else if (!strcmp(argv[i], "--spherical")) {
+		} else if (argv[i] == "--spherical") {
 			spherical = true;
-		} else if (!strcmp(argv[i], "--wait")) {
+		} else if (argv[i] == "--wait") {
 			verbose = true;
 			interactive = true;
-		} else if (!strcmp(argv[i], "--min-redshift") && i < argc-1) {
+		} else if (argv[i] == "--min-redshift" && i < args.size()-1) {
 			useMinRedshift = true;
-			minRedshift = atof(argv[++i]);
-		} else if (!strcmp(argv[i], "--show-ranges")) {
+			minRedshift = atof(args[++i].c_str());
+		} else if (argv[i] == "--show-ranges") {
 			showRanges = true;
-		} else if (!strcasecmp(argv[i], "--read-desc")) {
+		} else if (argv[i] == "--read-desc") {
 			readStringDescs  = true;
-		} else if (!strcasecmp(argv[i], "--enum-class")) {
+		} else if (argv[i] == "--enum-class") {
 			trackStrings = true;
-		} else if (!strcasecmp(argv[i], "--get-columns")) {
+		} else if (argv[i] == "--get-columns") {
 			getColumns = true;
-		} else if (!strcasecmp(argv[i], "--nowrite")) {
+		} else if (argv[i] == "--nowrite") {
 			omitWrite = true;
 		} else {
 			showhelp();
@@ -491,4 +494,3 @@ int main(int argc, char **argv) {
 	}
 	profile("convert-sdss", convert);
 }
-

@@ -2,12 +2,9 @@
 usage:
 convert-gaia			generates point file
 */
-#include <cstring>
 #include <filesystem>
 #include <vector>
-#include <map>
 #include <string>
-#include <sstream>
 #include <limits>
 #include "stat.h"
 #include "exception.h"
@@ -122,36 +119,36 @@ struct ConvertSDSS {
 			brightness? color? shape?
 			catalog name? NGC_*** MS_*** or whatever other identifier?
 			*/
-			std::vector<FITSColumn*> columns;
+			std::vector<std::shared_ptr<FITSColumn>> columns;
 		
 			int readStringStartIndex = columns.size();
 
 			//source_id
-			FITSTypedColumn<long long> *col_source_id = new FITSTypedColumn<long long>(file, "source_id"); columns.push_back(col_source_id);
+			auto col_source_id = std::make_shared<FITSTypedColumn<long long>>(file, "source_id"); columns.push_back(col_source_id);
 			//right ascension (radians)
-			FITSTypedColumn<double> *col_ra = new FITSTypedColumn<double>(file, "ra"); columns.push_back(col_ra);
+			auto col_ra = std::make_shared<FITSTypedColumn<double>>(file, "ra"); columns.push_back(col_ra);
 			//declination (radians)
-			FITSTypedColumn<double> *col_dec = new FITSTypedColumn<double>(file, "dec"); columns.push_back(col_dec);
+			auto col_dec = std::make_shared<FITSTypedColumn<double>>(file, "dec"); columns.push_back(col_dec);
 			//parallax (radians)
-			FITSTypedColumn<double> *col_parallax = new FITSTypedColumn<double>(file, "parallax"); columns.push_back(col_parallax);
+			auto col_parallax = std::make_shared<FITSTypedColumn<double>>(file, "parallax"); columns.push_back(col_parallax);
 			//proper motion in right ascension (radians/year)
-			FITSTypedColumn<double> *col_pmra = nullptr; if (outputExtra) { col_pmra = new FITSTypedColumn<double>(file, "pmra"); columns.push_back(col_pmra); }
+			std::shared_ptr<FITSTypedColumn<double>> col_pmra; if (outputExtra) { col_pmra = std::make_shared<FITSTypedColumn<double>>(file, "pmra"); columns.push_back(col_pmra); }
 			//proper motion in declination (radians/year)
-			FITSTypedColumn<double> *col_pmdec = nullptr; if (outputExtra) { col_pmdec = new FITSTypedColumn<double>(file, "pmdec"); columns.push_back(col_pmdec); }
+			std::shared_ptr<FITSTypedColumn<double>> col_pmdec; if (outputExtra) { col_pmdec = std::make_shared<FITSTypedColumn<double>>(file, "pmdec"); columns.push_back(col_pmdec); }
 			//radial velocity (km/s)
-			FITSTypedColumn<double> *col_radial_velocity = nullptr; if (outputExtra) { col_radial_velocity = new FITSTypedColumn<double>(file, "radial_velocity"); columns.push_back(col_radial_velocity); }
+			std::shared_ptr<FITSTypedColumn<double>> col_radial_velocity; if (outputExtra) { col_radial_velocity = std::make_shared<FITSTypedColumn<double>>(file, "radial_velocity"); columns.push_back(col_radial_velocity); }
 			//stellar effective temperature (K)
-			FITSTypedColumn<float> *col_teff_val = nullptr; if (outputExtra) { col_teff_val = new FITSTypedColumn<float>(file, "teff_val"); columns.push_back(col_teff_val); }
+			std::shared_ptr<FITSTypedColumn<float>> col_teff_val; if (outputExtra) { col_teff_val = std::make_shared<FITSTypedColumn<float>>(file, "teff_val"); columns.push_back(col_teff_val); }
 			//stellar radius (solar radii)
-			FITSTypedColumn<float> *col_radius_val = nullptr; if (outputExtra) { col_radius_val = new FITSTypedColumn<float>(file, "radius_val"); columns.push_back(col_radius_val); }
+			std::shared_ptr<FITSTypedColumn<float>> col_radius_val; if (outputExtra) { col_radius_val = std::make_shared<FITSTypedColumn<float>>(file, "radius_val"); columns.push_back(col_radius_val); }
 			//stellar luminosity (solar luminosity)
-			FITSTypedColumn<float> *col_lum_val = nullptr; if (outputExtra) { col_lum_val = new FITSTypedColumn<float>(file, "lum_val"); columns.push_back(col_lum_val); }
+			std::shared_ptr<FITSTypedColumn<float>> col_lum_val; if (outputExtra) { col_lum_val = std::make_shared<FITSTypedColumn<float>>(file, "lum_val"); columns.push_back(col_lum_val); }
 
 			//well that's 9 columns.  I wasn't storing radius in the HYG data
 
 			if (verbose) {
-				for (std::vector<FITSColumn*>::iterator i = columns.begin(); i != columns.end(); ++i) {
-					std::cout << " col num " << (*i)->colName << " = " << (*i)->colNum << std::endl;
+				for (auto c : columns) {
+					std::cout << " col num " << c->colName << " = " << c->colNum << std::endl;
 				}
 			}	
 
@@ -204,18 +201,22 @@ struct ConvertSDSS {
 				}
 
 				if (verbose) {
-					std::cout << std::endl;
-					std::cout << "source_id = " << value_source_id << std::endl;
-					std::cout << "ra = " << value_ra << std::endl;
-					std::cout << "dec = " << value_dec << std::endl;
-					std::cout << "parallax = " << value_parallax << std::endl;
+					std::cout 
+						<< std::endl
+						<< "source_id = " << value_source_id << std::endl
+						<< "ra = " << value_ra << std::endl
+						<< "dec = " << value_dec << std::endl
+						<< "parallax = " << value_parallax << std::endl
+					;
 					if (outputExtra) {
-						std::cout << "pmra = " << value_pmra << std::endl;
-						std::cout << "pmdec = " << value_pmdec << std::endl;
-						std::cout << "radial_velocity = " << value_radial_velocity << std::endl;
-						std::cout << "teff_val = " << value_teff_val << std::endl;
-						std::cout << "radius_val = " << value_radius_val << std::endl;
-						std::cout << "lum_val = " << value_lum_val << std::endl;
+						std::cout 
+							<< "pmra = " << value_pmra << std::endl
+							<< "pmdec = " << value_pmdec << std::endl
+							<< "radial_velocity = " << value_radial_velocity << std::endl
+							<< "teff_val = " << value_teff_val << std::endl
+							<< "radius_val = " << value_radius_val << std::endl
+							<< "lum_val = " << value_lum_val << std::endl
+						;
 					}
 				}
 			
@@ -366,41 +367,44 @@ struct ConvertSDSS {
 
 void showhelp() {
 	std::cout
-	<< "usage: convert-gaia <options>" << std::endl
-	<< "options:" << std::endl
-	<< "	--verbose				output values" << std::endl
-	<< "	--show-ranges			show ranges of certain fields" << std::endl
-	<< "	--wait					wait for keypress after each entry.  'q' stops" << std::endl
-	<< "	--get-columns			print all column names" << std::endl
-	<< "	--nowrite				don't write results.  useful with --verbose or --read-desc" << std::endl
-	<< "	--output-extra			also output velocity, temperature, and luminosity" << std::endl
-	<< "	--keep-neg-parallax		keep negative parallax" << std::endl
-	<< "	--double				output as double precision (default single)" << std::endl
+		<< "usage: convert-gaia <options>" << std::endl
+		<< "options:" << std::endl
+		<< "    --verbose               output values" << std::endl
+		<< "    --show-ranges           show ranges of certain fields" << std::endl
+		<< "    --wait                  wait for keypress after each entry.  'q' stops" << std::endl
+		<< "    --get-columns           print all column names" << std::endl
+		<< "    --nowrite               don't write results.  useful with --verbose or --read-desc" << std::endl
+		<< "    --output-extra          also output velocity, temperature, and luminosity" << std::endl
+		<< "    --keep-neg-parallax     keep negative parallax" << std::endl
+		<< "    --double                output as double precision (default single)" << std::endl
 	;
 }
 
 int main(int argc, char **argv) {
+	std::vector<std::string> args;
+	std::copy(argv, argv+argc, std::back_inserter<std::vector<std::string>>(args));
+	
 	bool useDouble = false;
-	for (int i = 1; i < argc; i++) {
-		if (!std::strcmp(argv[i], "--help")) {
+	for (int i = 1; i < args.size(); i++) {
+		if (args[i] == "--help") {
 			showhelp();
 			return 0;
-		} else if (!std::strcmp(argv[i], "--verbose")) {
+		} else if (args[i] == "--verbose") {
 			verbose = true;
-		} else if (!std::strcmp(argv[i], "--show-ranges")) {
+		} else if (args[i] == "--show-ranges") {
 			showRanges = true;
-		} else if (!std::strcmp(argv[i], "--wait")) {
+		} else if (args[i] == "--wait") {
 			verbose = true;
 			interactive = true;
-		} else if (!strcasecmp(argv[i], "--get-columns")) {
+		} else if (args[i] == "--get-columns") {
 			getColumns = true;
-		} else if (!strcasecmp(argv[i], "--nowrite")) {
+		} else if (args[i] == "--nowrite") {
 			omitWrite = true;
-		} else if (!strcasecmp(argv[i], "--output-extra")) {
+		} else if (args[i] == "--output-extra") {
 			outputExtra = true;
-		} else if (!strcasecmp(argv[i], "--keep-neg-parallax")) {
+		} else if (args[i] == "--keep-neg-parallax") {
 			keepNegativeParallax = true;
-		} else if (!strcasecmp(argv[i], "--double")) {
+		} else if (args[i] == "--double") {
 			useDouble = true;
 		} else {
 			showhelp();
