@@ -381,8 +381,7 @@ void showhelp() {
 }
 
 int main(int argc, char **argv) {
-	std::vector<std::string> args;
-	std::copy(argv, argv+argc, std::back_inserter<std::vector<std::string>>(args));
+	std::vector<std::string> args(argv, argv + argc);
 	
 	bool useDouble = false;
 	for (int i = 1; i < args.size(); i++) {
