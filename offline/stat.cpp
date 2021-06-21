@@ -56,8 +56,7 @@ void StatSet::read(std::string const & filename) {
 		m[key] = value; 
 	}
 
-	std::map<std::string, double>::iterator mi;
-	mi = m.find("count");
+	auto mi = m.find("count");
 	if (mi == m.end()) throw Exception() << "failed to find count";
 	count = mi->second;
 

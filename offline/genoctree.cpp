@@ -14,13 +14,9 @@ how should we name these files?
 node.f32 for the root, node[a-h] for depth 1, node[a-h][a-h] for depth 2, etc
 
 */
-#include <sys/stat.h>
-#include <string.h>
-
-#include <string>
 #include <iostream>
-#include <vector>
 #include <fstream>
+#include <filesystem>
 
 #include "exception.h"
 #include "stat.h"
@@ -34,8 +30,6 @@ node.f32 for the root, node[a-h] for depth 1, node[a-h][a-h] for depth 2, etc
 #define USE_CACHE_V1				//MRU fp cache
 //#define USE_CACHE_V2
 //#define USE_WRITE_BUFFER_PER_NODE	//write buffer per node, write them out once total size exceeds some threshold
-
-using namespace std;
 
 int INTERACTIVE = 0;
 int VERBOSE = 0;
@@ -58,7 +52,7 @@ public:
 	void writePoint(const vec3f &v);
 	void addToChild(const vec3f &v, bool dontSplit = false);
 	void addPoint(const vec3f &v, bool dontSplit = false);
-	virtual string getFileName();
+	virtual std::string getFileName();
 
 #ifdef USE_WRITE_BUFFER_PER_NODE
 	vector<vec3f> writeBuffer;
@@ -77,8 +71,8 @@ struct OctreeWorker {
 	void done();
 	
 	//for the batch processor
-	typedef string ArgType;
-	string desc(const ArgType &basename);
+	using ArgType = std::string;
+	std::string desc(const ArgType &basename);
 	void operator()();
 	void operator()(const ArgType &basename);
 };
@@ -88,7 +82,7 @@ struct OctreeWorker {
 #include "mrucache.h"
 
 struct WritableOctreeNodeWriteCacheEntry {
-	typedef WritableOctreeNode ArgType;
+	using ArgType = WritableOctreeNode;
 	ArgType *obj;
 	FILE *fp;
 	WritableOctreeNodeWriteCacheEntry(ArgType *obj_) : obj(obj_) {
@@ -122,7 +116,7 @@ void closeCacheFile(FILE *fp) {
 	fclose(fp);
 }
 
-MRUCache<string, FILE *> cache(openCacheFile, closeCacheFile, 50);
+MRUCache<std::string, FILE *> cache(openCacheFile, closeCacheFile, 50);
 
 #endif	//USE_CACHE_V2
 
@@ -137,7 +131,7 @@ void finalizeWriteBuffer() {
 		fwrite(&writeBuffer[0], sizeof(vec3f), writeBuffer.size(), fp);
 		fclose(fp);
 
-		cout << lastWriteNode << " " << writeBuffer.size() << endl;
+		std::cout << lastWriteNode << " " << writeBuffer.size() << std::endl;;
 		writeBuffer.resize(0);
 	} else {
 		assert(!writeBuffer.size());
@@ -180,9 +174,9 @@ void WritableOctreeNode::flushAll() {
 
 #endif	//USE_WRITE_BUFFER_PER_NODE
 
-string datasetname = "allsky";
+std::string datasetname = "allsky";
 WritableOctreeNode *root= NULL;
-list<string> basefilenames;
+std::list<std::string> basefilenames;
 
 WritableOctreeNode::WritableOctreeNode(const vec3f &min_, const vec3f &max_)
 : OctreeNode(min_, max_) {}
@@ -193,8 +187,8 @@ WritableOctreeNode::WritableOctreeNode(WritableOctreeNode *parent_, int whichChi
 WritableOctreeNode::WritableOctreeNode(WritableOctreeNode *parent_, int whichChild_, const vec3f &min_, const vec3f &max_)
 : OctreeNode(parent_, whichChild_, min_, max_) {}
 
-string WritableOctreeNode::getFileName() {
-	return string("datasets/") + datasetname + "/" + OctreeNode::getFileName();
+std::string WritableOctreeNode::getFileName() {
+	return std::string("datasets/") + datasetname + "/" + OctreeNode::getFileName();
 }
 
 void WritableOctreeNode::addPoint(const vec3f &v, bool dontSplit) {
@@ -216,11 +210,11 @@ void WritableOctreeNode::addPoint(const vec3f &v, bool dontSplit) {
 		*/
 		if (numPoints >= splitThreshold && !dontSplit) {
 			if (VERBOSE) {
-				cout << "splitting " << getFileName() 
+				std::cout << "splitting " << getFileName() 
 					<< " numpoints " << numPoints 
 					<< " bbox " << bbox
 					<< " usedBBox " << usedBBox
-					<< endl;
+					<< std::endl;;
 			}
 			leaf = false;
 	
@@ -239,7 +233,7 @@ void WritableOctreeNode::addPoint(const vec3f &v, bool dontSplit) {
 #endif	//USE_WRITE_BUFFER_PER_NODE
 
 			//load file contents into ram...
-			string filename = getFileName();
+			std::string filename = getFileName();
 			vec3f *vtxbuf = (vec3f*)getFile(getFileName().c_str(), NULL);
 		
 			//...so we can delete the file ...
@@ -253,9 +247,9 @@ void WritableOctreeNode::addPoint(const vec3f &v, bool dontSplit) {
 			numPoints = 0;
 			
 			if (VERBOSE) {
-				cout << getFileName() << " post-split child stats: " << endl;
+				std::cout << getFileName() << " post-split child stats: " << std::endl;;
 				for (int i = 0; i < numberof(ch); i++) {
-					if (ch[i]) cout << "\tchild " << i << " name " << ch[i]->getFileName() << " num pts " << ch[i]->numPoints << endl; 
+					if (ch[i]) std::cout << "\tchild " << i << " name " << ch[i]->getFileName() << " num pts " << ch[i]->numPoints << std::endl;; 
 				}
 			}
 		}
@@ -314,7 +308,7 @@ void WritableOctreeNode::addToChild(const vec3f &v, bool dontSplit) {
 	
 	//if the child index doesn't exist then create it
 	if (!ch[childIndex]) {
-		if (VERBOSE) cout << "allocating child " << childIndex << endl;
+		if (VERBOSE) std::cout << "allocating child " << childIndex << std::endl;;
 		
 		//determine the child bbox by the child index
 		WritableOctreeNode *chn = new WritableOctreeNode(this, childIndex);
@@ -327,14 +321,14 @@ void WritableOctreeNode::addToChild(const vec3f &v, bool dontSplit) {
 	if (!contains(ch[childIndex]->bbox, v)) {
 		throw Exception() << "created a child of node " << getFileName() << " for point " << v << " that couldn't hold the point";
 	}
-	//if (VERBOSE) cout << "adding to child " << childIndex << endl;
+	//if (VERBOSE) std::cout << "adding to child " << childIndex << std::endl;;
 	static_cast<WritableOctreeNode*>(ch[childIndex])->addPoint(v, dontSplit);
 }
 
 OctreeWorker::OctreeWorker() : usedCount(0), unusedCount(0) {}
 
 void OctreeWorker::init() {
-	string totalStatFilename = string("datasets/") + datasetname + "/stats/total.stats";
+	std::string totalStatFilename = std::string() + "datasets/" + datasetname + "/stats/total.stats";
 	totalStats.read(totalStatFilename.c_str());
 	totalStats.calcSqAvg();
 
@@ -356,20 +350,20 @@ void OctreeWorker::done() {
 #endif	//USE_WRITE_BUFFER_PER_NODE 
 }
 
-string OctreeWorker::desc(const ArgType &basename) { 
-	return string() + "file " + basename; 
+std::string OctreeWorker::desc(const ArgType &basename) { 
+	return std::string() + "file " + basename; 
 }
 
 void OctreeWorker::operator()() {
-	for (list<string>::iterator i = basefilenames.begin(); i != basefilenames.end(); ++i) {
-		this->operator()(*i);
+	for (auto const & i : basefilenames) {
+		(*this)(i);
 	}
 }
 
 void OctreeWorker::operator()(const ArgType &basename) {
-	string ptfilename = string("datasets/") + datasetname + "/points/" + basename + ".f32";
+	std::string ptfilename = std::string() + "datasets/" + datasetname + "/points/" + basename + ".f32";
 
-	streamsize vtxbufsize = 0;
+	std::streamsize vtxbufsize = 0;
 	vec3f *vtxbuf = (vec3f*)getFile(ptfilename, &vtxbufsize);
 	vec3f *vtxbufend = vtxbuf + (vtxbufsize / sizeof(vec3f));
 	for (vec3f *vtx = vtxbuf; vtx < vtxbufend; vtx++) { 
@@ -387,7 +381,7 @@ void OctreeWorker::operator()(const ArgType &basename) {
 		usedCount++;
 		if (VERBOSE) {
 			if (!(usedCount % WritableOctreeNode::splitThreshold)) {
-				cout << "used points: " << usedCount << endl;
+				std::cout << "used points: " << usedCount << std::endl;;
 			}
 		}
 		root->addPoint(*vtx);
@@ -400,75 +394,68 @@ void OctreeWorker::operator()(const ArgType &basename) {
 	}
 }
 
-void showhelp() {
-	cout
-	<< "usage: genoctree <options>" << endl
-	<< "options:" << endl
-	<< "	--set <set>		specify the dataset. default is 'allsky'." << endl
-	<< "	--file <file>	convert only this file.  omit path and ext." << endl
-	<< "	--all			convert all files in the <set>/points dir." << endl
-	<< "	--verbose		shows verbose information." << endl
-	<< "	--wait			waits for key at each entry.  implies verbose." << endl
-	;
+void _main(std::vector<std::string> const & args) {
+	bool gotDir = false;
+	bool gotFile = false;
+
+	auto h = HandleArgs(args, {
+		{"--set", {"<set> = specify the dataset. default is 'allsky'.", {[&](std::string s){
+			datasetname = s;
+		}}}},
+		{"--file", {"<file>	convert only this file. omit path and ext.", {[&](std::string s){
+			gotFile = true;
+			basefilenames.push_back(s);
+		}}}},
+		{"--all", {"convert all files in the <set>/points dir.", {[&](){
+			gotDir = true;
+		}}}},
+		{"--verbose", {"shows verbose information.", {[&](){
+			VERBOSE = 1;
+		}}}},
+		{"--wait", {"waits for key at each entry.  implies verbose.", {[&](){
+			INTERACTIVE = 1;
+		}}}},
+	});
+	
+	if (!gotDir && !gotFile) {
+		h.showhelp();
+		return;
+	}
+
+	std::filesystem::create_directory(std::string() + "datasets/" + datasetname + "/octree");
+
+	if (gotDir) {
+		std::list<std::string> dirFilenames = getDirFileNames(std::string() + "datasets/" + datasetname + "/points");
+		for (auto const & i : dirFilenames) {
+			std::string base, ext;
+			getFileNameParts(i, base, ext);
+			if (ext == "f32") {
+				basefilenames.push_back(base);
+			}
+		}
+	}
+
+	OctreeWorker worker;
+
+	//init
+	worker.init();
+
+	//profile
+
+	double deltaTime = profile("getstats", worker);
+	std::cout << (deltaTime / (double)basefilenames.size()) << " seconds per file" << std::endl;;
+
+	//done
+	worker.done();
+
 }
 
 int main(int argc, char **argv) {
 	try {
-		bool gotDir = false, gotFile = false;
-
-		for (int k = 1; k < argc; k++) {
-			if (!strcmp(argv[k], "--verbose")) {
-				VERBOSE = 1;
-			} else if (!strcmp(argv[k], "--wait")) {
-				INTERACTIVE = 1;
-			} else if (!strcmp(argv[k], "--set") && k < argc-1) {
-				datasetname = argv[++k];
-			} else if (!strcmp(argv[k], "--all")) {
-				gotDir = true;
-			} else if (!strcmp(argv[k], "--file") && k < argc-1) {
-				gotFile = true;
-				basefilenames.push_back(argv[++k]);
-			} else {
-				showhelp();
-				return 0;
-			}
-		}
-		
-		if (!gotDir && !gotFile) {
-			showhelp();
-			return 0;
-		}
-
-		mkdir((string("datasets/") + datasetname + "/octree").c_str(), 0777);
-
-		if (gotDir) {
-			list<string> dirFilenames = getDirFileNames(string("datasets/") + datasetname + "/points");
-			for (list<string>::iterator i = dirFilenames.begin(); i != dirFilenames.end(); ++i) {
-				string base, ext;
-				getFileNameParts(*i, base, ext);
-				if (ext == "f32") {
-					basefilenames.push_back(base);
-				}
-			}
-		}
-
-		OctreeWorker worker;
-
-		//init
-		worker.init();
-
-		//profile
-
-		double deltaTime = profile("getstats", worker);
-		cout << (deltaTime / (double)basefilenames.size()) << " seconds per file" << endl;
-
-		//done
-		worker.done();
-
-	} catch (exception &t) {
-		cerr << "error: " << t.what() << endl;
+		_main({argv, argv + argc});
+	} catch (std::exception &t) {
+		std::cerr << "error: " << t.what() << std::endl;;
 		return 1;
 	}
 	return 0;
 }
-

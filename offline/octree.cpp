@@ -1,8 +1,5 @@
 #include "octree.h"
-#include <string.h>
 #include <fstream>
-
-using namespace std;
 
 //root ctor
 OctreeNode::OctreeNode(const vec3f &min_, const vec3f &max_) 
@@ -52,15 +49,15 @@ OctreeNode::~OctreeNode() {
 	}
 }
 
-string OctreeNode::getFileNameBase() {
+std::string OctreeNode::getFileNameBase() {
 	if (!parent) return "octree/node";
-	string parentName = parent->getFileNameBase();
+	std::string parentName = parent->getFileNameBase();
 	assert(whichChild >= 0 && whichChild < numberof(ch));
 	parentName += ('a' + whichChild);
 	return parentName;
 }
 
-string OctreeNode::getFileName() {
+std::string OctreeNode::getFileName() {
 	return getFileNameBase() + ".f32";
 }
 
@@ -73,7 +70,6 @@ bool OctreeNode::contains(const box3f &b, const vec3f &v) {
 		&& b.min.z <= v.z;
 }
 
-#include <dirent.h>
 #include <list>
 #include <algorithm>
 #include "util.h"	//getFileNameParts
@@ -81,9 +77,9 @@ bool OctreeNode::contains(const box3f &b, const vec3f &v) {
 #include "exception.h"
 
 OctreeNode *OctreeNode::readSet(const std::string &datasetname) {
-	list<string> files = getDirFileNames(string("datasets/") + datasetname + "/octree");
-	for (list<string>::iterator i = files.begin(); i != files.end(); ) {
-		string base, ext;
+	std::list<std::string> files = getDirFileNames(std::string("datasets/") + datasetname + "/octree");
+	for (auto i = files.begin(); i != files.end(); ) {
+		std::string base, ext;
 		getFileNameParts(*i, base, ext);
 		if (ext != "f32") {
 			i = files.erase(i);
@@ -92,23 +88,23 @@ OctreeNode *OctreeNode::readSet(const std::string &datasetname) {
 		}
 	}
 
+
 	//sort by name
 	files.sort();
 	//int numNodesWithPoints = 0;	
 	OctreeNode *root = NULL;
 	//last i checked stl sort grouped by length then sorted alphabetically  -- just what i'm looking for
-	for (list<string>::iterator i = files.begin(); i != files.end(); ++i) {
+	for (auto const & filename : files) {
 		//pick out suffix: "node<suffix>.f32"
 		//use it to determine node order
-		const string &filename = *i;
-		string ident = filename.substr(4, filename.length()-8);
+		std::string ident = filename.substr(4, filename.length()-8);
 		//cout << "loading ident " << ident << endl;
 		int identLength = ident.length();
 		if (!identLength) {
 			if (root) throw Exception() << "found two roots";
 			
 			StatSet totalStats;
-			totalStats.read((string("datasets/") + datasetname + "/stats/total.stats").c_str());
+			totalStats.read((std::string("datasets/") + datasetname + "/stats/total.stats").c_str());
 			box3f bbox;
 			for (int j = 0; j < 3; j++) {
 				bbox.min[j] = totalStats.vars()[STATSET_X+j].min;

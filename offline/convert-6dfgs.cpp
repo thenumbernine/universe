@@ -4,7 +4,7 @@
 #include "exception.h"
 #include "util.h"
 
-struct Convert2MRS {
+struct Convert6DFGS {
 	void operator()() {
 		const char *srcfilename = "datasets/6dfgs/source/6dFGSzDR3.txt";
 		const char *dstfilename = "datasets/6dfgs/points/points.f32";	
@@ -98,8 +98,8 @@ struct Convert2MRS {
 };
 
 int main() {
-	profile("convert-2mrs", [](){
-		Convert2MRS convert;
+	profile("convert-6dfgs", [](){
+		Convert6DFGS convert;
 		convert();
 	});
 }

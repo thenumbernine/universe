@@ -14,9 +14,12 @@ enum {
 };
 
 struct Stat {
-	double min, max, avg, sqavg, stddev;
+	double min = INFINITY;
+	double max = -INFINITY;
+	double avg = {};
+	double sqavg = {};
+	double stddev = {};
 	static const char *varnames[NUM_STAT_VARS];
-	Stat() : min(INFINITY), max(-INFINITY), avg(0), sqavg(0), stddev(0) {}
 	double *vars() { return &min; }
 	const double *vars() const { return &min; }
 

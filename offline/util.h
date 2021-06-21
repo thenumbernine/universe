@@ -5,12 +5,13 @@
 #include <functional>
 #include <algorithm>
 #include <list>
+#include <map>
+#include <vector>
+#include <functional>
 #include <string>
 #include <fstream>
 #include <iostream>
-
-#define numberof(x)	(sizeof(x)/sizeof((x)[0]))
-#define endof(x)	((x)+numberof(x))
+#include "macros.h"
 
 double profile(const std::string &name, std::function<void()> f);
 
@@ -36,3 +37,28 @@ void for_all(IteratedType &i, Function &f) {
 }
 
 void writeFile(const std::string &filename, void *data, std::streamsize size);
+
+#include <variant>
+
+using Handlers = std::map<
+	std::string,
+	std::pair<
+		std::string,
+		std::variant<
+			std::function<void()>,
+			std::function<void(int)>,
+			std::function<void(float)>,
+			std::function<void(std::string)>
+		>
+	>
+>;
+
+// put varying # of args on the function, and parse & skip those in the handler section
+struct HandleArgs {
+	HandleArgs(
+		std::vector<std::string> const & args,
+		Handlers const & handlers
+	);
+
+	std::function<void()> showhelp;
+};

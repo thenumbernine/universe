@@ -46,8 +46,8 @@ struct FITSTrackBehavior : public PARENT, public IFITSTrackBehavior {
 
 	void printAll() {
 		std::cout << "values of " << PARENT::colName << ":" << std::endl;
-		for (std::map<std::string, int>::iterator i = valueSet.begin(); i != valueSet.end(); ++i) {
-			std::cout << i->first << " : " << i->second << std::endl;
+		for (auto const & i : valueSet) {
+			std::cout << i.first << " : " << i.second << std::endl;
 		}
 		std::cout << std::endl;
 	}
@@ -262,8 +262,8 @@ struct ConvertSDSS3 {
 		}
 
 		if (verbose) {
-			for (std::vector<std::shared_ptr<FITSColumn>>::iterator i = columns.begin(); i != columns.end(); ++i) {
-				std::cout << " col num " << (*i)->colName << " = " << (*i)->colNum << std::endl;
+			for (auto const & i : columns) {
+				std::cout << " col num " << i->colName << " = " << i->colNum << std::endl;
 			}
 		}	
 
@@ -304,13 +304,13 @@ struct ConvertSDSS3 {
 				updatePercent(100. * frac);
 			}
 
-			for (std::vector<std::shared_ptr<IFITSTrackBehavior>>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
-				(*i)->track(rowNum);
+			for (auto const & i : trackColumns) {
+				i->track(rowNum);
 			}
 				
 			if (readStringDescs ) {	//catalog stuff
-				for (std::vector<std::shared_ptr<FITSColumn>>::iterator i = columns.begin() + readStringStartIndex; i != columns.end(); ++i) {
-					std::cout << (*i)->colName << " = " << (*i)->readStr(rowNum) << std::endl;
+				for (auto const & i : columns) {
+					std::cout << i->colName << " = " << i->readStr(rowNum) << std::endl;
 				}
 			}
 
@@ -413,8 +413,8 @@ struct ConvertSDSS3 {
 			std::cout << std::endl;
 		}
 
-		for (std::vector<std::shared_ptr<IFITSTrackBehavior>>::iterator i = trackColumns.begin(); i != trackColumns.end(); ++i) {
-			(*i)->printAll();
+		for (auto const & i : trackColumns) {
+			i->printAll();
 		}
 
 		fitsSafe(fits_close_file, file);
@@ -442,54 +442,29 @@ struct ConvertSDSS3 {
 	}
 };
 
-void showhelp() {
-	std::cout
-		<< "usage: convert-sdss <options>" << std::endl
-		<< "options:" << std::endl
-		<< "    --verbose               output values" << std::endl
-		<< "    --wait                  wait for keypress after each entry.  'q' stops" << std::endl
-		<< "    --show-ranges           show ranges of certain fields" << std::endl
-		<< "    --read-desc             reads string descriptions" << std::endl
-		<< "    --min-redshift <cz>     specify minimum redshift" << std::endl
-		<< "    --enum-class            enumerate all classes" << std::endl
-		<< "    --get-columns           print all column names" << std::endl
-		<< "    --nowrite               don't write results.  useful with --verbose or --read-desc" << std::endl
-		<< "    --spherical             output spherical coordinates: z, ra, dec (default outputs xyz)" << std::endl
-	;
+void _main(std::vector<std::string> const & args) {
+	ConvertSDSS3 convert;
+	HandleArgs(args, {
+		{"--verbose", {"= output values", {[&](){ verbose = true; }}}},
+		{"--wait", {"= wait for keypress after each entry.  'q' stops", {[&](){ verbose = true; interactive = true; }}}},
+		{"--show-ranges", {"= show ranges of certain fields", {[&](){ showRanges = true; }}}},
+		{"--read-desc", {"= reads string descriptions", {[&](){ readStringDescs = true; }}}},
+		{"--min-redshift", {"= <cz> specify minimum redshift", {std::function<void(float)>([&](float x){ useMinRedshift = true; minRedshift = x; })}}},
+		{"--enum-class", {"= enumerate all classes", {[&](){ trackStrings = true; }}}},
+		{"--get-columns", {"= print all column names", {[&](){ getColumns = true; }}}},
+		{"--nowrite", {"= don't write results.  useful with --verbose or --read-desc", {[&](){ omitWrite = true; }}}},
+		{"--spherical", {"= output spherical coordinates: z, ra, dec (default outputs xyz)", {[&](){ spherical = true; }}}},
+	});
+	profile("convert-sdss", [&](){
+		convert();
+	});
 }
 
-int main(int argc, char **argv) {
-	std::vector<std::string> args(argv, argv + argc);
-	
-	ConvertSDSS3 convert;
-	for (int i = 1; i < args.size(); i++) {
-		if (args[i] == "--help") {
-			showhelp();
-			return 0;
-		} else if (args[i] == "--verbose") {
-			verbose = true;
-		} else if (args[i] == "--spherical") {
-			spherical = true;
-		} else if (args[i] == "--wait") {
-			verbose = true;
-			interactive = true;
-		} else if (args[i] == "--min-redshift" && i < args.size()-1) {
-			useMinRedshift = true;
-			minRedshift = atof(args[++i].c_str());
-		} else if (args[i] == "--show-ranges") {
-			showRanges = true;
-		} else if (args[i] == "--read-desc") {
-			readStringDescs  = true;
-		} else if (args[i] == "--enum-class") {
-			trackStrings = true;
-		} else if (args[i] == "--get-columns") {
-			getColumns = true;
-		} else if (args[i] == "--nowrite") {
-			omitWrite = true;
-		} else {
-			showhelp();
-			return 0;
-		}
+int main(int argc, char** argv) {
+	try {
+		_main({argv, argv + argc});
+	} catch (std::exception & t) {
+		std::cerr << "error: " << t.what() << std::endl;
 	}
-	profile("convert-sdss", convert);
+	return 0;
 }

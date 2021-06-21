@@ -178,48 +178,22 @@ void VolumeBatchProcessor::done() {
 	volume.write(std::string() + "datasets/" + datasetname + "/density.vol");
 }
 
-void showhelp() {
-	std::cout
-	<< "usage: genvolume <options>" << std::endl
-	<< "options:" << std::endl
-	<< "    --set <set>      specify the dataset.  default is 'allsky'" << std::endl
-	<< "    --all            convert all files in the allsky-gz dir." << std::endl
-	<< "    --file <file>    convert only this file.  omit path and ext." << std::endl
-	<< "    --threads <n>    specify the number of threads to use." << std::endl
-	<< "    --verbose        shows verbose information." << std::endl
-	<< "    --wait           waits for key at each entry.  implies verbose." << std::endl
-	;
-}
-
 void _main(std::vector<std::string> const & args) {
 	bool gotDir = false, gotFile = false;
 	VolumeBatchProcessor batch;
 	int totalFiles = 0;
-	
-	for (int k = 1; k < args.size(); k++) {
-		if (args[k] == "--set" && k < args.size()-1) {
-			batch.datasetname = args[++k];
-		} else if (args[k] == "--verbose") {
-			VERBOSE = 1;
-		} else if (args[k] == "--wait") {
-			VERBOSE = 1;
-			INTERACTIVE = 1;
-		} else if (args[k] == "--all") {
-			gotDir = true;
-		} else if (args[k] == "--file" && k < args.size()-1) {
-			gotFile = true;
-			batch.addThreadArg(args[++k]);
-			totalFiles++;
-		} else if (args[k] == "--threads" && k < args.size()-1) {
-			batch.setNumThreads(atoi(args[++k].c_str()));
-		} else {
-			showhelp();
-			return;
-		}
-	}
-	
+
+	auto h = HandleArgs(args, {
+		{"--set", {"<set> = specify the dataset.  default is 'allsky'", {[&](std::string s){ batch.datasetname = s; }}}},
+		{"--all", {"= convert all files in the allsky-gz dir.", {[&](){ gotDir = true; }}}},
+		{"--file", {"<file> = convert only this file.  omit path and ext.", {[&](std::string s){ gotFile = true; batch.addThreadArg(s); ++totalFiles; }}}},
+		{"--verbose", {"= shows verbose information.", {[&](){ VERBOSE = 1; }}}},
+		{"--wait", {"= waits for key at each entry.  implies verbose.", {[&](){ VERBOSE = 1; INTERACTIVE = 1; }}}},
+		{"--threads", {"<n> = specify the number of threads to use.", {std::function<void(int)>([&](int n){ batch.setNumThreads(n); })}}},
+	});
+
 	if (!gotDir && !gotFile) {
-		showhelp();
+		h.showhelp();
 		return;
 	}
 
@@ -246,7 +220,7 @@ void _main(std::vector<std::string> const & args) {
 
 int main(int argc, char **argv) {
 	try {
-		_main(std::vector<std::string>(argv, argv + argc));
+		_main({argv, argv + argc});
 	} catch (std::exception &t) {
 		std::cerr << "error: " << t.what() << std::endl;
 		return 1;

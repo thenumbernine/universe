@@ -35,27 +35,13 @@ struct TotalStatWorker {
 	}
 };
 
-void showhelp() {
-	std::cout
-		<< "usage: gettotalstats <options>" << std::endl
-		<< "options:" << std::endl
-		<< "    --set <set>    specify the dataset.  default is 'allsky'" << std::endl
-	;
-}
-
 void _main(std::vector<std::string> const & args) {
 	std::string datasetname = "allsky";
-	for (int k = 1; k < args.size(); k++) {
-		if (args[k] == "--help") {
-			showhelp();
-			return;
-		} else if (args[k] == "--set" && k < args.size()-1) {
-			datasetname = args[++k];
-		} else {
-			showhelp();
-			return;
-		}
-	}
+	HandleArgs(args, {
+		{"--set", {"<set> = specify the dataset.  default is 'allsky'.", {[&](std::string s){
+			datasetname = s;
+		}}}},
+	});
 
 	TotalStatWorker totalWorker(datasetname);
 	int totalFiles = totalWorker.files.size();
@@ -68,7 +54,7 @@ void _main(std::vector<std::string> const & args) {
 
 int main(int argc, char **argv) {
 	try {
-		_main(std::vector<std::string>(argv, argv + argc));
+		_main({argv, argv + argc});
 	} catch (std::exception &t) {
 		std::cerr << "error: " << t.what() << std::endl;
 		return 1;

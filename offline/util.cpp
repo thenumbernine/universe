@@ -67,3 +67,54 @@ void writeFile(const std::string &filename, void *data, std::streamsize size) {
 	std::ofstream f(filename.c_str(), std::ios::out | std::ios::binary);
 	f.write((const char *)data, size);
 }
+
+HandleArgs::HandleArgs(
+	std::vector<std::string> const & args,
+	Handlers const & handlers
+) {
+	showhelp = [=](){
+		std::cout << "usage: " << args[0] << "<options>" << std::endl;
+		std::cout << "options:" << std::endl;
+		for (auto & h : handlers) {
+			std::cout << "  " << h.first << " " << h.second.first << std::endl;
+		}
+	};
+
+	auto nargs = args.size();
+	for (int j = 1; j < nargs; ++j) {
+		auto i = handlers.find(args[j]);
+
+		auto next = [&](){
+			++j;
+			if (j >= nargs) {
+				throw Exception() << i->first << " expected float";
+			}
+			return args[j];
+		};
+		
+		auto handle = [&](auto & f){
+			std::visit([&](auto && g) {
+				using T = std::decay_t<decltype(g)>;
+				if constexpr (std::is_same_v<T, std::function<void()>>) {
+					g();
+				} else if constexpr (std::is_same_v<T, std::function<void(int)>>) {
+					g(atoi(next().c_str()));
+				} else if constexpr (std::is_same_v<T, std::function<void(float)>>) {
+					g(atof(next().c_str()));
+				} else if constexpr (std::is_same_v<T, std::function<void(std::string)>>) {
+					g(next());
+				}
+			}, f);
+		};
+
+		//bail on unknown
+		//I could make a custom callback
+		//but by that point, why are you using this function?
+		if (i == handlers.end()) {
+			showhelp();
+			exit(1);
+		} else {
+			handle(i->second.second);
+		}
+	}
+}

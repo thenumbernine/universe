@@ -126,11 +126,11 @@ void showhelp() {
 	std::cout
 	<< "usage: getstats <options>" << std::endl
 	<< "options:" << std::endl
-	<< "    --set <set>          specify the dataset. default is 'allsky'." << std::endl
-	<< "    --file <file>        convert only this file.  omit path and ext." << std::endl
-	<< "    --all                convert all files in the <set>/points dir." << std::endl
-	<< "    --force              generate the stats file even if it already exists." << std::endl
-	<< "    --threads <n>        specify the number of threads to use." << std::endl
+	<< "    --set " << std::endl
+	<< "    --file " << std::endl
+	<< "    --all                " << std::endl
+	<< "    --force              " << std::endl
+	<< "    --threads " << std::endl
 	<< "    --remove-outliers    use the stats/total.stats file to remove outliers." << std::endl
 	;
 }
@@ -140,37 +140,37 @@ void _main(std::vector<std::string> const & args) {
 	bool gotDir = false, gotFile = false, removeOutliers = false;
 	StatBatchProcessor batch;
 	
-	for (int k = 1; k < args.size(); k++) {
-		if (args[k] == "--force") {
-			FORCE = 1;
-		} else if (args[k] == "--set" && k < args.size()-1) {
-			batch.datasetname = args[++k];
-		} else if (args[k] == "--all") {
-			gotDir = true;
-
-		} else if (args[k] == "--file" && k < args.size()-1) {
+	auto h = HandleArgs(args, {
+		{"--set", {"<set> = specify the dataset. default is 'allsky'.", {[&](std::string s){
+			batch.datasetname = s;
+		}}}},
+		{"--file", {"<file> = convert only this file.  omit path and ext.", {[&](std::string s){
 			gotFile = true;
-			batch.addThreadArg(args[++k]);
+			batch.addThreadArg(s);
 			totalFiles++;
-		} else if (args[k] == "--remove-outliers") {
+		}}}},
+		{"--all", {"convert all files in the <set>/points dir.", {[&](){
+			gotDir = true;
+		}}}},
+		{"--force", {"= generate the stats file even if it already exists.", {[&](){
+			FORCE = 1;
+		}}}},
+		{"--threads", {"<n> = specify the number of threads to use.", {std::function<void(int)>([&](int n){
+			batch.setNumThreads(n);
+		})}}},
+		{"--remove-outliers", {"use the stats/total.stats file to remove outliers.", {[&](){
 			removeOutliers = true;
-		} else if (args[k] == "--threads" && k < args.size()-1) {
-			batch.setNumThreads(atoi(args[++k].c_str()));
-		} else {
-			std::cout << "unknown command: " << args[k] << std::endl;
-			showhelp();
-			return;
-		}
-	}
+		}}}},
+	});
 
 	if (!gotDir && !gotFile) {
 		std::cout << "expected a file or a dir" << std::endl;
-		showhelp();
+		h.showhelp();
 		return;
 	}
 
 	if (removeOutliers) {
-		std::string totalStatFilename = std::string("datasets/") + batch.datasetname + "/stats/total.stats";
+		std::string totalStatFilename = std::string() + "datasets/" + batch.datasetname + "/stats/total.stats";
 		if (!std::filesystem::exists(totalStatFilename)) throw Exception() << "expected file to exist: " << totalStatFilename;
 		StatSet totalStats;
 		totalStats.read(totalStatFilename.c_str());
@@ -201,7 +201,7 @@ void _main(std::vector<std::string> const & args) {
 
 int main(int argc, char **argv) {
 	try {
-		_main(std::vector<std::string>(argv, argv + argc));
+		_main({argv, argv + argc});
 	} catch (std::exception &t) {
 		std::cerr << "error: " << t.what() << std::endl;
 		return 1;

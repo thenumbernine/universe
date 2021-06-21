@@ -415,79 +415,79 @@ struct ConvertWorker {
 	}
 };
 
-
-void showhelp(void) {
-	std::cout
-	<< "usage: convert <options>" << std::endl
-	<< "options:" << std::endl
-	<< "	--verbose	shows verbose information." << std::endl
-	<< "	--wait		waits for key at each entry.  implies verbose." << std::endl
-	<< "	--keep		keep the extracted file after unzipping." << std::endl
-	<< "	--nowrite	do not write f32 file.  useful for verbose." << std::endl
-	<< "	--all		convert all files in the datasets/allsky/source dir." << std::endl
-	<< "	--use_dist_opt	use 1/dist_opt for distance." << std::endl
-	<< "	--r_vs_dist_opt	output comparison of flux r vs dist_opt." << std::endl
-	<< "	--force		run even if the destination file exists." << std::endl 
-	<< "	--file <file>	convert only this file.  omit path and ext." << std::endl
-	<< "	--threads <n>	specify the number of threads to use." << std::endl
-	;
-}
-
-int main(int argc, char **argv) {
-	std::vector<std::string> args(argv, argv + argc);
-	
+void _main(std::vector<std::string> const & args) {
 	BatchProcessor<ConvertWorker> batch;
 	
 	bool gotFile = false, gotDir = false;
 	int totalFiles = 0;
-	
-	for (int k = 1; k < args.size(); k++) {
-		if (args[k] == "--verbose") {
+	auto h = HandleArgs(args, {
+		{"--verbose", {"= shows verbose information.", {[&](){
 			VERBOSE = true;
-		} else if (args[k] == "--wait") {
+		}}}},
+		{"--wait", {"= waits for key at each entry.  implies verbose.", {[&](){
 			VERBOSE = true;
 			INTERACTIVE = true;
-		} else if (args[k] == "--keep") {
+		}}}},
+		{"--keep", {"= keep the extracted file after unzipping.", {[&](){
 			PRESERVE = true;
-		} else if (args[k] == "--nowrite") {
+		}}}},
+		{"--nowrite", {"= do not write f32 file.  useful for verbose.", {[&](){
 			OMIT_WRITE = true;
-		} else if (args[k] == "--use_dist_opt") {
-			USE_DIST_OPT = true;
-		} else if (args[k] == "--r_vs_dist_opt") {
-			R_VS_DIST_OPT = true;
-		} else if (args[k] == "--force") { 
-			FORCE = true;
-		} else if (args[k] == "--all") {
+		}}}},
+		{"--all", {"= convert all files in the datasets/allsky/source dir.", {[&](){
 			gotDir = true;
-			std::list<std::string> dirFilenames;
-			for (std::list<std::string>::iterator i = dirFilenames.begin(); i != dirFilenames.end(); ++i) {
-				std::string base, ext;
-				getFileNameParts(*i, base, ext);
-				if (ext == "gz") {
-					totalFiles++;
-					batch.addThreadArg(base);
-				}
-			}
-		} else if (args[k] == "--file" && k < args.size()-1) {
+		}}}},
+		{"--file", {"<file>	= convert only this file.  omit path and ext.", {[&](std::string s){
 			gotFile = true;
+			batch.addThreadArg(s);
 			totalFiles++;
-			batch.addThreadArg(args[++k]);
-		} else if (args[k] == "--threads" && k < args.size()-1) {
-			batch.setNumThreads(atoi(args[++k]));
-		} else {
-			showhelp();
-			return 0;
-		}
-	}
+		}}}},
+		{"--use_dist_opt", {"= use 1/dist_opt for distance.", {[&](){
+			USE_DIST_OPT = true;
+		}}}},
+		{"--r_vs_dist_opt", {"= output comparison of flux r vs dist_opt.", {[&](){
+			R_VS_DIST_OPT = true;
+		}}}},
+		{"--force", {"= run even if the destination file exists.", {[&](){
+			FORCE = true;
+		}}}},
+		{"--threads", {"<n> = specify the number of threads to use.", {std::function<void(int)>([&](int n){
+			batch.setNumThreads(n);
+		})}}},
+	});
 
 	if (!gotFile && !gotDir) {	
-		showhelp();
-		return 0;
+		std::cout << "expected a file or a dir" << std::endl;
+		h.showhelp();
+		return;
+	}
+
+	if (gotDir) {
+		for (auto const & i : getDirFileNames(std::string() + "datasets/allsky/points")) {
+			std::string base, ext;
+			getFileNameParts(i, base, ext);
+			if (ext == "gz") {
+				totalFiles++;
+				batch.addThreadArg(base);
+			}
+		}	
 	}
 
 	std::filesystem::create_directory("datasets/allsky/points");
 	std::filesystem::create_directory("datasets/allsky/raw");
 
-	double deltaTime = profile("batch", batch);
+	double deltaTime = profile("batch", [&](){
+		batch();
+	});
 	std::cout << (deltaTime / (double)totalFiles) << " seconds per file" << std::endl;
+}
+
+int main(int argc, char **argv) {
+	try {
+		_main({argv, argv + argc});
+	} catch (std::exception &t) {
+		std::cerr << "error: " << t.what() << std::endl;
+		return 1;
+	}
+	return 0;
 }

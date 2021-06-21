@@ -3,8 +3,6 @@ usage:
 convert-gaia			generates point file
 */
 #include <filesystem>
-#include <vector>
-#include <string>
 #include <limits>
 #include "stat.h"
 #include "exception.h"
@@ -224,8 +222,8 @@ struct ConvertSDSS {
 				double arcsec_parallax = value_parallax * 1e-3;	//convert from milliarcseconds to arcseconds
 				double distance = 1./arcsec_parallax;	//convert from arcseconds to parsecs 
 				// comment this for universe visualizer
-				//distance *= 1e-3;	//parsec to Kpc
-				distance *= 1e-6;	//parsec to Mpc
+				// (or should I switch universe visualizer from Mpc to Pc?)
+				//distance *= 1e-6;	//parsec to Mpc
 
 				if (keepNegativeParallax || distance > 0) {	// what do we do with negative parallax?
 
@@ -365,51 +363,19 @@ struct ConvertSDSS {
 	}
 };
 
-void showhelp() {
-	std::cout
-		<< "usage: convert-gaia <options>" << std::endl
-		<< "options:" << std::endl
-		<< "    --verbose               output values" << std::endl
-		<< "    --show-ranges           show ranges of certain fields" << std::endl
-		<< "    --wait                  wait for keypress after each entry.  'q' stops" << std::endl
-		<< "    --get-columns           print all column names" << std::endl
-		<< "    --nowrite               don't write results.  useful with --verbose or --read-desc" << std::endl
-		<< "    --output-extra          also output velocity, temperature, and luminosity" << std::endl
-		<< "    --keep-neg-parallax     keep negative parallax" << std::endl
-		<< "    --double                output as double precision (default single)" << std::endl
-	;
-}
-
 int main(int argc, char **argv) {
-	std::vector<std::string> args(argv, argv + argc);
-	
 	bool useDouble = false;
-	for (int i = 1; i < args.size(); i++) {
-		if (args[i] == "--help") {
-			showhelp();
-			return 0;
-		} else if (args[i] == "--verbose") {
-			verbose = true;
-		} else if (args[i] == "--show-ranges") {
-			showRanges = true;
-		} else if (args[i] == "--wait") {
-			verbose = true;
-			interactive = true;
-		} else if (args[i] == "--get-columns") {
-			getColumns = true;
-		} else if (args[i] == "--nowrite") {
-			omitWrite = true;
-		} else if (args[i] == "--output-extra") {
-			outputExtra = true;
-		} else if (args[i] == "--keep-neg-parallax") {
-			keepNegativeParallax = true;
-		} else if (args[i] == "--double") {
-			useDouble = true;
-		} else {
-			showhelp();
-			return 0;
-		}
-	}
+	HandleArgs({argv, argv + argc}, {
+		{"--verbose", {"= output values", {[&](){ verbose = true; }}}},
+		{"--show-ranges", {"= show ranges of certain fields", {[&](){ showRanges = true; }}}},
+		{"--wait", {"= wait for keypress after each entry.  'q' stops", {[&](){ verbose = true; interactive = true; }}}},
+		{"--get-columns", {"= print all column names", {[&](){ getColumns = true; }}}},
+		{"--nowrite", {"= don't write results.  useful with --verbose or --read-desc", {[&](){ omitWrite = true; }}}},
+		{"--output-extra", {"= also output velocity, temperature, and luminosity", {[&](){ outputExtra = true; }}}},
+		{"--keep-neg-parallax", {"= keep negative parallax", {[&](){ keepNegativeParallax = true; }}}},
+		{"--double", {"= output as double precision (default single)", {[&](){ useDouble = true; }}}},
+	});
+
 	if (!useDouble) {
 		profile("convert-gaia", [&](){ 
 			ConvertSDSS<float> convert;

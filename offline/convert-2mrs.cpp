@@ -83,12 +83,12 @@ struct Convert2MRS {
 				}
 			}
 
-			for (std::map<std::string,int>::iterator i = specFileMap.begin(); i != specFileMap.end(); ++i) {
-				std::cout << i->first << " = " << i->second << std::endl;
+			for (auto const & i : specFileMap) {
+				std::cout << i.first << " = " << i.second << std::endl;
 			}
 
 			for (int j = 0; j < NUM_COLS; j++) {
-				std::map<std::string,int>::iterator i = specFileMap.find(colNames[j]);
+				auto const & i = specFileMap.find(colNames[j]);
 				if (i == specFileMap.end()) throw Exception() << "expected key " << colNames[j]; 
 				colMaxLens[j] = i->second;
 			}
@@ -326,48 +326,26 @@ struct Convert2MRS {
 	}
 };
 
-void showhelp() {
-	std::cout
-	<< "usage: convert-2mrs <options>" << std::endl
-	<< "options:" << std::endl
-	<< "    --verbose            output values" << std::endl
-	<< "    --show-ranges        show ranges of certain fields" << std::endl
-	<< "    --wait               wait for keypress after each entry.  'q' stops" << std::endl
-	<< "    --catalog            use the datasets/2mrs/catalog.spec file " << std::endl
-	<< "                         to generate datasets/2mrs/catalog.dat" << std::endl
-	<< "    --min-redshift <cz>  specify minimum redshift" << std::endl
-	<< "    --add-milky-way      artificially add the milky way" << std::endl
-	;
-}
-
-int main(int argc, char **argv) {
-	std::vector<std::string> args(argv, argv + argc);
-	
+void _main(std::vector<std::string> const & args) {
 	Convert2MRS convert;
-	for (int i = 1; i < args.size(); i++) {
-		if (args[i] == "--help") {
-			showhelp();
-			return 0;
-		} else if (args[i] == "--verbose") {
-			VERBOSE = true;
-		} else if (args[i] == "--show-ranges") {
-			showRanges = true;
-		} else if (args[i] == "--wait") {
-			INTERACTIVE = true;
-		} else if (args[i] == "--catalog") {
-			convert.writingCatalog = true;
-		} else if (args[i] == "--min-redshift" && i < args.size()-1) {
-			useRedshiftMinThreshold = true;
-			redshiftMinThreshold = atof(argv[++i]);
-		} else if (args[i] == "--add-milky-way") {
-			addMilkyWay = true;
-		} else {
-			showhelp();
-			return 0;
-		}
-	}
+	HandleArgs(args, {
+		{"--verbose", {"= output values", {[&](){ VERBOSE = true; }}}},
+		{"--show-ranges", {"= show ranges of certain fields", {[&](){ showRanges = true; }}}},
+		{"--wait", {"= wait for keypress after each entry.  'q' stops", {[&](){ INTERACTIVE = true; }}}},
+		{"--catalog", {"= use the datasets/2mrs/catalog.spec file to generate datasets/2mrs/catalog.dat", {[&](){ convert.writingCatalog = true; }}}},
+		{"--min-redshift", {"<cz> = specify minimum redshift", {std::function<void(float)>([&](float x){ useRedshiftMinThreshold = true; redshiftMinThreshold = x; })}}},
+		{"--add-milky-way", {"= artificially add the milky way", {[&](){ addMilkyWay = true; }}}},
+	});
 	profile("convert-2mrs", [&](){
 		convert();
 	});
 }
 
+int main(int argc, char** argv) {
+	try {
+		_main({argv, argv + argc});
+	} catch (std::exception & t) {
+		std::cerr << "error: " << t.what() << std::endl;
+	}
+	return 0;
+}

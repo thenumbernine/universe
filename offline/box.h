@@ -1,15 +1,7 @@
-#ifndef BOX_H
-#define BOX_H
+#pragma once
 
 #include "vec.h"
-
-#ifndef numberof
-#define numberof(x)	(sizeof((x)) / sizeof((x)[0]))
-#endif
-#ifndef endof
-#define endof(x)	((x) + numberof((x)))
-#endif
-#define bitflag(x)	((1<<(x)))
+#include "macros.h"
 
 template <int DIM, typename T>
 class _box;
@@ -195,5 +187,3 @@ inline bool operator!=(_box<DIM,T> &a, const _box<DIM,U> &b) { return !operator=
 template<int DIM, typename T> inline std::ostream &operator<<(std::ostream &o, const _box<DIM,T> &b) {
 	return o << "min:" << b.min << " max:" << b.max;
 }
-
-#endif	//BOX_H

@@ -60,6 +60,7 @@ LDFLAGS = -fPIC
 
 
 ALL =	\
+	convert-2mass$(BINEXT) \
 	convert-2mrs$(BINEXT) \
 	convert-6dfgs$(BINEXT) \
 	convert-sdss$(BINEXT) \
@@ -67,13 +68,12 @@ ALL =	\
 	getstats$(BINEXT) \
 	gettotalstats$(BINEXT) \
 	genvolume$(BINEXT) \
+	genoctree$(BINEXT) \
 # not building in msvc yet
-#	genoctree$(BINEXT) \
 #	show-still$(BINEXT) \
 #	genisos$(BINEXT) \
 #	flatten-clusters$(BINEXT) \
 #	mark-clusters$(BINEXT) \
-#	convert-2mass$(BINEXT) \
 # not done at all:
 #	show$(BINEXT) \
 

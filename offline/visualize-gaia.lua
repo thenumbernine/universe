@@ -1,8 +1,10 @@
 #!/usr/bin/env luajit
 -- simple pointcloud visualizer
+local class = require 'ext.class'
+local table = require 'ext.table'
+local string = require 'ext.string'
+local file = require 'ext.file'
 local ffi = require 'ffi'
-require 'ext'
-local ig = require 'ffi.imgui'
 local template = require 'template'
 local Image = require 'image'
 local gl = require 'gl'
@@ -12,14 +14,41 @@ local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLHSVTex = require 'gl.hsvtex'
 local CLEnv = require 'cl.obj.env'
+local vec3f = require 'vec-ffi.vec3f'
+
+local filename, format = ...
+if not filename then filename = 'datasets/gaia/points/points-9col.f32' end
+if not format then
+	format = filename:match'%-(.*)%.f32$' or '3col'
+end
 
 local App = class(require 'glapp.orbit'(require 'imguiapp'))
-App.title = 'pointcloud visualization tool'
-App.viewDist = 2
+local ig = require 'ffi.imgui'
 
+App.title = 'pointcloud visualization tool'
+App.viewDist = 1e+6
+
+--[[
+my gaia data: 
+	float pos[3]
+	float vel[3]
+	float radius
+	float temperature		<-> colorIndex
+	float luminosity		<-> absoluteMagnitude
+my hyg data:
+	float pos[3]
+	float vel[3]
+	float absoluteMagnitude	<-> luminosity
+	float colorIndex		<-> temperature
+	float constellationIndex
+--]]
 ffi.cdef[[
 typedef struct {
 	float pos[3];
+} pt_3col_t;
+
+typedef struct {
+	float pos[3];		// in Pc
 	float vel[3];
 	float rad;
 	
@@ -38,8 +67,32 @@ typedef struct {
 		and I_sun solar irradiance (watts/meter^2)
 	*/
 	float lum;
-} pt_t;
+
+	/*
+	https://en.wikipedia.org/wiki/Luminosity	
+	
+	flux = luminosity / area
+	area of sphere = 4 pi r^2
+	area normal with observer = 2 pi r
+	flux = luminosity / (2 pi r)
+	
+	absolute magnitude:
+	MBol = -2.5 * log10( LStar / L0 ) ~ -2.5 * log10 LStar + 71.1974
+	MBolStar - MBolSun = -2.5 * log10( LStar / LSun )
+	absolute bolometric magnitude of sun: MBolSun = 4.74
+	apparent bolometric magnitude of sun: mBolSun = -26.832
+	(negative = brighter)
+	*/
+} pt_9col_t;
 ]]
+
+assert(ffi.sizeof'pt_3col_t' == 3 * ffi.sizeof'float')
+assert(ffi.sizeof'pt_9col_t' == 9 * ffi.sizeof'float')
+
+local pt_t = ({
+	['3col'] = 'pt_3col_t',
+	['9col'] = 'pt_9col_t',
+})[format] or error("couldn't deduce point type from format")
 
 local glPointBufID = ffi.new'GLuint[1]'
 
@@ -65,14 +118,15 @@ function App:initGL(...)
 	gl.glDisable(gl.GL_DEPTH_TEST)
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 
-	self.view.znear = 1
-	self.view.zfar = 10000
+	self.view.znear = 1e+3
+	self.view.zfar = 1e+9
 
+	local data = file[filename]
+	n = #data / ffi.sizeof(pt_t)
+print('loaded '..n..' stars...')
+--n = math.min(n, 100000)
 
-	local data = file['datasets/gaia/points/points-9col.f32']
-	n = #data / ffi.sizeof'pt_t'
-
-	env = CLEnv{precision='float', size=n}
+	env = CLEnv{precision='float', size=n, useGLSharing=false}
 	local real3code = template([[
 <?
 for _,t in ipairs{'float', 'double'} do
@@ -100,8 +154,31 @@ typedef _<?=env.real?>4 real4;
 	env.code = env.code .. real3code
 
 	local s = ffi.cast('char*', data)
-	local cpuPointBuf = ffi.cast('pt_t*', s)
+	local cpuPointBuf = ffi.cast(pt_t..'*', s)
 	
+	-- get range
+	local s = require 'stat.set'('x','y','z','r')
+	--[[
+	in Mpc:
+	r min = 3.2871054551763e-06
+	r max = 2121.7879974726
+	r avg = 0.0037223396472864
+	r stddev = 0.95579087454634
+	so 3 sigma is ... 3
+	--]]
+	local rbin = require 'stat.bin'(0, 3e+6, 50)
+	for i=0,n-1 do
+		local x = cpuPointBuf[i].pos[0]
+		local y = cpuPointBuf[i].pos[1]
+		local z = cpuPointBuf[i].pos[2]
+		local r = math.sqrt(x*x + y*y + z*z)
+		s:accum(x, y, z, r)
+		rbin:accum(r)
+	end
+	print("data range (Pc):")
+	print(s)
+	print('r bins = '..rbin)
+
 	local cpuLinePosBuf = ffi.new('_float4[?]', 2*n)	-- pts buf x number of vtxs
 	local cpuLineVelBuf = ffi.new('_float4[?]', 2*n)
 
@@ -120,7 +197,7 @@ typedef _<?=env.real?>4 real4;
 	
 	gl.glGenBuffers(1, glPointBufID)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-	gl.glBufferData(gl.GL_ARRAY_BUFFER, n*ffi.sizeof'pt_t', cpuPointBuf, gl.GL_STATIC_DRAW)
+	gl.glBufferData(gl.GL_ARRAY_BUFFER, n*ffi.sizeof(pt_t), cpuPointBuf, gl.GL_STATIC_DRAW)
 	
 	gl.glGenBuffers(1, glLinePosBufID)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
@@ -135,15 +212,30 @@ typedef _<?=env.real?>4 real4;
 	--refreshPoints()
 	
 	accumStarPointShader = GLProgram{
-		vertexCode = [[
+		vertexCode = template[[
 #version 130
+
 attribute float lum;
 attribute float temp;
-varying float lumv;
-varying float tempv;
+
+out float lumv;			//luminosity, in solar luminosity units
+out float tempv;		//temperature, in K
+out float log10DistInPc;
+
 void main() {
 	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
-	gl_Position = gl_ModelViewProjectionMatrix * vtx;
+	vec4 vmv = gl_ModelViewMatrix * vtx;
+	gl_Position = gl_ProjectionMatrix * vmv;
+	
+	//how to calculate this in fragment space ...
+	// coordinates are in Pc
+	float distInPcSq = dot(vmv.xyz, vmv.xyz);
+	
+	//log(distInPc^2) = 2 log(distInPc)
+	//so log10(distInPc) = .5 log10(distInPc^2)
+	//so log10(distInPc) = .5 / log(10) * log(distInPc^2)
+	log10DistInPc = <?= .5 / math.log(10) ?> * log(distInPcSq);
+
 	lumv = lum;
 	tempv = temp;
 }
@@ -153,17 +245,45 @@ void main() {
 local clnumber = require 'cl.obj.number'
 ?>
 #version 130
+
+in float lumv;
+in float tempv;
+in float log10DistInPc;
+
 uniform sampler2D tempTex;
-varying float lumv;
-varying float tempv;
 uniform float alpha;
+uniform float distSqAtten;
+
+uniform bool useLum;
+
 void main() {
-	float lumf = lumv;
-	
-	float z = gl_FragCoord.z / gl_FragCoord.w;
-	z *= .001;
-	lumf *= 1. / (z * z);
-	
+	float lumf = 1.;
+	if (useLum) {
+		//MBolStar - MBolSun = -2.5 * log10( LStar / LSun)
+		float LStarOverSun = lumv;
+		float LSunOverL0 = 4.74;
+		float LStarOverL0 = LStarOverSun * LSunOverL0;
+		float M = <?= -2.5 / math.log(10)?> * log(LStarOverL0);	// abs magn
+
+		/*
+		apparent magnitude:
+		M = absolute magnitude
+		m = apparent magnitude
+		d = distance in parsecs
+		m = M - 5 + 5 * log10(d)
+		*/
+		float m = M - 5. + 5. * log10DistInPc;
+
+
+		//TODO how to convert from apparent magnitude to pixel value?
+		lumf = -.43 * m - .57 * (M - 5.);
+	//inv sq illumination falloff
+	// TODO how about some correct apparent magnitude equations here?
+		//lumf *= distSqAtten * invDistSq;
+		//lumf = -(log(lumf) - log(distSqAtten * invDistSq));
+	}
+
+	// make point smooth
 	vec2 d = gl_PointCoord.xy * 2. - 1.;
 	float rsq = dot(d,d);
 	lumf *= 1. / (10. * rsq + .1);
@@ -178,6 +298,7 @@ void main() {
 			}),
 		uniforms = {
 			tempTex = 0,
+			useLum = 1,
 		},
 	}
 	accumStarPointShader:useNone()
@@ -186,10 +307,14 @@ void main() {
 	accumStarLineShader = GLProgram{
 		vertexCode = [[
 #version 130
+
 attribute vec4 vel;
+
 uniform float velScalar;
 uniform bool normalizeVel;
-varying float lum;
+
+out float lum;
+
 void main() {
 	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
 
@@ -209,19 +334,25 @@ void main() {
 ]],
 		fragmentCode = [[
 #version 130
-varying float lum;
+
+in float lum;
+
 uniform float alpha;
+
 void main() {
-	
 	float _lum = lum;
-	
+
+#if 0	//inv sq dim
 	float z = gl_FragCoord.z / gl_FragCoord.w;
 	z *= .001;
 	_lum *= 1. / (z * z);
-	
+#endif
+
+#if 0	//make the point smooth 
 	vec2 d = gl_PointCoord.xy * 2. - 1.;
 	float rsq = dot(d,d);
 	_lum *= 1. / (10. * rsq + .1);
+#endif
 
 	vec3 color = vec3(.1, 1., .1) * _lum * alpha;
 	gl_FragColor = vec4(color, 1.); 
@@ -235,7 +366,9 @@ void main() {
 	renderAccumShader = GLProgram{
 		vertexCode = [[
 #version 130
-varying vec2 texcoord;
+
+out vec2 texcoord;
+
 void main() {
 	texcoord = gl_Vertex.xy;
 	gl_Position = vec4(gl_Vertex.x * 2. - 1., gl_Vertex.y * 2. - 1., 0., 1.);
@@ -245,7 +378,9 @@ void main() {
 <?
 local clnumber = require 'cl.obj.number'
 ?>
-varying vec2 texcoord;
+
+in vec2 texcoord;
+
 uniform sampler2D fbotex;
 uniform sampler1D hsvtex;
 uniform float hdrScale;
@@ -253,6 +388,7 @@ uniform float hdrGamma;
 uniform float hsvRange;
 uniform bool showDensity;
 uniform float bloomLevels;
+
 void main() {
 	gl_FragColor = vec4(0., 0., 0., 0.);
 <? 
@@ -312,7 +448,7 @@ end
 		if l ~= '' and l:sub(1,1) ~= '#' then
 			local cmf = l:sub(11,15)
 			if cmf == '10deg' then
-				local temp = tonumber(l:sub(2,6):trim())
+				local temp = tonumber(string.trim(l:sub(2,6)))
 				if temp >= tempMin and temp <= tempMax then
 					local r = tonumber(l:sub(82,83), 16)
 					local g = tonumber(l:sub(84,85), 16)
@@ -343,20 +479,112 @@ end
 end
 
 -- _G so that sliderFloatTable can use them
-alphaValue = 1
-pointSize = 2	-- TODO point size according to luminosity
+alphaValue = .1
+pointSize = 1	-- TODO point size according to luminosity
+distSqAtten = 1e-5
 hsvRangeValue = .2
 hdrScaleValue = .001
 hdrGammaValue = 1
-bloomLevelsValue = 1
+bloomLevelsValue = 0
 showDensityValue = false
 velScalarValue = 1
 drawPoints = true
 drawLines = false
+useLum = true
 normalizeVelValue = 0
 
+function App:drawScene()
+	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+	gl.glEnable(gl.GL_BLEND)
+	
+	if drawPoints then
+		accumStarPointShader:use()
+		if accumStarPointShader.uniforms.alpha then
+			gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue)
+		end
+		if accumStarPointShader.uniforms.distSqAtten then
+			gl.glUniform1f(accumStarPointShader.uniforms.distSqAtten.loc, distSqAtten)
+		end
+		if accumStarPointShader.uniforms.useLum then
+			gl.glUniform1i(accumStarPointShader.uniforms.useLum.loc, useLum and 1 or 0)
+		end
+
+		tempTex:bind()
+		
+		gl.glPointSize(pointSize)
+
+		gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+		gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
+
+		if pt_t == 'pt_9col_t'
+		and accumStarPointShader.attrs.lum 
+		then
+			gl.glEnableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
+			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+			gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'lum'))))
+		end
+		if pt_t == 'pt_9col_t'
+		and accumStarPointShader.attrs.temp 
+		then
+			gl.glEnableVertexAttribArray(accumStarPointShader.attrs.temp.loc)
+			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+			gl.glVertexAttribPointer(accumStarPointShader.attrs.temp.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'temp'))))
+		end
+
+		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	
+		gl.glDrawArrays(gl.GL_POINTS, 0, n)
+	
+		gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+		if accumStarPointShader.attrs.lum then
+			gl.glDisableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
+		end
+		
+		tempTex:unbind()
+		accumStarPointShader:useNone()
+		
+		gl.glPointSize(1)
+	end
+	if drawLines then
+		accumStarLineShader:use()
+		if accumStarLineShader.uniforms.alpha then
+			gl.glUniform1f(accumStarLineShader.uniforms.alpha.loc, alphaValue)
+		end
+		if accumStarLineShader.uniforms.velScalar then
+			gl.glUniform1f(accumStarLineShader.uniforms.velScalar.loc, velScalarValue)
+		end
+		if accumStarLineShader.uniforms.normalizeVel then
+			gl.glUniform1f(accumStarLineShader.uniforms.normalizeVel.loc, normalizeVelValue)
+		end
+
+		gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
+		gl.glVertexPointer(4, gl.GL_FLOAT, 0, nil)
+
+		if accumStarLineShader.attrs.vel then
+			gl.glEnableVertexAttribArray(accumStarLineShader.attrs.vel.loc)
+			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLineVelBufID[0])
+			gl.glVertexAttribPointer(accumStarLineShader.attrs.vel.loc, 4, gl.GL_FLOAT, false, 0, nil)	-- 'normalize' doesn't seem to make a difference ...
+		end
+		
+		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	
+		gl.glDrawArrays(gl.GL_LINES, 0, 2*n)
+	
+		gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+		if accumStarLineShader.attrs.vel then
+			gl.glDisableVertexAttribArray(accumStarLineShader.attrs.vel.loc)
+		end
+		
+		accumStarLineShader:useNone()
+	end
+	
+	gl.glDisable(gl.GL_BLEND)
+end
+
 local lastWidth, lastHeight
-function App:update()
+function App:drawWithAccum()
 	if self.width ~= lastWidth or self.height ~= lastHeight then
 		lastWidth = self.width
 		lastHeight = self.height
@@ -365,6 +593,7 @@ function App:update()
 			width=self.width,
 			height=self.height,
 		}
+		
 		fbotex = GLTex2D{
 			width = fbo.width,
 			height = fbo.height,
@@ -380,85 +609,7 @@ function App:update()
 		viewport = {0,0,fbo.width,fbo.height},
 		dest = fbotex,
 		callback = function()
-			gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-
-			gl.glEnable(gl.GL_BLEND)
-
-			
-			if drawPoints then
-				accumStarPointShader:use()
-				if accumStarPointShader.uniforms.alpha then
-					gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue)
-				end
-
-				tempTex:bind()
-				
-				gl.glPointSize(pointSize)
-
-				gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-				gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof'pt_t', nil)
-
-				if accumStarPointShader.attrs.lum then
-					gl.glEnableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
-					gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-					gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof'pt_t', ffi.cast('void*', (ffi.offsetof('pt_t', 'lum'))))
-				end
-				if accumStarPointShader.attrs.temp then
-					gl.glEnableVertexAttribArray(accumStarPointShader.attrs.temp.loc)
-					gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-					gl.glVertexAttribPointer(accumStarPointShader.attrs.temp.loc, 1, gl.GL_FLOAT, false, ffi.sizeof'pt_t', ffi.cast('void*', (ffi.offsetof('pt_t', 'temp'))))
-				end
-
-				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-			
-				gl.glDrawArrays(gl.GL_POINTS, 0, n)
-			
-				gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-				if accumStarPointShader.attrs.lum then
-					gl.glDisableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
-				end
-				
-				tempTex:unbind()
-				accumStarPointShader:useNone()
-				
-				gl.glPointSize(1)
-			end
-			if drawLines then
-				accumStarLineShader:use()
-				if accumStarLineShader.uniforms.alpha then
-					gl.glUniform1f(accumStarLineShader.uniforms.alpha.loc, alphaValue)
-				end
-				if accumStarLineShader.uniforms.velScalar then
-					gl.glUniform1f(accumStarLineShader.uniforms.velScalar.loc, velScalarValue)
-				end
-				if accumStarLineShader.uniforms.normalizeVel then
-					gl.glUniform1f(accumStarLineShader.uniforms.normalizeVel.loc, normalizeVelValue)
-				end
-
-				gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
-				gl.glVertexPointer(4, gl.GL_FLOAT, 0, nil)
-
-				if accumStarLineShader.attrs.vel then
-					gl.glEnableVertexAttribArray(accumStarLineShader.attrs.vel.loc)
-					gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLineVelBufID[0])
-					gl.glVertexAttribPointer(accumStarLineShader.attrs.vel.loc, 4, gl.GL_FLOAT, false, 0, nil)	-- 'normalize' doesn't seem to make a difference ...
-				end
-				
-				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-			
-				gl.glDrawArrays(gl.GL_LINES, 0, 2*n)
-			
-				gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-				if accumStarLineShader.attrs.vel then
-					gl.glDisableVertexAttribArray(accumStarLineShader.attrs.vel.loc)
-				end
-				
-				accumStarLineShader:useNone()
-			end
-			
-			gl.glDisable(gl.GL_BLEND)
+			self:drawScene()
 		end,
 	}
 
@@ -512,6 +663,16 @@ function App:update()
 	gl.glMatrixMode(gl.GL_MODELVIEW)
 	gl.glPopMatrix()
 
+end
+
+function App:update()
+	-- [[
+	self:drawScene()
+	--]]
+	--[[
+	self:drawWithAccum()
+	--]]
+	
 	glreport'here'
 	App.super.update(self)
 end
@@ -527,6 +688,14 @@ local function sliderFloatTable(title, t, key, ...)
 	return result
 end
 
+local function inputFloatTable(title, t, key, ...)
+	float[0] = t[key]
+	local result = ig.igInputFloat(title, float, ...) 
+	if result then t[key] = float[0] end
+	return result
+end
+
+
 local bool = ffi.new'bool[1]'
 local function checkboxTable(title, t, key, ...)
 	bool[0] = t[key]
@@ -537,13 +706,14 @@ end
 
 function App:updateGUI()
 	sliderFloatTable('point size', _G, 'pointSize', 1, 10)
-	sliderFloatTable('alpha value', _G, 'alphaValue', 0, 1000, '%.7f', 10)
-	
+	inputFloatTable('alpha value', _G, 'alphaValue')
+	inputFloatTable('dist sq atten', _G, 'distSqAtten')
 	sliderFloatTable('hdr scale', _G, 'hdrScaleValue', 0, 1000, '%.7f', 10)
 	sliderFloatTable('hdr gamma', _G, 'hdrGammaValue', 0, 1000, '%.7f', 10)
 	sliderFloatTable('hsv range', _G, 'hsvRangeValue', 0, 1000, '%.7f', 10)
 	sliderFloatTable('bloom levels', _G, 'bloomLevelsValue', 0, 8)
 	checkboxTable('show density', _G, 'showDensityValue')
+	checkboxTable('use luminosity', _G, 'useLum')
 
 	checkboxTable('draw points', _G, 'drawPoints')
 	
@@ -560,6 +730,10 @@ function App:updateGUI()
 		ig.ImVec2(128, 24),
 		ig.ImVec2(0,0),
 		ig.ImVec2(1,1))
+
+	ig.igText('dist (Pc) '..self.view.pos:length())
+	inputFloatTable('znear', self.view, 'znear')
+	inputFloatTable('zfar', self.view, 'zfar')
 end
 
 --[[
