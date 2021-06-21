@@ -101,6 +101,8 @@ HandleArgs::HandleArgs(
 					g(atoi(next().c_str()));
 				} else if constexpr (std::is_same_v<T, std::function<void(float)>>) {
 					g(atof(next().c_str()));
+				} else if constexpr (std::is_same_v<T, std::function<void(double)>>) {
+					g(atof(next().c_str()));
 				} else if constexpr (std::is_same_v<T, std::function<void(std::string)>>) {
 					g(next());
 				}

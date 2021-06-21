@@ -48,6 +48,7 @@ using Handlers = std::map<
 			std::function<void()>,
 			std::function<void(int)>,
 			std::function<void(float)>,
+			std::function<void(double)>,
 			std::function<void(std::string)>
 		>
 	>
