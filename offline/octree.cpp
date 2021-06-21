@@ -4,7 +4,7 @@
 //root ctor
 OctreeNode::OctreeNode(const vec3f &min_, const vec3f &max_) 
 :	leaf(true),
-	parent(NULL),
+	parent(nullptr),
 	whichChild(-1),
 	numPoints(0),
 	bbox(box3f(min_, max_)),
@@ -77,7 +77,7 @@ bool OctreeNode::contains(const box3f &b, const vec3f &v) {
 #include "exception.h"
 
 OctreeNode *OctreeNode::readSet(const std::string &datasetname) {
-	std::list<std::string> files = getDirFileNames(std::string("datasets/") + datasetname + "/octree");
+	auto files = getDirFileNames(std::string("datasets/") + datasetname + "/octree");
 	for (auto i = files.begin(); i != files.end(); ) {
 		std::string base, ext;
 		getFileNameParts(*i, base, ext);
@@ -92,7 +92,7 @@ OctreeNode *OctreeNode::readSet(const std::string &datasetname) {
 	//sort by name
 	files.sort();
 	//int numNodesWithPoints = 0;	
-	OctreeNode *root = NULL;
+	OctreeNode *root = nullptr;
 	//last i checked stl sort grouped by length then sorted alphabetically  -- just what i'm looking for
 	for (auto const & filename : files) {
 		//pick out suffix: "node<suffix>.f32"
@@ -110,7 +110,7 @@ OctreeNode *OctreeNode::readSet(const std::string &datasetname) {
 				bbox.min[j] = totalStats.vars()[STATSET_X+j].min;
 				bbox.max[j] = totalStats.vars()[STATSET_X+j].max;
 			}
-			root = new OctreeNode(NULL, -1, bbox.min, bbox.max);
+			root = new OctreeNode(nullptr, -1, bbox.min, bbox.max);
 		
 			//numNodesWithPoints++;
 		} else {

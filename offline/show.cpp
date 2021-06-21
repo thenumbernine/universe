@@ -118,15 +118,15 @@ struct RenderBase {
 		viewHeight(512),
 		currentFileIndex(0),
 		resetFile(true),
-		currentFile(NULL),
-		vtxBuffer(NULL),
+		currentFile(nullptr),
+		vtxBuffer(nullptr),
 		lumScale(100.)
 	{
 /*
 		StatSet totalStats;
 		totalStats.read((string("datasets/") + datasetname + "/stats/total.stats").c_str());
 		
-		OctreeNode *root = new OctreeNode(NULL, -1, vec3f(
+		OctreeNode *root = new OctreeNode(nullptr, -1, vec3f(
 			totalStats.vars()[STATSET_X].min,
 			totalStats.vars()[STATSET_Y].min,
 			totalStats.vars()[STATSET_Z].min
@@ -152,7 +152,7 @@ struct RenderBase {
 		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 		
 		SDL_Surface *screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 32, SDL_OPENGL | SDL_RESIZABLE);
-		SDL_WM_SetCaption("2MASS All Sky Survey", NULL);
+		SDL_WM_SetCaption("2MASS All Sky Survey", nullptr);
 
 #ifdef __WINDOWS__
 		if (glewInit() != GLEW_OK) throw Exception() << "failed to init GLEW";
@@ -196,7 +196,7 @@ struct RenderBase {
 			//reset rendering
 			if (currentFile) { 
 				fclose(currentFile); 
-				currentFile = NULL; 
+				currentFile = nullptr; 
 			}
 			currentFileIndex = 0;
 			resetFile = true;
@@ -241,7 +241,7 @@ struct RenderBase {
 				//reset rendering
 				if (currentFile) { 
 					fclose(currentFile); 
-					currentFile = NULL; 
+					currentFile = nullptr; 
 				}
 				currentFileIndex = 0;
 				resetFile = true;
@@ -377,9 +377,9 @@ RenderSimplePointSet::RenderSimplePointSet(RenderSimple &renderSimple_, const st
 : 	renderSimple(renderSimple_),
 	numVtxs(0),
 	numLinks(0),
-	vtxs(NULL),
-	links(NULL),
-	clusters(NULL),
+	vtxs(nullptr),
+	links(nullptr),
+	clusters(nullptr),
 	visible(true)
 {
 	vtxs = (vec3f*)getFile(filename, &numVtxs);
@@ -544,7 +544,7 @@ struct RenderMultipleAccum : public RenderBase {
 		glGetIntegerv(GL_DRAW_BUFFER, &drawBuffer);
 		if (currentFile && feof(currentFile)) {
 			fclose(currentFile);
-			currentFile = NULL;
+			currentFile = nullptr;
 			currentFileIndex++;
 		}
 		if (currentFileIndex < filenames.size()) {
@@ -594,7 +594,7 @@ struct RenderMultipleAccum : public RenderBase {
 			
 			if (feof(currentFile)) {
 				fclose(currentFile);
-				currentFile = NULL;
+				currentFile = nullptr;
 				currentFileIndex++;
 			}
 

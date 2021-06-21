@@ -76,7 +76,7 @@ struct Convert2MRS {
 					char *v = strtok(line, "="); if (!v) throw Exception() << "expected key"; 
 					strncpy(key, v, sizeof(key));
 					
-					v = strtok(NULL, "="); if (!v) throw Exception() << "expected value for key " << key; 
+					v = strtok(nullptr, "="); if (!v) throw Exception() << "expected value for key " << key; 
 					if (!sscanf(v, "%d", &value)) throw Exception() << "failed to parse line " << line; 
 					
 					specFileMap[key] = value;
@@ -155,53 +155,53 @@ struct Convert2MRS {
 					char *v = strtok(line, " "); if (!v) break;	//ID
 					strncpy(cols[COL_2MASS_ID], v, sizeof(cols[COL_2MASS_ID]));
 
-					v = strtok(NULL, " "); if (!v) break; //RAdeg
-					v = strtok(NULL, " "); if (!v) break; //DECdeg
-					v = strtok(NULL, " "); if (!v) break; //l
+					v = strtok(nullptr, " "); if (!v) break; //RAdeg
+					v = strtok(nullptr, " "); if (!v) break; //DECdeg
+					v = strtok(nullptr, " "); if (!v) break; //l
 					if (!sscanf(v, "%lf", &lon)) break;
 
-					v = strtok(NULL, " "); if (!v) break;	//b
+					v = strtok(nullptr, " "); if (!v) break;	//b
 					if (!sscanf(v, "%lf", &lat)) break;
 
-					v = strtok(NULL, " "); if (!v) break;	//k_c
+					v = strtok(nullptr, " "); if (!v) break;	//k_c
 					if (!sscanf(v, "%lf", &k_c)) k_c = NAN;
 					
-					v = strtok(NULL, " "); if (!v) break;	//h_c
-					v = strtok(NULL, " "); if (!v) break;	//j_c
-					v = strtok(NULL, " "); if (!v) break;	//k_tc
-					v = strtok(NULL, " "); if (!v) break;	//h_tc
-					v = strtok(NULL, " "); if (!v) break;	//j_tc
-					v = strtok(NULL, " "); if (!v) break;	//e_k
-					v = strtok(NULL, " "); if (!v) break;	//e_h
-					v = strtok(NULL, " "); if (!v) break;	//e_j
-					v = strtok(NULL, " "); if (!v) break;	//e_kt
-					v = strtok(NULL, " "); if (!v) break;	//e_ht
-					v = strtok(NULL, " "); if (!v) break;	//e_jt
-					v = strtok(NULL, " "); if (!v) break;	//e_bv
-					v = strtok(NULL, " "); if (!v) break;	//r_iso
-					v = strtok(NULL, " "); if (!v) break;	//r_ext
-					v = strtok(NULL, " "); if (!v) break;	//b/a
+					v = strtok(nullptr, " "); if (!v) break;	//h_c
+					v = strtok(nullptr, " "); if (!v) break;	//j_c
+					v = strtok(nullptr, " "); if (!v) break;	//k_tc
+					v = strtok(nullptr, " "); if (!v) break;	//h_tc
+					v = strtok(nullptr, " "); if (!v) break;	//j_tc
+					v = strtok(nullptr, " "); if (!v) break;	//e_k
+					v = strtok(nullptr, " "); if (!v) break;	//e_h
+					v = strtok(nullptr, " "); if (!v) break;	//e_j
+					v = strtok(nullptr, " "); if (!v) break;	//e_kt
+					v = strtok(nullptr, " "); if (!v) break;	//e_ht
+					v = strtok(nullptr, " "); if (!v) break;	//e_jt
+					v = strtok(nullptr, " "); if (!v) break;	//e_bv
+					v = strtok(nullptr, " "); if (!v) break;	//r_iso
+					v = strtok(nullptr, " "); if (!v) break;	//r_ext
+					v = strtok(nullptr, " "); if (!v) break;	//b/a
 					
-					v = strtok(NULL, " "); if (!v) break;	//flgs
+					v = strtok(nullptr, " "); if (!v) break;	//flgs
 					strncpy(cols[COL_PHOTO_CONFUSION], v, sizeof(cols[COL_PHOTO_CONFUSION]));
 					
-					v = strtok(NULL, " "); if (!v) break;	//type
+					v = strtok(nullptr, " "); if (!v) break;	//type
 					strncpy(cols[COL_GALAXY_TYPE], v, sizeof(cols[COL_GALAXY_TYPE]));
 					
-					v = strtok(NULL, " "); if (!v) break;	//ts
+					v = strtok(nullptr, " "); if (!v) break;	//ts
 					strncpy(cols[COL_SOURCE_OF_TYPE], v, sizeof(cols[COL_SOURCE_OF_TYPE]));
 					
-					v = strtok(NULL, " "); if (!v) break;	//v
+					v = strtok(nullptr, " "); if (!v) break;	//v
 					if (!sscanf(v, "%lf", &redshift)) break;
 					
-					v = strtok(NULL, " "); if (!v) break;	//e_v
-					v = strtok(NULL, " "); if (!v) break;	//c
+					v = strtok(nullptr, " "); if (!v) break;	//e_v
+					v = strtok(nullptr, " "); if (!v) break;	//c
 					strncpy(cols[COL_INPUT_CATALOG], v, sizeof(cols[COL_INPUT_CATALOG]));
 					
-					v = strtok(NULL, " "); if (!v) break;	//vsrc
+					v = strtok(nullptr, " "); if (!v) break;	//vsrc
 					strncpy(cols[COL_BIB_CODE], v, sizeof(cols[COL_BIB_CODE]));
 					
-					v = strtok(NULL, " "); if (!v) break;	//CAT_ID
+					v = strtok(nullptr, " "); if (!v) break;	//CAT_ID
 					strncpy(cols[COL_GALAXY_NAME], v, sizeof(cols[COL_GALAXY_NAME]));
 
 					if (useRedshiftMinThreshold && redshift < redshiftMinThreshold) continue;

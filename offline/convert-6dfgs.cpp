@@ -32,38 +32,38 @@ struct Convert6DFGS {
 
 			do {
 				char *v = strtok(line, " "); if (!v) break;	//ID
-				v = strtok(NULL, " "); if (!v) break; //R.A. hrs
-				v = strtok(NULL, " "); if (!v) break; //R.A. min 
-				v = strtok(NULL, " "); if (!v) break; //R.A. sec 
-				v = strtok(NULL, " "); if (!v) break; //Dec. deg 
-				v = strtok(NULL, " "); if (!v) break; //Dec. min 
-				v = strtok(NULL, " "); if (!v) break; //Dec. sec 
-				v = strtok(NULL, " "); if (!v) break; //# measurements
-				v = strtok(NULL, " "); if (!v) break; //# measurements used in final cz
-				v = strtok(NULL, " "); if (!v) break; //recalibrated b_J magnitude
-				v = strtok(NULL, " "); if (!v) break; //programme ID number
-				v = strtok(NULL, " "); if (!v) break; //recalibrated r_F magnitude
-				v = strtok(NULL, " "); if (!v) break; //SuperCOSMOS classifier: 1 = galaxy, 2 = star, 3 = unclassifiable, 4 = noise
-				v = strtok(NULL, " "); if (!v) break; //sum of comparison flags
-				v = strtok(NULL, " "); if (!v) break; //best redshift
+				v = strtok(nullptr, " "); if (!v) break; //R.A. hrs
+				v = strtok(nullptr, " "); if (!v) break; //R.A. min 
+				v = strtok(nullptr, " "); if (!v) break; //R.A. sec 
+				v = strtok(nullptr, " "); if (!v) break; //Dec. deg 
+				v = strtok(nullptr, " "); if (!v) break; //Dec. min 
+				v = strtok(nullptr, " "); if (!v) break; //Dec. sec 
+				v = strtok(nullptr, " "); if (!v) break; //# measurements
+				v = strtok(nullptr, " "); if (!v) break; //# measurements used in final cz
+				v = strtok(nullptr, " "); if (!v) break; //recalibrated b_J magnitude
+				v = strtok(nullptr, " "); if (!v) break; //programme ID number
+				v = strtok(nullptr, " "); if (!v) break; //recalibrated r_F magnitude
+				v = strtok(nullptr, " "); if (!v) break; //SuperCOSMOS classifier: 1 = galaxy, 2 = star, 3 = unclassifiable, 4 = noise
+				v = strtok(nullptr, " "); if (!v) break; //sum of comparison flags
+				v = strtok(nullptr, " "); if (!v) break; //best redshift
 				if (!sscanf(v, "%lf", &redshift)) break;
 				
-				v = strtok(NULL, " "); if (!v) break; //combined uncertainty
-				v = strtok(NULL, " "); if (!v) break; //code identifying source of redshift
-				v = strtok(NULL, " "); if (!v) break; //best redshift quality value
+				v = strtok(nullptr, " "); if (!v) break; //combined uncertainty
+				v = strtok(nullptr, " "); if (!v) break; //code identifying source of redshift
+				v = strtok(nullptr, " "); if (!v) break; //best redshift quality value
 				
-				v = strtok(NULL, " "); if (!v) break; //galactic latitude
+				v = strtok(nullptr, " "); if (!v) break; //galactic latitude
 				if (!sscanf(v, "%lf", &lat)) break;
 				
-				v = strtok(NULL, " "); if (!v) break; //galacitic longitude
+				v = strtok(nullptr, " "); if (!v) break; //galacitic longitude
 				if (!sscanf(v, "%lf", &lon)) break;
 				
-				v = strtok(NULL, " "); if (!v) break; //galactic extinction in V magnitudes
-				v = strtok(NULL, " "); if (!v) break; //weight source had for first round
-				v = strtok(NULL, " "); if (!v) break; // TARGETID number from the 6dFGS database
-				v = strtok(NULL, " "); if (!v) break; //template does
-				v = strtok(NULL, " "); if (!v) break; //name of redshift field file
-				v = strtok(NULL, " "); if (!v) break; //SPECID
+				v = strtok(nullptr, " "); if (!v) break; //galactic extinction in V magnitudes
+				v = strtok(nullptr, " "); if (!v) break; //weight source had for first round
+				v = strtok(nullptr, " "); if (!v) break; // TARGETID number from the 6dFGS database
+				v = strtok(nullptr, " "); if (!v) break; //template does
+				v = strtok(nullptr, " "); if (!v) break; //name of redshift field file
+				v = strtok(nullptr, " "); if (!v) break; //SPECID
 
 				//printf("%f %f %f\n", lon, lat, redshift);
 				//continue;

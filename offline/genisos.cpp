@@ -22,7 +22,7 @@ int ifloor(float f) {
 streamsize vtxCount = 0;
 StatSet totalSet;
 float totalSize[3];
-vec3f *vtxBuf = NULL;
+vec3f *vtxBuf = nullptr;
 
 //TODO this looks like a job for the octree
 float getValue(float *fpos) {

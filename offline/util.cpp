@@ -33,7 +33,7 @@ void *getFile(const std::string &filename, std::streamsize *dstsize, void *buffe
 	if (buffer) {
 		if (size > *dstsize) {
 			delete[] (char*)buffer;
-			buffer = NULL;
+			buffer = nullptr;
 		}
 	}
 	if (!buffer) {

@@ -24,7 +24,7 @@ getFile(filename) = returns the file, size unknown
 getFile(filename, &size) = returns the file, writes the size into 'size'
 getFile(filename, &size, ptr) = uses the 'ptr' buffer if size >= filesize, otherwise allocates new
 */
-void *getFile(const std::string &filename, std::streamsize *size = NULL, void *buffer = NULL);
+void *getFile(const std::string &filename, std::streamsize *size = nullptr, void *buffer = nullptr);
 
 void getFileNameParts(const std::string &filename, std::string &base, std::string &ext);
 

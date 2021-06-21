@@ -18,10 +18,10 @@ for all clusters
 for 50k we can associate pointers with points ... but what about with 500m? 
  this might involve keeping an aux set of data alongside the octree: the cluster hash # 
   and for deeper octree leafs (those smaller than the search distance), entire leaves will belong to the same cluster
-  so for that it would be best to RLE the cluster hash list files
+  so for that it would be best to RLE the cluster hash std::list files
 
 
-- RLE the cluster hash list
+- RLE the cluster hash std::list
 - store cluster hashes in a parallel fileset to the octree
 - assume no file means RLE'd 0's all through
 - and assume cluster hash 0 means "unique hash all to myself"
@@ -31,13 +31,7 @@ for 50k we can associate pointers with points ... but what about with 500m?
 
 
 */
-#include <string.h>
-
-#include <string>
 #include <iostream>
-#include <vector>
-#include <list>
-#include <map>
 #include <fstream>
 
 #include "octree.h"
@@ -46,10 +40,8 @@ for 50k we can associate pointers with points ... but what about with 500m?
 #include "exception.h"
 #include "stat.h"
 
-using namespace std;
-
 struct Cluster {
-	vector<vec3f*> vtxs;
+	std::vector<vec3f*> vtxs;
 };
 
 
@@ -184,53 +176,56 @@ struct MergeTest_PowerSpectrumPaper {
 //MergeTest_PowerSpectrumPaper mergeTest;
 MergeTest_Angle mergeTest;
 
-
-void showhelp() {
-	cout
-	<< "usage: cluster <options>" << endl
-	<< "options:" << endl
-	<< "	--set <set>			specify the dataset. default is 'allsky'." << endl
-	//<< "	--file <file>		convert only this file.  omit path and ext." << endl
-	//<< "	--all				convert all files in the <set>/points dir." << endl
-	<< "	--radial-distribution	output data for the density distribution bins." << endl
-	<< "	--dont-write		don't write points back out, just print # clusters" << endl
-	<< "	--max <v>			max vertexes to process" << endl
-	//<< "	--density-cutoff <v>	sets the density cutoff.  sdss3 default is 200" << endl
-	//<< "	--transverse-max <v>	sets the transverse max.  sdss3 default is 5" << endl
-	<< "	--threshold <v>		sets the distance threshold" << endl
-	;
-}
-
-int main(int argc, char **argv) {
+void _main(std::vector<std::string> const & args) {
 	// TODO standardize the set / file / dir picker
-	string datasetname = "allsky";
-	streamsize maxVtxs = 0;
+	std::string datasetname = "allsky";
+	std::streamsize maxVtxs = 0;
 
 	bool dontWrite = false;
 	bool outputRadialDistribution = false;
-	for (int k = 1; k < argc; k++) {
-		if (!strcmp(argv[k], "--set") && k < argc-1) {
-			datasetname = argv[++k];
-		} else if (!strcmp(argv[k], "--radial-distribution")) {
+	HandleArgs(args, {
+		{"--set", {"<set> = specify the dataset. default is 'allsky'.", {[&](std::string s){
+			datasetname = s;
+		}}}},
+		{"--radial-distribution", {"= output data for the density distribution bins.", {[&](){
 			outputRadialDistribution = true;
-		} else if (!strcmp(argv[k], "--dont-write")) {
+		}}}},
+		{"--dont-write", {"= don't write points back out, just print # clusters.", {[&](){
 			dontWrite = true;
-		} else if (!strcmp(argv[k], "--max") && k < argc-1) {
-			maxVtxs = atoi(argv[++k]);
-		} else if (!mergeTest.handleArg(argc, argv, k)) {
-			showhelp();
-			return 0;
-		}
-	}
+		}}}},
+		{"--max", {"<v> = max vertexes to process.", {std::function<void(int)>([&](int n){
+			maxVtxs = n;
+		})}}},
+#if 0
+		{"--file", {"<file>	convert only this file. omit path and ext.", {[&](std::string s){
+			gotFile = true;
+			basefilenames.push_back(s);
+		}}}},
+		{"--all", {"convert all files in the <set>/points dir.", {[&](){
+			gotDir = true;
+		}}}},
+#endif
+#if 0 // only for PowerSpectrumPaper	
+		{"--density-cutoff", {"<v> = sets the density cutoff.  sdss3 default is 200.", {std::function<void(double)>([&](double x){
+			mergeTest.densityCutoff = x;
+		})}}},
+		{"--transverse-max", {"<v> = sets the transverse max.  sdss3 default is 5.", {std::function<void(double)>([&](double x){
+			mergeTest.rTransverseMax = x;
+		})}}},
+		{"--threshold", {"<v> = sets the distance threshold.", {std::function<void(double)>([&](double x){
+			mergeTest.distanceThreshold = x;
+		})}}},
+#endif		
+	});
 
 #if 1	//single file / buffer all points at once
 	//util.cpp me plz
-	list<string> filenames;
+	std::list<std::string> filenames;
 	{
-		list<string> dirFilenames = getDirFileNames(string("datasets/") + datasetname + "/points");
-		for (list<string>::iterator i = dirFilenames.begin(); i != dirFilenames.end(); ++i) {
-			const string &filename = *i;
-			string base, ext;
+		std::list<std::string> dirFilenames = getDirFileNames(std::string("datasets/") + datasetname + "/points");
+		for (std::list<std::string>::iterator i = dirFilenames.begin(); i != dirFilenames.end(); ++i) {
+			const std::string &filename = *i;
+			std::string base, ext;
 			getFileNameParts(filename, base, ext);
 			if (ext == "f32") {
 				filenames.push_back(filename);
@@ -240,8 +235,8 @@ int main(int argc, char **argv) {
 
 	assert(filenames.size() == 1);
 
-	streamsize numVtxs;
-	string filename = string() + "datasets/" + datasetname + "/points/" + *filenames.begin();
+	std::streamsize numVtxs;
+	std::string filename = std::string() + "datasets/" + datasetname + "/points/" + *filenames.begin();
 	vec3f *vtxs = (vec3f*)getFile(filename, &numVtxs);
 	numVtxs /= sizeof(vec3f);
 	
@@ -270,19 +265,19 @@ int main(int argc, char **argv) {
 	}
 
 	if (outputRadialDistribution) {
-		ofstream f((string("datasets/") + datasetname + "/radial-distribution.txt").c_str(), ios::out);
-		f << "radius\tdensity" << endl;
+		std::ofstream f(std::string() + "datasets/" + datasetname + "/radial-distribution.txt", std::ios::out);
+		f << "radius\tdensity" << std::endl;
 		for (int i = 0; i < numberof(avgDensityForRadius); i++) {
 			double midr = (((double)i + .5) / (double)numberof(avgDensityForRadius) * maxAvgDensityDist);
-			f << midr << "\t" << avgDensityForRadius[i] << endl;
+			f << midr << "\t" << avgDensityForRadius[i] << std::endl;
 		}
-		return 0;
+		return;
 	}
 
 	//do the clustering
 
 	Stat redshift;
-	vector<Cluster*> clusters;
+	std::vector<Cluster*> clusters;
 	for (vec3f *v = vtxs; v < vtxs + numVtxs; v++) {
 		Cluster *c = new Cluster();
 		c->vtxs.push_back(v);
@@ -291,9 +286,9 @@ int main(int argc, char **argv) {
 		redshift.accum(v->len() * HUBBLE_CONSTANT / SPEED_OF_LIGHT, (double)(v - vtxs) + 1);
 	}
 	redshift.calcStdDev();	
-	cout << redshift.rw("redshift") << endl;
+	std::cout << redshift.rw("redshift") << std::endl;
 
-	vector<vec2i> links;
+	std::vector<vec2i> links;
 
 	printf("processing     ");
 	for (int ica = 0; ica < clusters.size()-1; ica++) {
@@ -303,23 +298,23 @@ int main(int argc, char **argv) {
 		printf("\b\b\b\b%3d%%", percent);
 
 		Cluster *ca = clusters[ica];
-	//for (vector<Cluster*>::iterator cai = clusters.begin(); cai != clusters.end(); ++cai) {
+	//for (std::vector<Cluster*>::iterator cai = clusters.begin(); cai != clusters.end(); ++cai) {
 	//	Cluster *ca = *cai;
 		
 		//use a for-loop so it doesn't get invalidated
 		for (int iva = 0; iva < ca->vtxs.size(); iva++) {
 			vec3f *va = ca->vtxs[iva];
-		//for (vector<vec3f*>::iterator vai = ca->vtxs.begin(); vai != ca->vtxs.end(); ++vai) {
+		//for (std::vector<vec3f*>::iterator vai = ca->vtxs.begin(); vai != ca->vtxs.end(); ++vai) {
 		//	vec3f *va = *vai;
 	
 			for (int icb = ica+1; icb < clusters.size(); icb++) {
 				if (maxVtxs > 0 && icb >= maxVtxs) break;
 				Cluster *cb = clusters[icb];
-			//for (vector<Cluster*>::iterator cbi = cai+1; cbi != clusters.end();) {
+			//for (std::vector<Cluster*>::iterator cbi = cai+1; cbi != clusters.end();) {
 			//	Cluster *cb = *cbi;
 			
 				int mergeDest = -1;
-				for (vector<vec3f*>::iterator vbi = cb->vtxs.begin(); vbi != cb->vtxs.end(); ++vbi) {
+				for (std::vector<vec3f*>::iterator vbi = cb->vtxs.begin(); vbi != cb->vtxs.end(); ++vbi) {
 					vec3f *vb = *vbi;
 					
 					if (mergeTest(*va, *vb)) {
@@ -334,11 +329,11 @@ int main(int argc, char **argv) {
 					//then merge all points in ca and cb
 					ca->vtxs.insert(ca->vtxs.end(), cb->vtxs.begin(), cb->vtxs.end());
 					/*
-					for (vector<vec3f*>::iterator v = cb->vtxs.begin(); v != cb->vtxs.end(); ++v) {
+					for (std::vector<vec3f*>::iterator v = cb->vtxs.begin(); v != cb->vtxs.end(); ++v) {
 						ca->vtxs.push_back(*v);
 					}
 					*/
-					//inserting could invalidate ca->vtxs (since it is a vector)
+					//inserting could invalidate ca->vtxs (since it is a std::vector)
 					
 					//and stop testing this chunk
 					//let our loop know not to increment cbi
@@ -352,41 +347,41 @@ int main(int argc, char **argv) {
 	}
 	printf("\n");
 
-	//cout << radialDifference.rw("radialDifference") << transverseDifference.rw("transverseDistance") << endl;
+	//std::cout << radialDifference.rw("radialDifference") << transverseDifference.rw("transverseDistance") << std::endl;
 
-	cout << "made " << clusters.size() << " clusters" << endl;
+	std::cout << "made " << clusters.size() << " clusters" << std::endl;
 
 	typedef int clusterIndex_t;	//just don't exceed 2b clusters 
 	int *vtxClusters = new int[numVtxs];
 	memset(vtxClusters, -1, sizeof(int) * numVtxs);
 	for (int clusterIndex = 0; clusterIndex < clusters.size(); ++clusterIndex) {
 		Cluster *cluster = clusters[clusterIndex];
-		for (vector<vec3f*>::iterator vi = cluster->vtxs.begin(); vi != cluster->vtxs.end(); ++vi) {
+		for (std::vector<vec3f*>::iterator vi = cluster->vtxs.begin(); vi != cluster->vtxs.end(); ++vi) {
 			int vtxIndex = (*vi) - vtxs;
 			vtxClusters[vtxIndex] = clusterIndex;
 		}
 	}
 	
-	map<int, int> clusterSizes;
+	std::map<int, int> clusterSizes;
 	for (int i = 0; i < numVtxs; i++) {
 		clusterSizes[vtxClusters[i]]++;
 	}
 	int singleClusters = 0;
-	for (map<int,int>::iterator i = clusterSizes.begin(); i != clusterSizes.end(); ++i) {
+	for (std::map<int,int>::iterator i = clusterSizes.begin(); i != clusterSizes.end(); ++i) {
 		if (i->second == 1) {
 			singleClusters++;
 		} else {
-			cout << " cluster " << i->first << " has " << i->second << endl;
+			std::cout << " cluster " << i->first << " has " << i->second << std::endl;
 		}
 	}
-	cout << singleClusters << " individual clusters" << endl;
+	std::cout << singleClusters << " individual clusters" << std::endl;
 	
 	{
-		string base, ext;
+		std::string base, ext;
 		getFileNameParts(*filenames.begin(), base, ext);
-		string clusterFilename = string() + "datasets/" + datasetname + "/points/" + base + ".clusters";
+		std::string clusterFilename = std::string() + "datasets/" + datasetname + "/points/" + base + ".clusters";
 		writeFile(clusterFilename, vtxClusters, numVtxs * sizeof(int));
-		string linkFilename = string() + "datasets/" + datasetname + "/points/" + base + ".links";
+		std::string linkFilename = std::string() + "datasets/" + datasetname + "/points/" + base + ".links";
 		writeFile(linkFilename, &links[0], links.size() * sizeof(vec2i));
 	}
 
@@ -423,6 +418,14 @@ int main(int argc, char **argv) {
 
 	root->recurse<NodeIterator>(NodeIterator());
 #endif
+}
 
+int main(int argc, char **argv) {
+	try {
+		_main({argv, argv + argc});
+	} catch (std::exception &t) {
+		std::cerr << "error: " << t.what() << std::endl;;
+		return 1;
+	}
 	return 0;
 }

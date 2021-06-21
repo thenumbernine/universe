@@ -122,7 +122,7 @@ MRUCache<std::string, FILE *> cache(openCacheFile, closeCacheFile, 50);
 
 #ifdef USE_SINGLE_WRITE_BUFFER
 vector<vec3f> writeBuffer;
-WritableOctreeNode *lastWriteNode = NULL;
+WritableOctreeNode *lastWriteNode = nullptr;
 
 void finalizeWriteBuffer() {
 	if (lastWriteNode) { 
@@ -175,7 +175,7 @@ void WritableOctreeNode::flushAll() {
 #endif	//USE_WRITE_BUFFER_PER_NODE
 
 std::string datasetname = "allsky";
-WritableOctreeNode *root= NULL;
+WritableOctreeNode *root= nullptr;
 std::list<std::string> basefilenames;
 
 WritableOctreeNode::WritableOctreeNode(const vec3f &min_, const vec3f &max_)
@@ -234,7 +234,7 @@ void WritableOctreeNode::addPoint(const vec3f &v, bool dontSplit) {
 
 			//load file contents into ram...
 			std::string filename = getFileName();
-			vec3f *vtxbuf = (vec3f*)getFile(getFileName().c_str(), NULL);
+			vec3f *vtxbuf = (vec3f*)getFile(getFileName().c_str(), nullptr);
 		
 			//...so we can delete the file ...
 			remove(filename.c_str());

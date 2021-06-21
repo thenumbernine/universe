@@ -69,12 +69,12 @@ ALL =	\
 	gettotalstats$(BINEXT) \
 	genvolume$(BINEXT) \
 	genoctree$(BINEXT) \
+	flatten-clusters$(BINEXT) \
+	mark-clusters$(BINEXT) \
 # not building in msvc yet
 #	show-still$(BINEXT) \
-#	genisos$(BINEXT) \
-#	flatten-clusters$(BINEXT) \
-#	mark-clusters$(BINEXT) \
 # not done at all:
+#	genisos$(BINEXT) \
 #	show$(BINEXT) \
 
 all: $(ALL)

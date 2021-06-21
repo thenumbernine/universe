@@ -81,7 +81,7 @@ struct ConvertSDSS {
 			"datasets/gaia/source/2.fits",
 			"datasets/gaia/source/3.fits",
 		}) {
-			fitsfile *file = NULL;
+			fitsfile *file = nullptr;
 
 			fitsSafe(fits_open_table, &file, sourceFileName.c_str(), READONLY);
 		
@@ -168,7 +168,7 @@ struct ConvertSDSS {
 			time_t lasttime = -1;
 			for (int rowNum = 1; rowNum <= numRows; ++rowNum) {
 			
-				time_t thistime = time(NULL);
+				time_t thistime = time(nullptr);
 				if (!interactive && thistime != lasttime) {
 					lasttime = thistime;
 					double frac = (double)rowNum / (double)numRows;
