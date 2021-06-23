@@ -21,6 +21,15 @@ bool keepNegativeParallax = false;
 double parsec_in_meters = 30856780000000000;
 double year_in_seconds = 31557600; 
 
+/* 
+I thought the 'designation' column might have some real-world identification, but it seems to just be "Gaia DR2 " + source_id
+for every single entry.
+so ... don't query the 'designation' field, and don't use this flag.
+
+but how can I find the real-world info?
+*/
+bool makeDesignations = false;
+
 template<typename OutputPrecision>
 struct ConvertSDSS {
 	auto getOutputExt() const {
@@ -77,9 +86,9 @@ struct ConvertSDSS {
 	
 
 		for (const std::string& sourceFileName : std::vector<std::string>{
-			"datasets/gaia/source/1.fits",
-			"datasets/gaia/source/2.fits",
-			"datasets/gaia/source/3.fits",
+			"datasets/gaia/source/1.fits",		//0 thru 2,999,999
+			"datasets/gaia/source/2.fits",		//3,000,000 thru 5,999,999 
+			"datasets/gaia/source/3.fits",		//6,000,000 thru end
 		}) {
 			fitsfile *file = nullptr;
 
@@ -143,6 +152,9 @@ struct ConvertSDSS {
 			std::shared_ptr<FITSTypedColumn<float>> col_lum_val; if (outputExtra) { col_lum_val = std::make_shared<FITSTypedColumn<float>>(file, "lum_val"); columns.push_back(col_lum_val); }
 
 			//well that's 9 columns.  I wasn't storing radius in the HYG data
+			
+			// designations. column 10.
+			std::shared_ptr<FITSStringColumn> col_designation; if (makeDesignations) { col_designation = std::make_shared<FITSStringColumn>(file, "designation"); columns.push_back(col_designation); }
 
 			if (verbose) {
 				for (auto c : columns) {
@@ -175,7 +187,7 @@ struct ConvertSDSS {
 					updatePercent(100. * frac);
 				}
 
-				long long value_source_id = col_source_id->read(rowNum);
+				int64_t value_source_id = col_source_id->read(rowNum);
 				source_id_min = std::min(source_id_min, value_source_id);
 				source_id_max = std::max(source_id_max, value_source_id);
 
@@ -183,8 +195,10 @@ struct ConvertSDSS {
 				double value_dec = col_dec->read(rowNum);
 				double value_parallax = col_parallax->read(rowNum);
 				
-				
 				double value_pmra, value_pmdec, value_radial_velocity, value_teff_val, value_radius_val, value_lum_val;
+				
+				std::string value_designation;
+
 				if (outputExtra) {
 					value_pmra = col_pmra->read(rowNum);
 					value_pmdec = col_pmdec->read(rowNum);
@@ -196,6 +210,16 @@ struct ConvertSDSS {
 					radius = value_radius_val;
 					temp = value_teff_val;
 					luminosity = value_lum_val;
+				}
+				if (makeDesignations) {
+					value_designation = col_designation->read(rowNum);
+					if (value_designation.substr(0, 8) != "Gaia DR2") {
+						throw Exception() << "got unique designation " << value_designation;
+					}
+					int64_t id = std::stoll(value_designation.substr(9));
+					if (id != value_source_id) {
+						throw Exception() << "got designation string that doesn't match the source_id " << value_designation << " -> " << id << " vs " << value_source_id;
+					}
 				}
 
 				if (verbose) {
@@ -215,6 +239,9 @@ struct ConvertSDSS {
 							<< "radius_val = " << value_radius_val << std::endl
 							<< "lum_val = " << value_lum_val << std::endl
 						;
+					}
+					if (makeDesignations) {
+						std::cout << "designation = " << value_designation << std::endl;
 					}
 				}
 			
@@ -272,7 +299,6 @@ struct ConvertSDSS {
 						velocity[0] = (e_ra_x * pmra_km_s + e_dec_x * pmdec_km_s + e_r_x * radial_velocity_km_s) * (1000. / parsec_in_meters * year_in_seconds);
 						velocity[1] = (e_ra_y * pmra_km_s + e_dec_y * pmdec_km_s + e_r_y * radial_velocity_km_s) * (1000. / parsec_in_meters * year_in_seconds);
 						velocity[2] = (e_ra_z * pmra_km_s + e_dec_z * pmdec_km_s + e_r_z * radial_velocity_km_s) * (1000. / parsec_in_meters * year_in_seconds);
-					
 					}
 					
 					if (!isnan(position[0]) && !isnan(position[1]) && !isnan(position[2])
@@ -310,9 +336,9 @@ struct ConvertSDSS {
 							pointDestFile.write(reinterpret_cast<char const *>(position), sizeof(position));
 							if (outputExtra) {
 								pointDestFile.write(reinterpret_cast<char const *>(velocity), sizeof(velocity));
-								pointDestFile.write(reinterpret_cast<char const *>(&radius), sizeof(radius));
-								pointDestFile.write(reinterpret_cast<char const *>(&temp), sizeof(temp));
 								pointDestFile.write(reinterpret_cast<char const *>(&luminosity), sizeof(luminosity));
+								pointDestFile.write(reinterpret_cast<char const *>(&temp), sizeof(temp));
+								pointDestFile.write(reinterpret_cast<char const *>(&radius), sizeof(radius));
 							}
 						}
 					}
@@ -363,9 +389,9 @@ struct ConvertSDSS {
 	}
 };
 
-int main(int argc, char **argv) {
+void _main(std::vector<std::string> const & args) {
 	bool useDouble = false;
-	HandleArgs({argv, argv + argc}, {
+	HandleArgs(args, {
 		{"--verbose", {"= output values", {[&](){ verbose = true; }}}},
 		{"--show-ranges", {"= show ranges of certain fields", {[&](){ showRanges = true; }}}},
 		{"--wait", {"= wait for keypress after each entry.  'q' stops", {[&](){ verbose = true; interactive = true; }}}},
@@ -374,6 +400,7 @@ int main(int argc, char **argv) {
 		{"--output-extra", {"= also output velocity, temperature, and luminosity", {[&](){ outputExtra = true; }}}},
 		{"--keep-neg-parallax", {"= keep negative parallax", {[&](){ keepNegativeParallax = true; }}}},
 		{"--double", {"= output as double precision (default single)", {[&](){ useDouble = true; }}}},
+		{"--designations", {"= make a map file of designations.", {[&](){ makeDesignations = true; }}}},
 	});
 
 	if (!useDouble) {
@@ -387,4 +414,13 @@ int main(int argc, char **argv) {
 			convert(); 
 		});
 	}
+}
+
+int main(int argc, char** argv) {
+	try {
+		_main({argv, argv + argc});
+	} catch (std::exception & t) {
+		std::cerr << "error: " << t.what() << std::endl;
+	}
+	return 0;
 }

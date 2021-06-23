@@ -14,11 +14,12 @@ void fitsSafe(Func f, Args && ... args) {
 }
 
 template<typename T> constexpr int fitsType;
-template<> constexpr int fitsType<bool> = TBYTE;
-template<> constexpr int fitsType<short> = TSHORT;
-template<> constexpr int fitsType<int> = TINT32BIT;
-template<> constexpr int fitsType<long> = TLONG;
-template<> constexpr int fitsType<long long> = TLONGLONG;
+template<> constexpr int fitsType<bool> = TBIT;
+template<> constexpr int fitsType<uint8_t> = TBYTE;
+template<> constexpr int fitsType<int16_t> = TSHORT;
+//template<> constexpr int fitsType<int32_t> = TINT32BIT;
+template<> constexpr int fitsType<int32_t> = TLONG;
+template<> constexpr int fitsType<int64_t> = TLONGLONG;
 template<> constexpr int fitsType<float> = TFLOAT;
 template<> constexpr int fitsType<double> = TDOUBLE;
 template<> constexpr int fitsType<std::string> = TSTRING;

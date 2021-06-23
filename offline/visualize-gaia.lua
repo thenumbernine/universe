@@ -3,6 +3,7 @@
 local class = require 'ext.class'
 local table = require 'ext.table'
 local string = require 'ext.string'
+local math = require 'ext.math'
 local file = require 'ext.file'
 local ffi = require 'ffi'
 local template = require 'template'
@@ -14,12 +15,32 @@ local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLHSVTex = require 'gl.hsvtex'
 local CLEnv = require 'cl.obj.env'
-local vec3f = require 'vec-ffi.vec3f'
+local vec3d = require 'vec-ffi.vec3d'
 
-local filename, format = ...
-if not filename then filename = 'datasets/gaia/points/points-9col.f32' end
-if not format then
-	format = filename:match'%-(.*)%.f32$' or '3col'
+--[[
+filename = filename for our point data
+namefile = lua file mapping indexes to names of stars
+format = whether to use xyz or our 9-col format
+lummin = set this to filter out for min value in solar luminosity
+lumhicount = show only this many of the highest-luminosity stars
+appmaghicount = show only this many of the highest apparent magnitude stars
+rlowcount = show only this many of the stars with lowest r
+print = set this to print out all the remaining points
+nolumnans = remove nan luminosity
+addsun = add our sun to the dataset.  I don't see it in there.
+--]]
+local cmdline = require 'ext.cmdline'(...)
+
+
+local filename = cmdline.filename or 'datasets/gaia/points/points-9col.f32'
+
+local format = cmdline.format or filename:match'%-(.*)%.f32$' or '3col'
+
+-- lua table mapping from index to string
+-- TODO now upon mouseover, determine star and show name by it
+local names
+if cmdline.namefile then
+	names = require 'ext.fromlua'(file[cmdline.namefile])
 end
 
 local App = class(require 'glapp.orbit'(require 'imguiapp'))
@@ -32,9 +53,10 @@ App.viewDist = 1e+6
 my gaia data: 
 	float pos[3]
 	float vel[3]
-	float radius
-	float temperature		<-> colorIndex
 	float luminosity		<-> absoluteMagnitude
+	float temperature		<-> colorIndex
+	float radius
+	TODO uint64_t source_id
 my hyg data:
 	float pos[3]
 	float vel[3]
@@ -50,12 +72,6 @@ typedef struct {
 typedef struct {
 	float pos[3];		// in Pc
 	float vel[3];
-	float rad;
-	
-	/*
-	temperature, in Kelvin
-	*/
-	float temp;
 	
 	/*
 	solar luminosity
@@ -65,10 +81,7 @@ typedef struct {
 	L_sun = 4 pi k I_sun A^2 
 		for L_sum solar luminosity (watts)
 		and I_sun solar irradiance (watts/meter^2)
-	*/
-	float lum;
-
-	/*
+	
 	https://en.wikipedia.org/wiki/Luminosity	
 	
 	flux = luminosity / area
@@ -82,7 +95,17 @@ typedef struct {
 	absolute bolometric magnitude of sun: MBolSun = 4.74
 	apparent bolometric magnitude of sun: mBolSun = -26.832
 	(negative = brighter)
+
 	*/
+	float lum;
+
+
+	/*
+	temperature, in Kelvin
+	*/
+	float temp;
+	
+	float rad;
 } pt_9col_t;
 ]]
 
@@ -104,6 +127,7 @@ local env
 local accumStarPointShader
 local accumStarLineShader
 local renderAccumShader
+local drawIDShader
 
 local fbo
 local fbotex
@@ -112,19 +136,120 @@ local tempMin = 3300
 local tempMax = 8000
 local tempTex
 
+
+local n	-- number of points
+
 function App:initGL(...)
 	App.super.initGL(self, ...)
 
 	gl.glDisable(gl.GL_DEPTH_TEST)
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 
-	self.view.znear = 1e+3
+	self.view.znear = 1
 	self.view.zfar = 1e+9
+
+--local quatd = require 'vec-ffi.quatd'
+--	self.view.angle = (quatd():fromAngleAxis(0, 0, 1, 90) * self.view.angle):normalize()
 
 	local data = file[filename]
 	n = #data / ffi.sizeof(pt_t)
 print('loaded '..n..' stars...')
 --n = math.min(n, 100000)
+	
+	local s = ffi.cast('char*', data)
+	local cpuPointBuf = ffi.cast(pt_t..'*', s)
+
+	if cmdline.lummin 
+	or cmdline.lumhicount
+	or cmdline.appmaghicount 
+	or cmdline.rlowcount
+	or cmdline.nolumnans 
+	or cmdline.addsun
+	then
+		local pts = table()
+		for i=0,n-1 do
+			pts:insert(ffi.new(pt_t, cpuPointBuf[i]))
+		end
+
+		if cmdline.nolumnans then
+			pts = pts:filter(function(pt)
+				return math.isfinite(pt.lum)
+			end)
+			print('nolumnans filtered down to '..#pts)
+		end
+
+		if cmdline.addsun then
+			local sun = ffi.new(pt_t)
+			sun.pos[0] = 0
+			sun.pos[1] = 0
+			sun.pos[2] = 0
+			-- vel is in Pc/year?  double check plz.
+			-- Gaia velocity is in solar reference frame, so the sun's vel will be zero
+			sun.vel[0] = 0
+			sun.vel[1] = 0
+			sun.vel[2] = 0
+			sun.lum = 1
+			sun.temp = 5772	-- well, the B-V is 0.63.  maybe I should just be storing that? 
+			sun.rad = 1	-- in solar radii
+			pts:insert(sun)
+		end
+
+		if cmdline.lummin then
+			pts = pts:filter(function(pt)
+				return pt.lum >= cmdline.lummin
+			end)
+			print('lummin filtered down to '..#pts)
+		end
+		if cmdline.lumhicount then
+			pts = pts:sort(function(a,b)
+				return a.lum > b.lum
+			end):sub(1, cmdline.lumhicount)
+			print('lumhicount filtered down to '..#pts)
+		end
+		if cmdline.appmaghicount then
+			pts = pts:sort(function(a,b)
+				return  
+					  a.lum / (
+						  a.pos[0] * a.pos[0]
+						+ a.pos[1] * a.pos[1]
+						+ a.pos[2] * a.pos[2])
+					> 
+					  b.lum / (
+						  b.pos[0] * b.pos[0]
+						+ b.pos[1] * b.pos[1]
+						+ b.pos[2] * b.pos[2])
+			end):sub(1, cmdline.appmaghicount)
+			print('appmaghicount filtered down to '..#pts)
+		end
+		if cmdline.rlowcount then
+			pts = pts:sort(function(a,b)
+				return 
+					  a.pos[0] * a.pos[0]
+					+ a.pos[1] * a.pos[1]
+					+ a.pos[2] * a.pos[2]
+					< 
+					  b.pos[0] * b.pos[0]
+					+ b.pos[1] * b.pos[1]
+					+ b.pos[2] * b.pos[2]
+			end):sub(1, cmdline.rlowcount)
+			print('rlowcount filtered down to '..#pts)
+		end
+		
+		if cmdline.print then
+			for _,pt in ipairs(pts) do
+				local r = math.sqrt(pt.pos[0] * pt.pos[0]
+					+ pt.pos[1] * pt.pos[1]
+					+ pt.pos[2] * pt.pos[2])
+				print('r='..r..' lum='..pt.lum)
+			end
+		end
+
+		n = #pts
+		cpuPointBuf = ffi.new(pt_t..'[?]', n)
+		for i=0,n-1 do
+			cpuPointBuf[i] = pts[i+1]
+		end
+	end
 
 	env = CLEnv{precision='float', size=n, useGLSharing=false}
 	local real3code = template([[
@@ -152,32 +277,43 @@ typedef _<?=env.real?>4 real4;
 
 	ffi.cdef(real3code)
 	env.code = env.code .. real3code
-
-	local s = ffi.cast('char*', data)
-	local cpuPointBuf = ffi.cast(pt_t..'*', s)
 	
 	-- get range
-	local s = require 'stat.set'('x','y','z','r')
+	local s = require 'stat.set'('x','y','z','r', 'lum')
+	-- TODO better way of setting these flags ... in ctor maybe?
+	for _,s in ipairs(s) do
+		s.onlyFinite = true
+	end
 	--[[
 	in Mpc:
 	r min = 3.2871054551763e-06
-	r max = 2121.7879974726
+	r max = 2121.7879974726 Pc
 	r avg = 0.0037223396472864
 	r stddev = 0.95579087454634
 	so 3 sigma is ... 3
+	
+	SagA* = 8178 Pc from us, so not in this data
+
+	Proxima Centauri is 1.3 Pc from us 
+
+	lum stddev is 163, so 3 stddev is ~ 500
 	--]]
 	local rbin = require 'stat.bin'(0, 3e+6, 50)
+	local lumbin = require 'stat.bin'(0, 1000, 200)
 	for i=0,n-1 do
 		local x = cpuPointBuf[i].pos[0]
 		local y = cpuPointBuf[i].pos[1]
 		local z = cpuPointBuf[i].pos[2]
 		local r = math.sqrt(x*x + y*y + z*z)
-		s:accum(x, y, z, r)
+		local lum = cpuPointBuf[i].lum
+		s:accum(x, y, z, r, lum)
 		rbin:accum(r)
+		lumbin:accum(lum)
 	end
 	print("data range (Pc):")
 	print(s)
 	print('r bins = '..rbin)
+	print('lum bins = '..lumbin)
 
 	local cpuLinePosBuf = ffi.new('_float4[?]', 2*n)	-- pts buf x number of vtxs
 	local cpuLineVelBuf = ffi.new('_float4[?]', 2*n)
@@ -215,12 +351,10 @@ typedef _<?=env.real?>4 real4;
 		vertexCode = template[[
 #version 130
 
-attribute float lum;
-attribute float temp;
+in float lum;
+in float temp;
 
-out float lumv;			//luminosity, in solar luminosity units
 out float tempv;		//temperature, in K
-out float log10DistInPc;
 
 void main() {
 	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
@@ -234,9 +368,31 @@ void main() {
 	//log(distInPc^2) = 2 log(distInPc)
 	//so log10(distInPc) = .5 log10(distInPc^2)
 	//so log10(distInPc) = .5 / log(10) * log(distInPc^2)
-	log10DistInPc = <?= .5 / math.log(10) ?> * log(distInPcSq);
+	float log10DistInPc = <?= .5 / math.log(10) ?> * log(distInPcSq);
 
-	lumv = lum;
+	//MBolStar - MBolSun = -2.5 * log10( LStar / LSun)
+	float LStarOverLSun = lum;
+	float LSunOverL0 = 0.011481536214969;	//LSun has an abs mag of 4.74, but what is L0 again?
+	float LStarOverL0 = LStarOverLSun * LSunOverL0;
+	float absoluteMagnitude = <?= -2.5 / math.log(10)?> * log(LStarOverL0);	// abs magn
+
+	/*
+	apparent magnitude:
+	M = absolute magnitude
+	m = apparent magnitude
+	d = distance in parsecs
+	m = M - 5 + 5 * log10(d)
+	*/
+	float apparentMagnitude = absoluteMagnitude - 5. + 5. * log10DistInPc;
+	gl_PointSize = clamp(-(apparentMagnitude - 6.5), 0., 10.);
+	
+	//TODO how to convert from apparent magnitude to pixel value?
+	//lumf = -.43 * m - .57 * (M - 5.);
+	//inv sq illumination falloff
+	// TODO how about some correct apparent magnitude equations here?
+	//lumf *= distSqAtten * invDistSq;
+	//lumf = -(log(lumf) - log(distSqAtten * invDistSq));
+
 	tempv = temp;
 }
 ]],
@@ -246,47 +402,21 @@ local clnumber = require 'cl.obj.number'
 ?>
 #version 130
 
-in float lumv;
 in float tempv;
-in float log10DistInPc;
 
 uniform sampler2D tempTex;
 uniform float alpha;
 uniform float distSqAtten;
 
-uniform bool useLum;
-
 void main() {
 	float lumf = 1.;
-	if (useLum) {
-		//MBolStar - MBolSun = -2.5 * log10( LStar / LSun)
-		float LStarOverSun = lumv;
-		float LSunOverL0 = 4.74;
-		float LStarOverL0 = LStarOverSun * LSunOverL0;
-		float M = <?= -2.5 / math.log(10)?> * log(LStarOverL0);	// abs magn
 
-		/*
-		apparent magnitude:
-		M = absolute magnitude
-		m = apparent magnitude
-		d = distance in parsecs
-		m = M - 5 + 5 * log10(d)
-		*/
-		float m = M - 5. + 5. * log10DistInPc;
-
-
-		//TODO how to convert from apparent magnitude to pixel value?
-		lumf = -.43 * m - .57 * (M - 5.);
-	//inv sq illumination falloff
-	// TODO how about some correct apparent magnitude equations here?
-		//lumf *= distSqAtten * invDistSq;
-		//lumf = -(log(lumf) - log(distSqAtten * invDistSq));
-	}
-
+#if 0
 	// make point smooth
 	vec2 d = gl_PointCoord.xy * 2. - 1.;
 	float rsq = dot(d,d);
 	lumf *= 1. / (10. * rsq + .1);
+#endif
 
 	float tempfrac = (tempv - <?=clnumber(tempMin)?>) * <?=clnumber(1/(tempMax - tempMin))?>;
 	vec3 tempcolor = texture2D(tempTex, vec2(tempfrac, .5)).rgb;
@@ -308,12 +438,12 @@ void main() {
 		vertexCode = [[
 #version 130
 
-attribute vec4 vel;
+in vec4 vel;
+
+out float lum;
 
 uniform float velScalar;
 uniform bool normalizeVel;
-
-out float lum;
 
 void main() {
 	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
@@ -420,6 +550,42 @@ end
 	}
 	renderAccumShader:useNone()
 
+
+	drawIDShader = GLProgram{
+		vertexCode = template[[
+#version 130
+
+out vec3 color;
+
+void main() {
+	gl_Position = gl_ModelViewProjectionMatrix * vec4(gl_Vertex.xyz, 1.);
+
+	float i = gl_VertexID;
+	color.r = mod(i, 256.);
+	i = (i - color.r) / 256.;
+	color.r *= 1. / 255.;
+	color.g = mod(i, 256.);
+	i = (i - color.g) / 256.;
+	color.g *= 1. / 255.;
+	color.b = mod(i, 256.);
+	i = (i - color.b) / 256.;
+	color.b *= 1. / 255.;
+}
+]],
+		fragmentCode = template[[
+#version 130
+
+in vec3 color;
+
+void main() {
+	gl_FragColor = vec4(color, 1.);
+}
+]],
+	}
+	drawIDShader:useNone()
+	glreport'here'
+
+
 	hsvtex = GLHSVTex(1024, nil, true)
 
 --[[
@@ -479,8 +645,8 @@ end
 end
 
 -- _G so that sliderFloatTable can use them
-alphaValue = .1
-pointSize = 1	-- TODO point size according to luminosity
+alphaValue = 1
+pointSize = 2	-- TODO point size according to luminosity
 distSqAtten = 1e-5
 hsvRangeValue = .2
 hdrScaleValue = .001
@@ -493,11 +659,58 @@ drawLines = false
 useLum = true
 normalizeVelValue = 0
 
+ffi.cdef[[
+typedef union {
+	uint8_t rgba[4];
+	uint32_t i;
+} pixel4_t;
+]]
+
+local pixel = ffi.new'pixel4_t'
+local selectedIndex
+function App:drawPickScene()
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+	gl.glEnable(gl.GL_DEPTH_TEST)
+	
+	drawIDShader:use()
+	
+	gl.glPointSize(pointSize + 2)
+
+	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+	gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
+
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+
+	gl.glDrawArrays(gl.GL_POINTS, 0, n)
+
+	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+
+	drawIDShader:useNone()
+
+	gl.glFlush()
+
+	gl.glReadPixels(
+		self.mouse.ipos.x,
+		self.mouse.ipos.y,
+		1,
+		1,
+		gl.GL_RGB,
+		gl.GL_UNSIGNED_BYTE,
+		pixel)
+
+	selectedIndex = tonumber(pixel.i)
+	gl.glDisable(gl.GL_DEPTH_TEST)
+end
+
 function App:drawScene()
+	gl.glClearColor(0,0,0,0)
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 	gl.glEnable(gl.GL_BLEND)
 	
 	if drawPoints then
+		gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
 		accumStarPointShader:use()
 		if accumStarPointShader.uniforms.alpha then
 			gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue)
@@ -510,8 +723,6 @@ function App:drawScene()
 		end
 
 		tempTex:bind()
-		
-		gl.glPointSize(pointSize)
 
 		gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
@@ -544,7 +755,7 @@ function App:drawScene()
 		tempTex:unbind()
 		accumStarPointShader:useNone()
 		
-		gl.glPointSize(1)
+		gl.glDisable(gl.GL_PROGRAM_POINT_SIZE)
 	end
 	if drawLines then
 		accumStarLineShader:use()
@@ -666,13 +877,17 @@ function App:drawWithAccum()
 end
 
 function App:update()
+	self:drawPickScene()
+	
 	-- [[
 	self:drawScene()
 	--]]
 	--[[
 	self:drawWithAccum()
 	--]]
-	
+
+
+
 	glreport'here'
 	App.super.update(self)
 end
@@ -734,6 +949,18 @@ function App:updateGUI()
 	ig.igText('dist (Pc) '..self.view.pos:length())
 	inputFloatTable('znear', self.view, 'znear')
 	inputFloatTable('zfar', self.view, 'zfar')
+
+	if selectedIndex < 0xffffff then
+		local s = ('%06x'):format(selectedIndex)
+		local name = names and names[selectedIndex] or nil
+		if name then
+			s = s .. ' ' .. name
+		end
+		
+		ig.igBeginTooltip()
+		ig.igText(s)
+		ig.igEndTooltip()
+	end
 end
 
 --[[
