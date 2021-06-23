@@ -5,6 +5,7 @@ local table = require 'ext.table'
 local string = require 'ext.string'
 local math = require 'ext.math'
 local file = require 'ext.file'
+local fromlua = require 'ext.fromlua'
 local ffi = require 'ffi'
 local template = require 'template'
 local Image = require 'image'
@@ -20,6 +21,7 @@ local vec3d = require 'vec-ffi.vec3d'
 --[[
 filename = filename for our point data
 namefile = lua file mapping indexes to names of stars
+consfile = lua file containing constellation info for star points
 format = whether to use xyz or our 9-col format
 lummin = set this to filter out for min value in solar luminosity
 lumhicount = show only this many of the highest-luminosity stars
@@ -28,6 +30,7 @@ rlowcount = show only this many of the stars with lowest r
 print = set this to print out all the remaining points
 nolumnans = remove nan luminosity
 addsun = add our sun to the dataset.  I don't see it in there.
+nounnamed = remove stars that don't have entries in the namefile
 --]]
 local cmdline = require 'ext.cmdline'(...)
 
@@ -40,14 +43,19 @@ local format = cmdline.format or filename:match'%-(.*)%.f32$' or '3col'
 -- TODO now upon mouseover, determine star and show name by it
 local names
 if cmdline.namefile then
-	names = require 'ext.fromlua'(file[cmdline.namefile])
+	names = fromlua(file[cmdline.namefile])
+end
+
+local cons
+if cmdline.consfile then
+	cons = fromlua(file[cmdline.consfile])
 end
 
 local App = class(require 'glapp.orbit'(require 'imguiapp'))
 local ig = require 'ffi.imgui'
 
 App.title = 'pointcloud visualization tool'
-App.viewDist = 1e+6
+App.viewDist = 1
 
 --[[
 my gaia data: 
@@ -143,10 +151,9 @@ function App:initGL(...)
 	App.super.initGL(self, ...)
 
 	gl.glDisable(gl.GL_DEPTH_TEST)
-	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 
-	self.view.znear = 1
-	self.view.zfar = 1e+9
+	self.view.znear = 1e-3
+	self.view.zfar = 1e+6
 
 --local quatd = require 'vec-ffi.quatd'
 --	self.view.angle = (quatd():fromAngleAxis(0, 0, 1, 90) * self.view.angle):normalize()
@@ -165,15 +172,26 @@ print('loaded '..n..' stars...')
 	or cmdline.rlowcount
 	or cmdline.nolumnans 
 	or cmdline.addsun
+	or (cmdline.nounnamed and names)
 	then
 		local pts = table()
 		for i=0,n-1 do
-			pts:insert(ffi.new(pt_t, cpuPointBuf[i]))
+			-- keep track of the original index, for remapping the name file
+			pts:insert{obj=ffi.new(pt_t, cpuPointBuf[i]), index=i}
+		end
+
+		-- do this first, while names <-> objs, before moving any objs
+		if cmdline.nounnamed and names then
+			for i=n-1,0,-1 do
+				if not names[i] then
+					pts:remove(i+1)
+				end
+			end
 		end
 
 		if cmdline.nolumnans then
 			pts = pts:filter(function(pt)
-				return math.isfinite(pt.lum)
+				return math.isfinite(pt.obj.lum)
 			end)
 			print('nolumnans filtered down to '..#pts)
 		end
@@ -191,63 +209,95 @@ print('loaded '..n..' stars...')
 			sun.lum = 1
 			sun.temp = 5772	-- well, the B-V is 0.63.  maybe I should just be storing that? 
 			sun.rad = 1	-- in solar radii
-			pts:insert(sun)
+			
+			n = n + 1	-- use a unique index.  don't matter about modifying n, we will recalculate n soon
+			pts:insert{obj=sun, index=n}
 		end
 
 		if cmdline.lummin then
 			pts = pts:filter(function(pt)
-				return pt.lum >= cmdline.lummin
+				return pt.obj.lum >= cmdline.lummin
 			end)
 			print('lummin filtered down to '..#pts)
 		end
 		if cmdline.lumhicount then
 			pts = pts:sort(function(a,b)
-				return a.lum > b.lum
+				return a.obj.lum > b.obj.lum
 			end):sub(1, cmdline.lumhicount)
 			print('lumhicount filtered down to '..#pts)
 		end
 		if cmdline.appmaghicount then
 			pts = pts:sort(function(a,b)
 				return  
-					  a.lum / (
-						  a.pos[0] * a.pos[0]
-						+ a.pos[1] * a.pos[1]
-						+ a.pos[2] * a.pos[2])
+					  a.obj.lum / (
+						  a.obj.pos[0] * a.obj.pos[0]
+						+ a.obj.pos[1] * a.obj.pos[1]
+						+ a.obj.pos[2] * a.obj.pos[2])
 					> 
-					  b.lum / (
-						  b.pos[0] * b.pos[0]
-						+ b.pos[1] * b.pos[1]
-						+ b.pos[2] * b.pos[2])
+					  b.obj.lum / (
+						  b.obj.pos[0] * b.obj.pos[0]
+						+ b.obj.pos[1] * b.obj.pos[1]
+						+ b.obj.pos[2] * b.obj.pos[2])
 			end):sub(1, cmdline.appmaghicount)
 			print('appmaghicount filtered down to '..#pts)
 		end
 		if cmdline.rlowcount then
 			pts = pts:sort(function(a,b)
 				return 
-					  a.pos[0] * a.pos[0]
-					+ a.pos[1] * a.pos[1]
-					+ a.pos[2] * a.pos[2]
+					  a.obj.pos[0] * a.obj.pos[0]
+					+ a.obj.pos[1] * a.obj.pos[1]
+					+ a.obj.pos[2] * a.obj.pos[2]
 					< 
-					  b.pos[0] * b.pos[0]
-					+ b.pos[1] * b.pos[1]
-					+ b.pos[2] * b.pos[2]
+					  b.obj.pos[0] * b.obj.pos[0]
+					+ b.obj.pos[1] * b.obj.pos[1]
+					+ b.obj.pos[2] * b.obj.pos[2]
 			end):sub(1, cmdline.rlowcount)
 			print('rlowcount filtered down to '..#pts)
 		end
-		
+
+		-- now remap named stars
+		if names then
+			local newnames = {}
+			if cons then
+				for _,c in ipairs(cons) do
+					c.indexset = table.mapi(c.indexes, function(index)
+						return true, index
+					end):setmetatable(nil)
+					c.indexes = {}
+				end
+			end
+			for i,pt in ipairs(pts) do
+				-- pts will be 0-based
+				newnames[i-1] = names[pt.index]
+				if cons then
+					for _,c in ipairs(cons) do
+						if c.indexset[pt.index] then
+							table.insert(c.indexes, i-1)
+						end
+					end
+				end
+			end
+			if cons then
+				for _,c in ipairs(cons) do
+					c.indexset = nil
+				end
+			end
+			names = newnames
+		end
+
 		if cmdline.print then
 			for _,pt in ipairs(pts) do
-				local r = math.sqrt(pt.pos[0] * pt.pos[0]
-					+ pt.pos[1] * pt.pos[1]
-					+ pt.pos[2] * pt.pos[2])
-				print('r='..r..' lum='..pt.lum)
+				local r = math.sqrt(pt.obj.pos[0] * pt.obj.pos[0]
+					+ pt.obj.pos[1] * pt.obj.pos[1]
+					+ pt.obj.pos[2] * pt.obj.pos[2])
+				print('r='..r..' lum='..pt.obj.lum)
 			end
 		end
 
 		n = #pts
 		cpuPointBuf = ffi.new(pt_t..'[?]', n)
 		for i=0,n-1 do
-			cpuPointBuf[i] = pts[i+1]
+			cpuPointBuf[i] = pts[i+1].obj
 		end
 	end
 
@@ -346,21 +396,8 @@ typedef _<?=env.real?>4 real4;
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	
 	--refreshPoints()
-	
-	accumStarPointShader = GLProgram{
-		vertexCode = template[[
-#version 130
 
-in float lum;
-in float temp;
-
-out float tempv;		//temperature, in K
-
-void main() {
-	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
-	vec4 vmv = gl_ModelViewMatrix * vtx;
-	gl_Position = gl_ProjectionMatrix * vmv;
-	
+local calcPointSize = template[[
 	//how to calculate this in fragment space ...
 	// coordinates are in Pc
 	float distInPcSq = dot(vmv.xyz, vmv.xyz);
@@ -372,7 +409,13 @@ void main() {
 
 	//MBolStar - MBolSun = -2.5 * log10( LStar / LSun)
 	float LStarOverLSun = lum;
-	float LSunOverL0 = 0.011481536214969;	//LSun has an abs mag of 4.74, but what is L0 again?
+<?
+-- https://www.omnicalculator.com/physics/luminosity 
+local LSun = 3.828e+26 	-- Watts
+local L0 = 3.0128e+28	-- Watts
+?>
+
+	float LSunOverL0 = <?= LSun / L0 ?>
 	float LStarOverL0 = LStarOverLSun * LSunOverL0;
 	float absoluteMagnitude = <?= -2.5 / math.log(10)?> * log(LStarOverL0);	// abs magn
 
@@ -384,18 +427,30 @@ void main() {
 	m = M - 5 + 5 * log10(d)
 	*/
 	float apparentMagnitude = absoluteMagnitude - 5. + 5. * log10DistInPc;
-	gl_PointSize = clamp(-(apparentMagnitude - 6.5), 0., 10.);
-	
-	//TODO how to convert from apparent magnitude to pixel value?
-	//lumf = -.43 * m - .57 * (M - 5.);
-	//inv sq illumination falloff
-	// TODO how about some correct apparent magnitude equations here?
-	//lumf *= distSqAtten * invDistSq;
-	//lumf = -(log(lumf) - log(distSqAtten * invDistSq));
+	gl_PointSize = clamp(6.5 - apparentMagnitude + pointSizeBias, 0., 200.);
+]]
+
+	accumStarPointShader = GLProgram{
+		vertexCode = template([[
+#version 130
+
+in float lum;
+in float temp;
+
+out float tempv;		//temperature, in K
+
+uniform float pointSizeBias;
+
+void main() {
+	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
+	vec4 vmv = gl_ModelViewMatrix * vtx;
+	gl_Position = gl_ProjectionMatrix * vmv;
+
+	<?=calcPointSize?>
 
 	tempv = temp;
 }
-]],
+]], {calcPointSize = calcPointSize}),
 		fragmentCode = template([[
 <?
 local clnumber = require 'cl.obj.number'
@@ -428,7 +483,6 @@ void main() {
 			}),
 		uniforms = {
 			tempTex = 0,
-			useLum = 1,
 		},
 	}
 	accumStarPointShader:useNone()
@@ -551,14 +605,22 @@ end
 	renderAccumShader:useNone()
 
 
+	-- since the point renderer varies its gl_PointSize with the magnitude, I gotta do that here as well
 	drawIDShader = GLProgram{
-		vertexCode = template[[
+		vertexCode = template([[
 #version 130
 
+in float lum;
 out vec3 color;
+uniform float pointSizeBias;
 
 void main() {
-	gl_Position = gl_ModelViewProjectionMatrix * vec4(gl_Vertex.xyz, 1.);
+	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
+	vec4 vmv = gl_ModelViewMatrix * vtx;
+	gl_Position = gl_ProjectionMatrix * vmv;
+
+	<?=calcPointSize?>
+	gl_PointSize += 20.;
 
 	float i = gl_VertexID;
 	color.r = mod(i, 256.);
@@ -571,7 +633,7 @@ void main() {
 	i = (i - color.b) / 256.;
 	color.b *= 1. / 255.;
 }
-]],
+]], {calcPointSize = calcPointSize}),
 		fragmentCode = template[[
 #version 130
 
@@ -646,7 +708,7 @@ end
 
 -- _G so that sliderFloatTable can use them
 alphaValue = 1
-pointSize = 2	-- TODO point size according to luminosity
+pointSizeBias = 0
 distSqAtten = 1e-5
 hsvRangeValue = .2
 hdrScaleValue = .001
@@ -656,8 +718,8 @@ showDensityValue = false
 velScalarValue = 1
 drawPoints = true
 drawLines = false
-useLum = true
 normalizeVelValue = 0
+showPickScene = false
 
 ffi.cdef[[
 typedef union {
@@ -673,27 +735,42 @@ function App:drawPickScene()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	gl.glEnable(gl.GL_DEPTH_TEST)
 	
+	gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
 	drawIDShader:use()
-	
-	gl.glPointSize(pointSize + 2)
+		
+	if drawIDShader.uniforms.pointSizeBias then
+		gl.glUniform1f(drawIDShader.uniforms.pointSizeBias.loc, pointSizeBias)
+	end
 
 	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
 	gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
+
+	if pt_t == 'pt_9col_t'then
+		if accumStarPointShader.attrs.lum then
+			gl.glEnableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
+			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+			gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'lum'))))
+		end
+	end
 
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 
 	gl.glDrawArrays(gl.GL_POINTS, 0, n)
 
 	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+	if accumStarPointShader.attrs.lum then
+		gl.glDisableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
+	end
 
 	drawIDShader:useNone()
+	gl.glDisable(gl.GL_PROGRAM_POINT_SIZE)
 
 	gl.glFlush()
 
 	gl.glReadPixels(
 		self.mouse.ipos.x,
-		self.mouse.ipos.y,
+		self.height - self.mouse.ipos.y - 1,
 		1,
 		1,
 		gl.GL_RGB,
@@ -708,6 +785,7 @@ function App:drawScene()
 	gl.glClearColor(0,0,0,0)
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 	gl.glEnable(gl.GL_BLEND)
+	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 	
 	if drawPoints then
 		gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
@@ -718,8 +796,8 @@ function App:drawScene()
 		if accumStarPointShader.uniforms.distSqAtten then
 			gl.glUniform1f(accumStarPointShader.uniforms.distSqAtten.loc, distSqAtten)
 		end
-		if accumStarPointShader.uniforms.useLum then
-			gl.glUniform1i(accumStarPointShader.uniforms.useLum.loc, useLum and 1 or 0)
+		if accumStarPointShader.uniforms.pointSizeBias then
+			gl.glUniform1f(accumStarPointShader.uniforms.pointSizeBias.loc, pointSizeBias)
 		end
 
 		tempTex:bind()
@@ -728,19 +806,17 @@ function App:drawScene()
 		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
 		gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
 
-		if pt_t == 'pt_9col_t'
-		and accumStarPointShader.attrs.lum 
-		then
-			gl.glEnableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
-			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-			gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'lum'))))
-		end
-		if pt_t == 'pt_9col_t'
-		and accumStarPointShader.attrs.temp 
-		then
-			gl.glEnableVertexAttribArray(accumStarPointShader.attrs.temp.loc)
-			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-			gl.glVertexAttribPointer(accumStarPointShader.attrs.temp.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'temp'))))
+		if pt_t == 'pt_9col_t'then
+			if accumStarPointShader.attrs.lum then
+				gl.glEnableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
+				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+				gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'lum'))))
+			end
+			if accumStarPointShader.attrs.temp then
+				gl.glEnableVertexAttribArray(accumStarPointShader.attrs.temp.loc)
+				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
+				gl.glVertexAttribPointer(accumStarPointShader.attrs.temp.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'temp'))))
+			end
 		end
 
 		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
@@ -876,17 +952,52 @@ function App:drawWithAccum()
 
 end
 
+local function cartToSphere(r,theta,phi)
+	local ct = math.cos(theta)
+	local st = math.sin(theta)
+	local cp = math.cos(phi)
+	local sp = math.sin(phi)
+	return 
+		r * cp * st,
+		r * sp * st,
+		r * ct
+end
+
 function App:update()
 	self:drawPickScene()
-	
-	-- [[
-	self:drawScene()
-	--]]
-	--[[
-	self:drawWithAccum()
-	--]]
 
+	if not showPickScene then
+		-- [[
+		self:drawScene()
+		--]]
+		--[[
+		self:drawWithAccum()
+		--]]
+	end
 
+	-- todo flag for this
+	gl.glEnable(gl.GL_BLEND)
+	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
+	gl.glColor3f(.25, .25, .25)
+	gl.glBegin(gl.GL_LINES)
+	local idiv = 24
+	local dphi = 2 * math.pi / idiv
+	local jdiv = 12
+	local dtheta = math.pi / jdiv
+	for i=0,idiv-1 do
+		local phi = 2 * math.pi * i / idiv
+		for j=0,jdiv-1 do
+			local theta = math.pi * j / jdiv
+			gl.glVertex3f(cartToSphere(100, theta, phi))
+			gl.glVertex3f(cartToSphere(100, theta + dtheta, phi))
+			if j > 0 then
+				gl.glVertex3f(cartToSphere(100, theta, phi))
+				gl.glVertex3f(cartToSphere(100, theta, phi + dphi))
+			end
+		end
+	end
+	gl.glEnd()
+	gl.glDisable(gl.GL_BLEND)
 
 	glreport'here'
 	App.super.update(self)
@@ -920,7 +1031,7 @@ local function checkboxTable(title, t, key, ...)
 end
 
 function App:updateGUI()
-	sliderFloatTable('point size', _G, 'pointSize', 1, 10)
+	sliderFloatTable('point size', _G, 'pointSizeBias', -10, 10)
 	inputFloatTable('alpha value', _G, 'alphaValue')
 	inputFloatTable('dist sq atten', _G, 'distSqAtten')
 	sliderFloatTable('hdr scale', _G, 'hdrScaleValue', 0, 1000, '%.7f', 10)
@@ -928,11 +1039,11 @@ function App:updateGUI()
 	sliderFloatTable('hsv range', _G, 'hsvRangeValue', 0, 1000, '%.7f', 10)
 	sliderFloatTable('bloom levels', _G, 'bloomLevelsValue', 0, 8)
 	checkboxTable('show density', _G, 'showDensityValue')
-	checkboxTable('use luminosity', _G, 'useLum')
 
 	checkboxTable('draw points', _G, 'drawPoints')
 	
 	checkboxTable('draw lines', _G, 'drawLines')
+	checkboxTable('show pick scene', _G, 'showPickScene')	
 	
 	sliderFloatTable('vel scalar', _G, 'velScalarValue', 0, 1000000000, '%.7f', 10)
 
