@@ -15,10 +15,13 @@ local GLProgram = require 'gl.program'
 local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLHSVTex = require 'gl.hsvtex'
+local GLArrayBuffer = require 'gl.arraybuffer'
 local CLEnv = require 'cl.obj.env'
 local vec3f = require 'vec-ffi.vec3f'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
+local matrix_ffi = require 'matrix.ffi'
+matrix_ffi.real = 'float'	-- default matrix_ffi type
 
 --[[
 set = directory to use if you don't specify individual files:
@@ -125,8 +128,9 @@ typedef struct {
 	temperature, in Kelvin
 	*/
 	float temp;
-	
-	float rad;
+
+	//radius, probably in sun-radii
+	float radius;
 } pt_9col_t;
 ]]
 
@@ -138,7 +142,8 @@ local pt_t = ({
 	['9col'] = 'pt_9col_t',
 })[format] or error("couldn't deduce point type from format")
 
-local glPointBufID = ffi.new'GLuint[1]'
+local glPointBuf 
+local pointAttrs 
 
 -- 2x
 local glLinePosBufID = ffi.new'GLuint[1]'
@@ -176,7 +181,8 @@ drawPoints = true
 drawLines = false
 normalizeVelValue = 0
 showPickScene = false
-drawGrid = true
+drawGrid = true			-- draw a sphere with 30' segments around our orbiting star
+showNeighbors = true
 
 --[[
 picking is based on point size drawn
@@ -259,7 +265,7 @@ print('loaded '..numPts..' stars...')
 			sun.vel:set(0,0,0)
 			sun.lum = 1
 			sun.temp = 5772	-- well, the B-V is 0.63.  maybe I should just be storing that? 
-			sun.rad = 1	-- in solar radii
+			sun.radius = 1	-- in solar radii
 			
 			pts:insert{obj=sun, index=numPts}
 			numPts = numPts + 1	-- use a unique index.  don't matter about modifying numPts, we will recalculate numPts soon
@@ -413,11 +419,50 @@ typedef _<?=env.real?>4 real4;
 			cpuLineVelBuf[j+2*i].w = j
 		end
 	end
-	
-	gl.glGenBuffers(1, glPointBufID)
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-	gl.glBufferData(gl.GL_ARRAY_BUFFER, numPts*ffi.sizeof(pt_t), cpuPointBuf, gl.GL_STATIC_DRAW)
-	
+
+	glPointBuf = GLArrayBuffer{
+		size = numPts * ffi.sizeof(pt_t),
+		data = cpuPointBuf,
+	}
+
+	pointAttrs = {
+		pos = {
+			buffer = glPointBuf,
+			size = 3,
+			type = gl.GL_FLOAT,
+			stride = ffi.sizeof(pt_t),
+			offset = ffi.offsetof(pt_t, 'pos'),
+		},
+		vel = pt_t == 'pt_9col_t' and {
+			buffer = glPointBuf,
+			size = 3,
+			type = gl.GL_FLOAT,
+			stride = ffi.sizeof(pt_t),
+			offset = ffi.offsetof(pt_t, 'vel'),
+		} or nil,
+		lum = pt_t == 'pt_9col_t' and {
+			buffer = glPointBuf,
+			size = 1,
+			type = gl.GL_FLOAT,
+			stride = ffi.sizeof(pt_t),
+			offset = ffi.offsetof(pt_t, 'lum'),
+		} or nil,
+		temp = pt_t == 'pt_9col_t' and {
+			buffer = glPointBuf,
+			size = 1,
+			type = gl.GL_FLOAT,
+			stride = ffi.sizeof(pt_t),
+			offset = ffi.offsetof(pt_t, 'temp'),
+		} or nil,
+		radius = pt_t == 'pt_9col_t' and {
+			buffer = glPointBuf,
+			size = 1,
+			type = gl.GL_FLOAT,
+			stride = ffi.sizeof(pt_t),
+			offset = ffi.offsetof(pt_t, 'radius'),
+		} or nil,
+	}
+
 	gl.glGenBuffers(1, glLinePosBufID)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
 	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*numPts*ffi.sizeof'_float4', cpuLinePosBuf, gl.GL_STATIC_DRAW)
@@ -471,28 +516,51 @@ local L0 = 3.0128e+28	-- Watts
 	m = M - 5 + 5 * log10(d)
 	*/
 	float apparentMagnitude = absoluteMagnitude - 5. + 5. * log10DistInPc;
-	gl_PointSize = clamp(6.5 - apparentMagnitude + pointSizeBias, 0., 200.);
+	
+	/*
+	ok now on to the point size ...
+	and magnitude ...
+	hmm ... 
+	HDR will have to factor into here somehow ...
+	*/
+
+	gl_PointSize = 6.5 - apparentMagnitude + pointSizeBias;
 ]], {
 		LSunOverL0 = LSunOverL0,
 	})
 
 	accumStarPointShader = GLProgram{
 		vertexCode = template([[
-#version 130
+#version 460
 
+in vec3 pos;
 in float lum;
 in float temp;
 
 out float tempv;		//temperature, in K
+out float lumv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
 
 uniform float pointSizeBias;
 
 void main() {
-	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
-	vec4 vmv = gl_ModelViewMatrix * vtx;
-	gl_Position = gl_ProjectionMatrix * vmv;
+	vec4 vtx = vec4(pos.xyz, 1.);
+	vec4 vmv = modelViewMatrix * vtx;
+	gl_Position = projectionMatrix * vmv;
 
 	<?=calcPointSize?>
+
+	lumv = 1.;
+
+	// if the point size is < .5 then just make the star dimmer instead
+	const float pointSizeMin = .5;
+	float dimmer = gl_PointSize - pointSizeMin;
+	if (dimmer < 0) {
+		gl_PointSize = pointSizeMin;
+		lumv *= pow(2., dimmer);
+	}
 
 	tempv = temp;
 }
@@ -504,13 +572,14 @@ local clnumber = require 'cl.obj.number'
 #version 130
 
 in float tempv;
+in float lumv;
 
 uniform sampler2D tempTex;
 uniform float alpha;
 uniform float distSqAtten;
 
 void main() {
-	float lumf = 1.;
+	float lumf = lumv;
 
 #if 0
 	// make point smooth
@@ -530,7 +599,10 @@ void main() {
 		uniforms = {
 			tempTex = 0,
 		},
+		attrs = pointAttrs,
 	}
+	
+
 	accumStarPointShader:useNone()
 	glreport'here'
 
@@ -648,24 +720,32 @@ end
 			showDensity = false,
 		},
 	}
+	glreport'here'
 	renderAccumShader:useNone()
 
 
 	-- since the point renderer varies its gl_PointSize with the magnitude, I gotta do that here as well
 	drawIDShader = GLProgram{
 		vertexCode = template([[
-#version 130
+#version 460
 
+in vec3 pos;
 in float lum;
+
 out vec3 color;
+
 uniform float pointSizeBias;
 uniform float pickSizeBias;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
 void main() {
-	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
-	vec4 vmv = gl_ModelViewMatrix * vtx;
-	gl_Position = gl_ProjectionMatrix * vmv;
+	vec4 vtx = vec4(pos.xyz, 1.);
+	vec4 vmv = modelViewMatrix * vtx;
+	gl_Position = projectionMatrix * vmv;
 
 	<?=calcPointSize?>
+	gl_PointSize = max(0., gl_PointSize);
 	gl_PointSize += pickSizeBias;
 
 	float i = gl_VertexID;
@@ -689,7 +769,10 @@ void main() {
 	gl_FragColor = vec4(color, 1.);
 }
 ]],
+		attrs = pointAttrs,
 	}
+	glreport'here'
+	
 	drawIDShader:useNone()
 	glreport'here'
 
@@ -762,15 +845,21 @@ typedef union {
 ]]
 
 local pixel = ffi.new'pixel4_t'
+
 local selectedIndex
+
+local modelViewMatrix = matrix_ffi.zeros(4,4)
+local projectionMatrix = matrix_ffi.zeros(4,4)
+
 function App:drawPickScene()
 	gl.glClearColor(1,1,1,1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	gl.glEnable(gl.GL_DEPTH_TEST)
 	
 	gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
+	
 	drawIDShader:use()
-		
+
 	if drawIDShader.uniforms.pointSizeBias then
 		gl.glUniform1f(drawIDShader.uniforms.pointSizeBias.loc, pointSizeBias)
 	end
@@ -778,28 +867,18 @@ function App:drawPickScene()
 		gl.glUniform1f(drawIDShader.uniforms.pickSizeBias.loc, pickSizeBias)
 	end
 
-	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-	gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
+	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
+	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
+		
+	gl.glUniformMatrix4fv(drawIDShader.uniforms.modelViewMatrix.loc, 1, false, modelViewMatrix.ptr)
+	gl.glUniformMatrix4fv(drawIDShader.uniforms.projectionMatrix.loc, 1, false, projectionMatrix.ptr)
 
-	if pt_t == 'pt_9col_t'then
-		if accumStarPointShader.attrs.lum then
-			gl.glEnableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
-			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-			gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'lum'))))
-		end
-	end
-
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-
+	drawIDShader.vao:use()
 	gl.glDrawArrays(gl.GL_POINTS, 0, numPts)
-
-	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-	if accumStarPointShader.attrs.lum then
-		gl.glDisableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
-	end
+	drawIDShader.vao:useNone()
 
 	drawIDShader:useNone()
+
 	gl.glDisable(gl.GL_PROGRAM_POINT_SIZE)
 
 	gl.glFlush()
@@ -825,7 +904,9 @@ function App:drawScene()
 	
 	if drawPoints then
 		gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
+
 		accumStarPointShader:use()
+		
 		if accumStarPointShader.uniforms.alpha then
 			gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue)
 		end
@@ -835,36 +916,21 @@ function App:drawScene()
 		if accumStarPointShader.uniforms.pointSizeBias then
 			gl.glUniform1f(accumStarPointShader.uniforms.pointSizeBias.loc, pointSizeBias)
 		end
+	
+		gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
+		gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
+	
+		gl.glUniformMatrix4fv(accumStarPointShader.uniforms.modelViewMatrix.loc, 1, false, modelViewMatrix.ptr)
+		gl.glUniformMatrix4fv(accumStarPointShader.uniforms.projectionMatrix.loc, 1, false, projectionMatrix.ptr)
 
 		tempTex:bind()
-
-		gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-		gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
-
-		if pt_t == 'pt_9col_t'then
-			if accumStarPointShader.attrs.lum then
-				gl.glEnableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
-				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-				gl.glVertexAttribPointer(accumStarPointShader.attrs.lum.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'lum'))))
-			end
-			if accumStarPointShader.attrs.temp then
-				gl.glEnableVertexAttribArray(accumStarPointShader.attrs.temp.loc)
-				gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-				gl.glVertexAttribPointer(accumStarPointShader.attrs.temp.loc, 1, gl.GL_FLOAT, false, ffi.sizeof(pt_t), ffi.cast('void*', (ffi.offsetof(pt_t, 'temp'))))
-			end
-		end
-
-		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	
+		accumStarPointShader.vao:use()
 		gl.glDrawArrays(gl.GL_POINTS, 0, numPts)
+		accumStarPointShader.vao:useNone()
 	
-		gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-		if accumStarPointShader.attrs.lum then
-			gl.glDisableVertexAttribArray(accumStarPointShader.attrs.lum.loc)
-		end
-		
 		tempTex:unbind()
+		
 		accumStarPointShader:useNone()
 		
 		gl.glDisable(gl.GL_PROGRAM_POINT_SIZE)
