@@ -16,7 +16,9 @@ local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLHSVTex = require 'gl.hsvtex'
 local CLEnv = require 'cl.obj.env'
+local vec3f = require 'vec-ffi.vec3f'
 local vec3d = require 'vec-ffi.vec3d'
+local quatd = require 'vec-ffi.quatd'
 
 --[[
 set = directory to use if you don't specify individual files:
@@ -31,7 +33,7 @@ lumhicount = show only this many of the highest-luminosity stars
 appmaghicount = show only this many of the highest apparent magnitude stars
 rlowcount = show only this many of the stars with lowest r
 print = set this to print out all the remaining points
-nolumnans = remove nan luminosity
+nolumnans = remove nan luminosity ... not needed, this was a mixup of abs mag and lum, and idk why abs mag had nans (maybe it too was being calculated from lums that were abs mags that had negative values?)
 addsun = add our sun to the dataset.  I don't see it in there.
 nounnamed = remove stars that don't have entries in the namefile
 --]]
@@ -86,12 +88,12 @@ my hyg data:
 --]]
 ffi.cdef[[
 typedef struct {
-	float pos[3];
+	vec3f_t pos;
 } pt_3col_t;
 
 typedef struct {
-	float pos[3];		// in Pc
-	float vel[3];
+	vec3f_t pos;		// in Pc
+	vec3f_t vel;
 	
 	/*
 	solar luminosity
@@ -158,8 +160,38 @@ local tempTex
 local LSun = 3.828e+26 	-- Watts
 local L0 = 3.0128e+28	-- Watts
 local LSunOverL0 = LSun / L0
-	
-local n	-- number of points
+
+
+-- _G so that sliderFloatTable can use them
+alphaValue = .5
+pointSizeBias = 0
+distSqAtten = 1e-5
+hsvRangeValue = .2
+hdrScaleValue = .001
+hdrGammaValue = 1
+bloomLevelsValue = 0
+showDensityValue = false
+velScalarValue = 1
+drawPoints = true
+drawLines = false
+normalizeVelValue = 0
+showPickScene = false
+drawGrid = true
+
+--[[
+picking is based on point size drawn
+point size is based on apparent magnitude
+but it's still depth-sorted
+so weaker closer stars will block brighter further ones
+a better way would be drawing the pick ID + app mag to a buffer
+and then post-process flooding it outward to the appropriate size based on its app mag
+that way brighter stars would overbear closer weaker neighbors
+--]]
+pickSizeBias = 4
+
+
+
+local numPts	-- number of points
 local cpuPointBuf
 
 function App:initGL(...)
@@ -170,16 +202,24 @@ function App:initGL(...)
 	self.view.znear = 1e-3
 	self.view.zfar = 1e+6
 
---local quatd = require 'vec-ffi.quatd'
 --	self.view.angle = (quatd():fromAngleAxis(0, 0, 1, 90) * self.view.angle):normalize()
 
 	local data = file[filename]
-	n = #data / ffi.sizeof(pt_t)
-print('loaded '..n..' stars...')
---n = math.min(n, 100000)
+	numPts = #data / ffi.sizeof(pt_t)
+print('loaded '..numPts..' stars...')
+--numPts = math.min(numPts, 100000)
 	
-	local s = ffi.cast('char*', data)
+	local src = ffi.cast(pt_t..'*', ffi.cast('char*', data))
+	
+	--[[ I would just cast, but luajit doesn't seem to refcount it, so as soon as 'data' goes out of scope, 'cpuPointBuf' deallocates, and when I use it outside this function I get a crash ....
 	cpuPointBuf = ffi.cast(pt_t..'*', s)
+	--]]
+	-- [[
+	cpuPointBuf = ffi.new(pt_t..'[?]', numPts)
+	for i=0,numPts-1 do
+		cpuPointBuf[i] = ffi.new(pt_t, src[i])
+	end
+	--]]
 
 	if cmdline.lummin 
 	or cmdline.lumhicount
@@ -190,14 +230,14 @@ print('loaded '..n..' stars...')
 	or (cmdline.nounnamed and names)
 	then
 		local pts = table()
-		for i=0,n-1 do
+		for i=0,numPts-1 do
 			-- keep track of the original index, for remapping the name file
 			pts:insert{obj=ffi.new(pt_t, cpuPointBuf[i]), index=i}
 		end
 
 		-- do this first, while names <-> objs, before moving any objs
 		if cmdline.nounnamed and names then
-			for i=n-1,0,-1 do
+			for i=numPts-1,0,-1 do
 				if not names[i] then
 					pts:remove(i+1)
 				end
@@ -213,20 +253,16 @@ print('loaded '..n..' stars...')
 
 		if cmdline.addsun then
 			local sun = ffi.new(pt_t)
-			sun.pos[0] = 0
-			sun.pos[1] = 0
-			sun.pos[2] = 0
+			sun.pos:set(0,0,0)
 			-- vel is in Pc/year?  double check plz.
 			-- Gaia velocity is in solar reference frame, so the sun's vel will be zero
-			sun.vel[0] = 0
-			sun.vel[1] = 0
-			sun.vel[2] = 0
+			sun.vel:set(0,0,0)
 			sun.lum = 1
 			sun.temp = 5772	-- well, the B-V is 0.63.  maybe I should just be storing that? 
 			sun.rad = 1	-- in solar radii
 			
-			n = n + 1	-- use a unique index.  don't matter about modifying n, we will recalculate n soon
-			pts:insert{obj=sun, index=n}
+			pts:insert{obj=sun, index=numPts}
+			numPts = numPts + 1	-- use a unique index.  don't matter about modifying numPts, we will recalculate numPts soon
 		end
 
 		if cmdline.lummin then
@@ -243,29 +279,14 @@ print('loaded '..n..' stars...')
 		end
 		if cmdline.appmaghicount then
 			pts = pts:sort(function(a,b)
-				return  
-					  a.obj.lum / (
-						  a.obj.pos[0] * a.obj.pos[0]
-						+ a.obj.pos[1] * a.obj.pos[1]
-						+ a.obj.pos[2] * a.obj.pos[2])
-					> 
-					  b.obj.lum / (
-						  b.obj.pos[0] * b.obj.pos[0]
-						+ b.obj.pos[1] * b.obj.pos[1]
-						+ b.obj.pos[2] * b.obj.pos[2])
+				return  a.obj.lum / a.obj.pos:lenSq()
+						> b.obj.lum / b.obj.pos:lenSq()
 			end):sub(1, cmdline.appmaghicount)
 			print('appmaghicount filtered down to '..#pts)
 		end
 		if cmdline.rlowcount then
 			pts = pts:sort(function(a,b)
-				return 
-					  a.obj.pos[0] * a.obj.pos[0]
-					+ a.obj.pos[1] * a.obj.pos[1]
-					+ a.obj.pos[2] * a.obj.pos[2]
-					< 
-					  b.obj.pos[0] * b.obj.pos[0]
-					+ b.obj.pos[1] * b.obj.pos[1]
-					+ b.obj.pos[2] * b.obj.pos[2]
+				return  a.obj.pos:lenSq() < b.obj.pos:lenSq()
 			end):sub(1, cmdline.rlowcount)
 			print('rlowcount filtered down to '..#pts)
 		end
@@ -302,21 +323,19 @@ print('loaded '..n..' stars...')
 
 		if cmdline.print then
 			for _,pt in ipairs(pts) do
-				local r = math.sqrt(pt.obj.pos[0] * pt.obj.pos[0]
-					+ pt.obj.pos[1] * pt.obj.pos[1]
-					+ pt.obj.pos[2] * pt.obj.pos[2])
+				local r = pt.obj:length()
 				print('r='..r..' lum='..pt.obj.lum)
 			end
 		end
 
-		n = #pts
-		cpuPointBuf = ffi.new(pt_t..'[?]', n)
-		for i=0,n-1 do
+		numPts = #pts
+		cpuPointBuf = ffi.new(pt_t..'[?]', numPts)
+		for i=0,numPts-1 do
 			cpuPointBuf[i] = pts[i+1].obj
 		end
 	end
 
-	env = CLEnv{precision='float', size=n, useGLSharing=false}
+	env = CLEnv{precision='float', size=numPts, useGLSharing=false}
 	local real3code = template([[
 <?
 for _,t in ipairs{'float', 'double'} do
@@ -363,50 +382,49 @@ typedef _<?=env.real?>4 real4;
 
 	lum stddev is 163, so 3 stddev is ~ 500
 	--]]
-	local rbin = require 'stat.bin'(0, 3e+6, 50)
-	local lumbin = require 'stat.bin'(0, 1000, 200)
-	for i=0,n-1 do
-		local x = cpuPointBuf[i].pos[0]
-		local y = cpuPointBuf[i].pos[1]
-		local z = cpuPointBuf[i].pos[2]
-		local r = math.sqrt(x*x + y*y + z*z)
+	--local rbin = require 'stat.bin'(0, 3e+6, 50)
+	--local lumbin = require 'stat.bin'(0, 1000, 200)
+	for i=0,numPts-1 do
+		local pos = cpuPointBuf[i].pos
+		local x,y,z = pos:unpack()
+		local r = pos:length()
 		local lum = cpuPointBuf[i].lum
 		s:accum(x, y, z, r, lum)
-		rbin:accum(r)
-		lumbin:accum(lum)
+		--rbin:accum(r)
+		--lumbin:accum(lum)
 	end
 	print("data range (Pc):")
 	print(s)
-	print('r bins = '..rbin)
-	print('lum bins = '..lumbin)
+--	print('r bins = '..rbin)
+--	print('lum bins = '..lumbin)
 
-	local cpuLinePosBuf = ffi.new('_float4[?]', 2*n)	-- pts buf x number of vtxs
-	local cpuLineVelBuf = ffi.new('_float4[?]', 2*n)
+	local cpuLinePosBuf = ffi.new('_float4[?]', 2*numPts)	-- pts buf x number of vtxs
+	local cpuLineVelBuf = ffi.new('_float4[?]', 2*numPts)
 
-	for i=0,n-1 do
+	for i=0,numPts-1 do
 		for j=0,1 do
-			cpuLinePosBuf[j+2*i].x = cpuPointBuf[i].pos[0]
-			cpuLinePosBuf[j+2*i].y = cpuPointBuf[i].pos[1]
-			cpuLinePosBuf[j+2*i].z = cpuPointBuf[i].pos[2]
+			cpuLinePosBuf[j+2*i].x = cpuPointBuf[i].pos.x
+			cpuLinePosBuf[j+2*i].y = cpuPointBuf[i].pos.y
+			cpuLinePosBuf[j+2*i].z = cpuPointBuf[i].pos.z
 			cpuLinePosBuf[j+2*i].w = cpuPointBuf[i].lum
-			cpuLineVelBuf[j+2*i].x = cpuPointBuf[i].vel[0]
-			cpuLineVelBuf[j+2*i].y = cpuPointBuf[i].vel[1]
-			cpuLineVelBuf[j+2*i].z = cpuPointBuf[i].vel[2]
+			cpuLineVelBuf[j+2*i].x = cpuPointBuf[i].vel.x
+			cpuLineVelBuf[j+2*i].y = cpuPointBuf[i].vel.y
+			cpuLineVelBuf[j+2*i].z = cpuPointBuf[i].vel.z
 			cpuLineVelBuf[j+2*i].w = j
 		end
 	end
 	
 	gl.glGenBuffers(1, glPointBufID)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
-	gl.glBufferData(gl.GL_ARRAY_BUFFER, n*ffi.sizeof(pt_t), cpuPointBuf, gl.GL_STATIC_DRAW)
+	gl.glBufferData(gl.GL_ARRAY_BUFFER, numPts*ffi.sizeof(pt_t), cpuPointBuf, gl.GL_STATIC_DRAW)
 	
 	gl.glGenBuffers(1, glLinePosBufID)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
-	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*n*ffi.sizeof'_float4', cpuLinePosBuf, gl.GL_STATIC_DRAW)
+	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*numPts*ffi.sizeof'_float4', cpuLinePosBuf, gl.GL_STATIC_DRAW)
 
 	gl.glGenBuffers(1, glLineVelBufID)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLineVelBufID[0])
-	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*n*ffi.sizeof'_float4', cpuLineVelBuf, gl.GL_STATIC_DRAW)
+	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*numPts*ffi.sizeof'_float4', cpuLineVelBuf, gl.GL_STATIC_DRAW)
 	
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	
@@ -641,14 +659,14 @@ end
 in float lum;
 out vec3 color;
 uniform float pointSizeBias;
-
+uniform float pickSizeBias;
 void main() {
 	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
 	vec4 vmv = gl_ModelViewMatrix * vtx;
 	gl_Position = gl_ProjectionMatrix * vmv;
 
 	<?=calcPointSize?>
-	gl_PointSize += 20.;
+	gl_PointSize += pickSizeBias;
 
 	float i = gl_VertexID;
 	color.r = mod(i, 256.);
@@ -729,25 +747,12 @@ void main() {
 		type = gl.GL_UNSIGNED_BYTE,
 		magFilter = gl.GL_LINEAR,
 		minFilter = gl.GL_NEAREST,
-		wrap = {gl.GL_CLAMP_TO_EDGE, gl.GL_CLAMP_TO_EDGE},
+		-- causing a gl error:
+		--wrap = {gl.GL_CLAMP_TO_EDGE, gl.GL_CLAMP_TO_EDGE},
 		image = tempImg,
 	}
+	glreport'here'
 end
-
--- _G so that sliderFloatTable can use them
-alphaValue = 1
-pointSizeBias = 0
-distSqAtten = 1e-5
-hsvRangeValue = .2
-hdrScaleValue = .001
-hdrGammaValue = 1
-bloomLevelsValue = 0
-showDensityValue = false
-velScalarValue = 1
-drawPoints = true
-drawLines = false
-normalizeVelValue = 0
-showPickScene = false
 
 ffi.cdef[[
 typedef union {
@@ -769,6 +774,9 @@ function App:drawPickScene()
 	if drawIDShader.uniforms.pointSizeBias then
 		gl.glUniform1f(drawIDShader.uniforms.pointSizeBias.loc, pointSizeBias)
 	end
+	if drawIDShader.uniforms.pickSizeBias then
+		gl.glUniform1f(drawIDShader.uniforms.pickSizeBias.loc, pickSizeBias)
+	end
 
 	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glPointBufID[0])
@@ -784,7 +792,7 @@ function App:drawPickScene()
 
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 
-	gl.glDrawArrays(gl.GL_POINTS, 0, n)
+	gl.glDrawArrays(gl.GL_POINTS, 0, numPts)
 
 	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
 	if accumStarPointShader.attrs.lum then
@@ -849,7 +857,7 @@ function App:drawScene()
 
 		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	
-		gl.glDrawArrays(gl.GL_POINTS, 0, n)
+		gl.glDrawArrays(gl.GL_POINTS, 0, numPts)
 	
 		gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
 		if accumStarPointShader.attrs.lum then
@@ -885,7 +893,7 @@ function App:drawScene()
 		
 		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	
-		gl.glDrawArrays(gl.GL_LINES, 0, 2*n)
+		gl.glDrawArrays(gl.GL_LINES, 0, 2*numPts)
 	
 		gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
 		if accumStarLineShader.attrs.vel then
@@ -985,10 +993,11 @@ local function cartToSphere(r,theta,phi)
 	local st = math.sin(theta)
 	local cp = math.cos(phi)
 	local sp = math.sin(phi)
-	return 
+	return vec3d(
 		r * cp * st,
 		r * sp * st,
 		r * ct
+	)
 end
 
 function App:update()
@@ -1003,29 +1012,31 @@ function App:update()
 		--]]
 	end
 
-	-- todo flag for this
-	gl.glEnable(gl.GL_BLEND)
-	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
-	gl.glColor3f(.25, .25, .25)
-	gl.glBegin(gl.GL_LINES)
-	local idiv = 24
-	local dphi = 2 * math.pi / idiv
-	local jdiv = 12
-	local dtheta = math.pi / jdiv
-	for i=0,idiv-1 do
-		local phi = 2 * math.pi * i / idiv
-		for j=0,jdiv-1 do
-			local theta = math.pi * j / jdiv
-			gl.glVertex3f(cartToSphere(100, theta, phi))
-			gl.glVertex3f(cartToSphere(100, theta + dtheta, phi))
-			if j > 0 then
-				gl.glVertex3f(cartToSphere(100, theta, phi))
-				gl.glVertex3f(cartToSphere(100, theta, phi + dphi))
+	-- TODO draw around origin?  or draw around view orbit?
+	if drawGrid then
+		gl.glEnable(gl.GL_BLEND)
+		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
+		gl.glColor3f(.25, .25, .25)
+		gl.glBegin(gl.GL_LINES)
+		local idiv = 24
+		local dphi = 2 * math.pi / idiv
+		local jdiv = 12
+		local dtheta = math.pi / jdiv
+		for i=0,idiv-1 do
+			local phi = 2 * math.pi * i / idiv
+			for j=0,jdiv-1 do
+				local theta = math.pi * j / jdiv
+				gl.glVertex3f((cartToSphere(100, theta, phi) + self.view.orbit):unpack())
+				gl.glVertex3f((cartToSphere(100, theta + dtheta, phi) + self.view.orbit):unpack())
+				if j > 0 then
+					gl.glVertex3f((cartToSphere(100, theta, phi) + self.view.orbit):unpack())
+					gl.glVertex3f((cartToSphere(100, theta, phi + dphi) + self.view.orbit):unpack())
+				end
 			end
 		end
+		gl.glEnd()
+		gl.glDisable(gl.GL_BLEND)
 	end
-	gl.glEnd()
-	gl.glDisable(gl.GL_BLEND)
 
 	glreport'here'
 	App.super.update(self)
@@ -1058,8 +1069,28 @@ local function checkboxTable(title, t, key, ...)
 	return result
 end
 
+
+-- TODO dynamic sized buffer?
+local str = ffi.new'char[256]'
+local function textTable(title, t, k, ...)
+	local src = tostring(t[k])
+	local len = math.min(ffi.sizeof(str)-1, #src)
+	ffi.copy(str, src, len)
+	str[len] = 0
+	if ig.igInputText(title, str, ffi.sizeof(str), ...) then
+		t[k] = ffi.string(str)
+		return true
+	end
+end
+
+
+local search = {
+	orbit = '',
+	lookat = '',
+}
 function App:updateGUI()
 	sliderFloatTable('point size', _G, 'pointSizeBias', -10, 10)
+	sliderFloatTable('pick size', _G, 'pickSizeBias', 0, 20)
 	inputFloatTable('alpha value', _G, 'alphaValue')
 	inputFloatTable('dist sq atten', _G, 'distSqAtten')
 	sliderFloatTable('hdr scale', _G, 'hdrScaleValue', 0, 1000, '%.7f', 10)
@@ -1072,6 +1103,7 @@ function App:updateGUI()
 	
 	checkboxTable('draw lines', _G, 'drawLines')
 	checkboxTable('show pick scene', _G, 'showPickScene')	
+	checkboxTable('show grid', _G, 'drawGrid')	
 	
 	sliderFloatTable('vel scalar', _G, 'velScalarValue', 0, 1000000000, '%.7f', 10)
 
@@ -1089,31 +1121,65 @@ function App:updateGUI()
 	inputFloatTable('znear', self.view, 'znear')
 	inputFloatTable('zfar', self.view, 'zfar')
 
+	if names then
+		if textTable('orbit', search, 'orbit', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
+			for i,v in pairs(names) do
+				if v == search.orbit then
+					assert(i >= 0 and i < numPts, "oob index in name table "..i)
+					local pt = cpuPointBuf[i]
+					self.view.orbit:set(pt.pos:unpack())
+				end
+			end
+		end
+		if textTable('look at', search, 'lookat', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
+			for i,v in pairs(names) do
+				if v == search.lookat then
+					local orbitDist = (self.view.pos - self.view.orbit):length()
+					local fwd = -self.view.angle:zAxis()
+					
+					assert(i >= 0 and i < numPts, "oob index in name table "..i)
+					local pt = cpuPointBuf[i]
+					local to = (pt.pos - self.view.pos):normalize()
+
+					local angle = math.acos(math.clamp(fwd:dot(to), -1, 1))
+					local axis = fwd:cross(to):normalize()
+
+					local rot = quatd():fromAngleAxis(axis.x, axis.y, axis.z, math.deg(angle))
+					quatd.mul(rot, self.view.angle, self.view.angle)
+					
+					self.view.pos = self.view.angle:zAxis() * orbitDist
+				end
+			end
+		end
+	end
+
 	if selectedIndex < 0xffffff 
 	and selectedIndex >= 0
-	and selectedIndex < n
+	and selectedIndex < numPts
 	then
+		local s = table()
+		s:insert('index: '..('%06x'):format(selectedIndex))
+
 		local name = names and names[selectedIndex] or nil
+		if name then
+			s:insert('name: '..name)
+		end
+
 		local pt = cpuPointBuf[selectedIndex]
-		local dist = math.sqrt(
-			  pt.pos[0]*pt.pos[0]
-			+ pt.pos[1]*pt.pos[1]
-			+ pt.pos[2]*pt.pos[2])
+		local dist = pt.pos:length()
 			
 		local LStarOverLSun = pt.lum
 		local absmag = (-2.5 / math.log(10)) * math.log(LStarOverLSun * LSunOverL0)
 		local appmag = absmag - 5 + (5 / math.log(10)) * math.log(dist)
 
-		local s = 'index: '..('%06x'):format(selectedIndex)..'\n'
-			..(name and ('name: '..name..'\n') or '')
-			..'dist (Pc): '..dist..'\n'
-			..'lum (LSun): '..LStarOverLSun..'\n'
-			..'temp (K): '..pt.temp..'\n'
-			..'abs mag: '..absmag..'\n'
-			..'app mag: '..appmag..'\n'
-		
+		s:insert('dist (Pc): '..dist)
+		s:insert('lum (LSun): '..LStarOverLSun)
+		s:insert('temp (K): '..pt.temp)
+		s:insert('abs mag: '..absmag)
+		s:insert('app mag: '..appmag)
+
 		ig.igBeginTooltip()
-		ig.igText(s)
+		ig.igText(s:concat'\n')
 		ig.igEndTooltip()
 	end
 end
