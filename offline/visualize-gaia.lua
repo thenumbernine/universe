@@ -19,9 +19,12 @@ local CLEnv = require 'cl.obj.env'
 local vec3d = require 'vec-ffi.vec3d'
 
 --[[
+set = directory to use if you don't specify individual files:
+
 filename = filename for our point data
 namefile = lua file mapping indexes to names of stars
 consfile = lua file containing constellation info for star points
+
 format = whether to use xyz or our 9-col format
 lummin = set this to filter out for min value in solar luminosity
 lumhicount = show only this many of the highest-luminosity stars
@@ -34,28 +37,37 @@ nounnamed = remove stars that don't have entries in the namefile
 --]]
 local cmdline = require 'ext.cmdline'(...)
 
+local set = cmdline.set or 'gaia'
 
-local filename = cmdline.filename or 'datasets/gaia/points/points-9col.f32'
+local filename = cmdline.filename or ('datasets/'..set..'/points/points-9col.f32')
+local namefile = cmdline.namefile or ('datasets/'..set..'/namedStars.lua')
+local consfile = cmdline.consfile or ('datasets/'..set..'/constellations.lua')
 
 local format = cmdline.format or filename:match'%-(.*)%.f32$' or '3col'
 
 -- lua table mapping from index to string
 -- TODO now upon mouseover, determine star and show name by it
 local names
-if cmdline.namefile then
-	names = fromlua(file[cmdline.namefile])
+if namefile then
+	local namedata = file[namefile]
+	if namedata then
+		names = fromlua(namedata)
+	end
 end
 
 local cons
-if cmdline.consfile then
-	cons = fromlua(file[cmdline.consfile])
+if consfile then
+	local consdata = file[consfile]
+	if consdata then
+		cons = fromlua(consdata)
+	end
 end
 
 local App = class(require 'glapp.orbit'(require 'imguiapp'))
 local ig = require 'ffi.imgui'
 
 App.title = 'pointcloud visualization tool'
-App.viewDist = 1
+App.viewDist = 5e-4
 
 --[[
 my gaia data: 
@@ -107,7 +119,6 @@ typedef struct {
 	*/
 	float lum;
 
-
 	/*
 	temperature, in Kelvin
 	*/
@@ -144,8 +155,12 @@ local tempMin = 3300
 local tempMax = 8000
 local tempTex
 
-
+local LSun = 3.828e+26 	-- Watts
+local L0 = 3.0128e+28	-- Watts
+local LSunOverL0 = LSun / L0
+	
 local n	-- number of points
+local cpuPointBuf
 
 function App:initGL(...)
 	App.super.initGL(self, ...)
@@ -164,7 +179,7 @@ print('loaded '..n..' stars...')
 --n = math.min(n, 100000)
 	
 	local s = ffi.cast('char*', data)
-	local cpuPointBuf = ffi.cast(pt_t..'*', s)
+	cpuPointBuf = ffi.cast(pt_t..'*', s)
 
 	if cmdline.lummin 
 	or cmdline.lumhicount
@@ -397,7 +412,19 @@ typedef _<?=env.real?>4 real4;
 	
 	--refreshPoints()
 
-local calcPointSize = template[[
+--[[
+Sun: {absmag="4.850", base="", bayer="", bf="", ci="0.656", comp="1", comp_primary="0", con="", dec="0.000000", decrad="0", dist="0.0000", flam="", gl="", hd="", hip="", hr="", id="0", lum="1", mag="-26.700", pmdec="0.00", pmdecrad="0", pmra="0.00", pmrarad="0", proper="Sol", ra="0.000000", rarad="0", rv="0.0", spect="G2V", var="", var_max="", var_min="", vx="0.00000000", vy="0.00000000", vz="0.00000000", x="0.000005", y="0.000000", z="0.000000"}
+Polaris: {absmag="-3.643", base="", bayer="Alp", bf="1Alp UMi", ci="0.636", comp="1", comp_primary="11734", con="UMi", dec="89.264109", decrad="1.5579526129751475", dist="132.6260", flam="1", gl="", hd="8890", hip="11767", hr="424", id="11734", lum="2495.743794831569", mag="1.970", pmdec="-11.74", pmdecrad="-0.000000056917126", pmra="44.22", pmrarad="0.00000021438460954166665", proper="Polaris", ra="2.529750", rarad="0.6622870748653336", rv="-17.0", spect="F7:Ib-IIv SB", var="Alp", var_max="1.953", var_min="1.993", vx="-0.00001171", vy="0.00002692", vz="-0.00001748", x="1.343100", y="1.047629", z="132.614909"}
+Merak: {absmag="0.399", base="", bayer="Bet", bf="48Bet UMa", ci="0.033", comp="1", comp_primary="53754", con="UMa", dec="56.382427", decrad="0.9840589862911813", dist="24.4499", flam="48", gl="Wo 9343", hd="95418", hip="53910", hr="4295", id="53754", lum="60.311481961781745", mag="2.340", pmdec="33.74", pmdecrad="0.000000163576135", pmra="81.66", pmrarad="0.00000039589885154166667", proper="Merak", ra="11.030677", rarad="2.887824569114951", rv="-12.0", spect="A1V", var="", var_max="", var_min="", vx="0.00000737", vy="-0.00001191", vz="-0.00000801", x="-13.103033", y="3.398358", z="20.360601"}
+
+reconstructing the app.mag. from abs.mag. and dist, my calcs match theirs.
+and Polaris and Merak have an app.mag. difference of less than 0.5
+and my point size is based on app.mag.  So why is the difference much greater than 0.5 pixels?  
+it looks more on the line of 3 pixels, which is the abs.mag. difference.
+
+--]]
+
+local calcPointSize = template([[
 	//how to calculate this in fragment space ...
 	// coordinates are in Pc
 	float distInPcSq = dot(vmv.xyz, vmv.xyz);
@@ -415,8 +442,7 @@ local LSun = 3.828e+26 	-- Watts
 local L0 = 3.0128e+28	-- Watts
 ?>
 
-	float LSunOverL0 = <?= LSun / L0 ?>
-	float LStarOverL0 = LStarOverLSun * LSunOverL0;
+	float LStarOverL0 = <?=LSunOverL0?> * LStarOverLSun;
 	float absoluteMagnitude = <?= -2.5 / math.log(10)?> * log(LStarOverL0);	// abs magn
 
 	/*
@@ -428,7 +454,9 @@ local L0 = 3.0128e+28	-- Watts
 	*/
 	float apparentMagnitude = absoluteMagnitude - 5. + 5. * log10DistInPc;
 	gl_PointSize = clamp(6.5 - apparentMagnitude + pointSizeBias, 0., 200.);
-]]
+]], {
+		LSunOverL0 = LSunOverL0,
+	})
 
 	accumStarPointShader = GLProgram{
 		vertexCode = template([[
@@ -1061,12 +1089,28 @@ function App:updateGUI()
 	inputFloatTable('znear', self.view, 'znear')
 	inputFloatTable('zfar', self.view, 'zfar')
 
-	if selectedIndex < 0xffffff then
-		local s = ('%06x'):format(selectedIndex)
+	if selectedIndex < 0xffffff 
+	and selectedIndex >= 0
+	and selectedIndex < n
+	then
 		local name = names and names[selectedIndex] or nil
-		if name then
-			s = s .. ' ' .. name
-		end
+		local pt = cpuPointBuf[selectedIndex]
+		local dist = math.sqrt(
+			  pt.pos[0]*pt.pos[0]
+			+ pt.pos[1]*pt.pos[1]
+			+ pt.pos[2]*pt.pos[2])
+			
+		local LStarOverLSun = pt.lum
+		local absmag = (-2.5 / math.log(10)) * math.log(LStarOverLSun * LSunOverL0)
+		local appmag = absmag - 5 + (5 / math.log(10)) * math.log(dist)
+
+		local s = 'index: '..('%06x'):format(selectedIndex)..'\n'
+			..(name and ('name: '..name..'\n') or '')
+			..'dist (Pc): '..dist..'\n'
+			..'lum (LSun): '..LStarOverLSun..'\n'
+			..'temp (K): '..pt.temp..'\n'
+			..'abs mag: '..absmag..'\n'
+			..'app mag: '..appmag..'\n'
 		
 		ig.igBeginTooltip()
 		ig.igText(s)
