@@ -2,6 +2,7 @@
 -- simple pointcloud visualizer
 local class = require 'ext.class'
 local table = require 'ext.table'
+local range = require 'ext.range'
 local string = require 'ext.string'
 local math = require 'ext.math'
 local file = require 'ext.file'
@@ -11,6 +12,7 @@ local template = require 'template'
 local Image = require 'image'
 local gl = require 'gl'
 local glreport = require 'gl.report'
+local GLElementArrayBuffer = require 'gl.elementarraybuffer'
 local GLProgram = require 'gl.program'
 local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
@@ -20,6 +22,7 @@ local CLEnv = require 'cl.obj.env'
 local vec3f = require 'vec-ffi.vec3f'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
+local vector = require 'ffi.cpp.vector'
 local matrix_ffi = require 'matrix.ffi'
 matrix_ffi.real = 'float'	-- default matrix_ffi type
 
@@ -42,7 +45,8 @@ nounnamed = remove stars that don't have entries in the namefile
 --]]
 local cmdline = require 'ext.cmdline'(...)
 
-local set = cmdline.set or 'gaia'
+--local set = cmdline.set or 'gaia'
+local set = cmdline.set or 'hyg'
 
 local filename = cmdline.filename or ('datasets/'..set..'/points/points-9col.f32')
 local namefile = cmdline.namefile or ('datasets/'..set..'/namedStars.lua')
@@ -149,6 +153,9 @@ local pointAttrs
 local glLinePosBufID = ffi.new'GLuint[1]'
 local glLineVelBufID = ffi.new'GLuint[1]'
 
+local closestStarLines
+local closestStarLineElemBuf
+
 local env
 local accumStarPointShader
 local accumStarLineShader
@@ -182,7 +189,15 @@ drawLines = false
 normalizeVelValue = 0
 showPickScene = false
 drawGrid = true			-- draw a sphere with 30' segments around our orbiting star
-showNeighbors = true
+showNeighbors = false
+print[[
+TODO 
+rmin/rmax
+thetamin/thetamax
+phimin/phimax
+occlusion
+color constellations (might need that extra constellation channel)
+]]
 
 --[[
 picking is based on point size drawn
@@ -242,7 +257,8 @@ print('loaded '..numPts..' stars...')
 		end
 
 		-- do this first, while names <-> objs, before moving any objs
-		if cmdline.nounnamed and names then
+		if cmdline.nounnamed then
+			assert(names, "you can't filter out unnamed stars if you don't have a name file")
 			for i=numPts-1,0,-1 do
 				if not names[i] then
 					pts:remove(i+1)
@@ -298,8 +314,7 @@ print('loaded '..numPts..' stars...')
 		end
 
 		-- now remap named stars
-		if names then
-			local newnames = {}
+		if names or cons then
 			if cons then
 				for _,c in ipairs(cons) do
 					c.indexset = table.mapi(c.indexes, function(index)
@@ -308,9 +323,12 @@ print('loaded '..numPts..' stars...')
 					c.indexes = {}
 				end
 			end
+			local newnames = names and {} or nil
 			for i,pt in ipairs(pts) do
 				-- pts will be 0-based
-				newnames[i-1] = names[pt.index]
+				if names then
+					newnames[i-1] = names[pt.index]
+				end
 				if cons then
 					for _,c in ipairs(cons) do
 						if c.indexset[pt.index] then
@@ -324,7 +342,9 @@ print('loaded '..numPts..' stars...')
 					c.indexset = nil
 				end
 			end
-			names = newnames
+			if names then
+				names = newnames
+			end
 		end
 
 		if cmdline.print then
@@ -499,12 +519,6 @@ local calcPointSize = template([[
 
 	//MBolStar - MBolSun = -2.5 * log10( LStar / LSun)
 	float LStarOverLSun = lum;
-<?
--- https://www.omnicalculator.com/physics/luminosity 
-local LSun = 3.828e+26 	-- Watts
-local L0 = 3.0128e+28	-- Watts
-?>
-
 	float LStarOverL0 = <?=LSunOverL0?> * LStarOverLSun;
 	float absoluteMagnitude = <?= -2.5 / math.log(10)?> * log(LStarOverL0);	// abs magn
 
@@ -835,6 +849,125 @@ void main() {
 		image = tempImg,
 	}
 	glreport'here'
+
+	-- maybe i can quick sort and throw in some random compare and that'll do some kind of rough estimate 
+print('looking for max')
+	closestStarLines = vector'int'
+	-- heuristic with bins
+	-- r stddev is 190, so 3 is 570
+	local threeSigma = 570
+	local min = -570
+	local max = 570
+	local nodeCount = 1
+	local root = {
+		min = vec3d(min,min,min),
+		max = vec3d(max,max,max),
+		pts = table(),
+	}
+	root.mid = (root.min + root.max) * .5
+	local nodemax = 50
+	local function addToTree(node, i)
+		local pos = cpuPointBuf[i].pos	
+		
+		-- have we divided?  pay it forward.
+		if node.children then
+			local childIndex = bit.bor(
+				(pos.x > node.mid.x) and 1 or 0,
+				(pos.y > node.mid.y) and 2 or 0,
+				(pos.z > node.mid.z) and 4 or 0)
+			return addToTree(node.children[childIndex], i)
+		end
+	
+		-- not divided yet?  push into leaf until it gets too big, then divide.
+		node.pts:insert(i)
+		if #node.pts >= nodemax then
+			-- make children
+			node.children = {}
+			for childIndex=0,7 do
+				local xL = bit.band(childIndex,1) == 0
+				local yL = bit.band(childIndex,2) == 0
+				local zL = bit.band(childIndex,4) == 0
+				local child = {
+					min = vec3d(
+						xL and node.min.x or node.mid.x,
+						yL and node.min.y or node.mid.y,
+						zL and node.min.z or node.mid.z
+					),
+					max = vec3d(
+						xL and node.mid.x or node.max.x,
+						yL and node.mid.y or node.max.y,
+						zL and node.mid.z or node.max.z
+					),
+					pts = table()
+				}
+				nodeCount = nodeCount + 1
+				child.mid = (child.min + child.max) * .5
+				node.children[childIndex] = child
+			end
+			-- split the nodes up into the children
+			for _,i in ipairs(node.pts) do
+				local pos = cpuPointBuf[i].pos	
+				local childIndex = bit.bor(
+					(pos.x > node.mid.x) and 1 or 0,
+					(pos.y > node.mid.y) and 2 or 0,
+					(pos.z > node.mid.z) and 4 or 0)
+				addToTree(node.children[childIndex], i)
+			end
+			node.pts = nil
+		end
+	end
+print('created '..nodeCount..' nodes')
+print'pushing into bins'	
+	for i=0,numPts-1 do
+		addToTree(root, i)
+	end
+print'searching bins'	
+	local ai = 1
+	local lastTime = os.time()	
+	local function searchTree(node)
+		if node.children then
+			assert(not node.pts)
+			for childIndex=0,7 do
+				searchTree(node.children[childIndex])
+			end
+		else
+			assert(node.pts)
+
+			local pts = node.pts
+			local n = #pts
+			for i=1,n-1 do
+				local bestj = i+1
+				local pi = cpuPointBuf[pts[i]]
+				local pj = cpuPointBuf[pts[bestj]]
+				local bestdistsq = (pi.pos - pj.pos):lenSq()
+				for j=i+2,n do
+					pj = cpuPointBuf[pts[j]]
+					distsq = (pi.pos - pj.pos):lenSq()
+					if distsq < bestdistsq then
+						bestdistsq = distsq
+						bestj = j
+					end
+				end
+				closestStarLines:push_back(pts[i])
+				closestStarLines:push_back(pts[bestj])
+				
+				--[[
+				local thisTime = os.time()
+				if lastTime ~= thisTime then
+					lastTime = thisTime
+					print((100 * (ai / nkbins)) .. '% done')
+				end
+				--]]
+			end
+		end
+	end
+	searchTree(root)
+print'done'
+
+	closestStarLineElemBuf = GLElementArrayBuffer{
+		size = ffi.sizeof(closestStarLines.type) * #closestStarLines,
+		data = closestStarLines.v,
+	}
 end
 
 ffi.cdef[[
@@ -1078,6 +1211,23 @@ function App:update()
 		--]]
 	end
 
+
+	-- TODO inv square reduce this.... by inv square of one another, and by inv square from view
+	if showNeighbors then
+		gl.glEnable(gl.GL_BLEND)
+		gl.glColor3f(0,.2,0)
+		glPointBuf:bind()
+		gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
+		glPointBuf:unbind()
+		gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+		closestStarLineElemBuf:bind() 
+		gl.glDrawElements(gl.GL_LINES, closestStarLines.size, gl.GL_UNSIGNED_INT, nil)
+		closestStarLineElemBuf:unbind() 
+		gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+		gl.glDisable(gl.GL_BLEND)
+	end
+
+
 	-- TODO draw around origin?  or draw around view orbit?
 	if drawGrid then
 		gl.glEnable(gl.GL_BLEND)
@@ -1170,7 +1320,8 @@ function App:updateGUI()
 	checkboxTable('draw lines', _G, 'drawLines')
 	checkboxTable('show pick scene', _G, 'showPickScene')	
 	checkboxTable('show grid', _G, 'drawGrid')	
-	
+	checkboxTable('show nbhd', _G, 'showNeighbors')
+
 	sliderFloatTable('vel scalar', _G, 'velScalarValue', 0, 1000000000, '%.7f', 10)
 
 	checkboxTable('normalize velocity', _G, 'normalizeVelValue')
@@ -1183,7 +1334,7 @@ function App:updateGUI()
 		ig.ImVec2(0,0),
 		ig.ImVec2(1,1))
 
-	ig.igText('dist (Pc) '..self.view.pos:length())
+	ig.igText('dist (Pc) '..(self.view.pos - self.view.orbit):length())
 	inputFloatTable('znear', self.view, 'znear')
 	inputFloatTable('zfar', self.view, 'zfar')
 
@@ -1213,7 +1364,7 @@ function App:updateGUI()
 					local rot = quatd():fromAngleAxis(axis.x, axis.y, axis.z, math.deg(angle))
 					quatd.mul(rot, self.view.angle, self.view.angle)
 					
-					self.view.pos = self.view.angle:zAxis() * orbitDist
+					self.view.pos = self.view.orbit + self.view.angle:zAxis() * orbitDist
 				end
 			end
 		end
@@ -1228,7 +1379,7 @@ function App:updateGUI()
 
 		local name = names and names[selectedIndex] or nil
 		if name then
-			s:insert('name: '..name)
+			s:insert('name: '..tostring(name))
 		end
 
 		local pt = cpuPointBuf[selectedIndex]
