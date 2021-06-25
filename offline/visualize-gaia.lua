@@ -700,7 +700,7 @@ void main() {
 
 	//if we are showing constellations then offset color by constellation index
 	if (showConstellations) {
-		tempcolor = vec3(1., .5., 5);
+		tempcolor = vec3(1., .5, .5);
 		float amount = constellation / <?= clnumber(#(constellations or {}))?>;
 <? local _1_sqrt3 = 1 / 3^.5 ?>		
 		vec3 axis = vec3(<?=_1_sqrt3?>, <?=_1_sqrt3?>, <?=_1_sqrt3?>);
