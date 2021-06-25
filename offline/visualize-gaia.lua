@@ -64,11 +64,26 @@ if namefile then
 	end
 end
 
-local cons
+local constellations
 if consfile then
 	local consdata = file[consfile]
 	if consdata then
-		cons = fromlua(consdata)
+		constellations = fromlua(consdata)
+		if constellations then
+-- idk if it's just my list, but when i color hue by constellation, i get a rainbow
+-- and i don't want a rainbow, i want discernible colors
+-- so here i'm shuffling it
+			local baseStars
+			if constellations[1].name == nil then
+				baseStars = table.remove(constellations, 1)
+			end
+			constellations = table.shuffle(constellations)
+			-- keep the base stars at the first index
+			if baseStars then
+				constellations:insert(1, baseStars)
+			end
+		end
+		print('loaded '..#constellations..' constellations')
 	end
 end
 
@@ -146,9 +161,6 @@ local pt_t = ({
 	['9col'] = 'pt_9col_t',
 })[format] or error("couldn't deduce point type from format")
 
-local glPointBuf 
-local pointAttrs 
-
 -- 2x
 local glLinePosBufID = ffi.new'GLuint[1]'
 local glLineVelBufID = ffi.new'GLuint[1]'
@@ -190,6 +202,7 @@ normalizeVelValue = 0
 showPickScene = false
 drawGrid = true			-- draw a sphere with 30' segments around our orbiting star
 showNeighbors = false
+showConstellations = true
 print[[
 TODO 
 rmin/rmax
@@ -213,7 +226,8 @@ pickSizeBias = 4
 
 
 local numPts	-- number of points
-local cpuPointBuf
+local gpuPointBuf, cpuPointBuf
+local cpuConstellationBuf, glConsBuf	-- buffer of the index of the constellation
 
 function App:initGL(...)
 	App.super.initGL(self, ...)
@@ -314,9 +328,9 @@ print('loaded '..numPts..' stars...')
 		end
 
 		-- now remap named stars
-		if names or cons then
-			if cons then
-				for _,c in ipairs(cons) do
+		if names or constellations then
+			if constellations then
+				for _,c in ipairs(constellations) do
 					c.indexset = table.mapi(c.indexes, function(index)
 						return true, index
 					end):setmetatable(nil)
@@ -329,16 +343,16 @@ print('loaded '..numPts..' stars...')
 				if names then
 					newnames[i-1] = names[pt.index]
 				end
-				if cons then
-					for _,c in ipairs(cons) do
+				if constellations then
+					for _,c in ipairs(constellations) do
 						if c.indexset[pt.index] then
 							table.insert(c.indexes, i-1)
 						end
 					end
 				end
 			end
-			if cons then
-				for _,c in ipairs(cons) do
+			if constellations then
+				for _,c in ipairs(constellations) do
 					c.indexset = nil
 				end
 			end
@@ -358,6 +372,18 @@ print('loaded '..numPts..' stars...')
 		cpuPointBuf = ffi.new(pt_t..'[?]', numPts)
 		for i=0,numPts-1 do
 			cpuPointBuf[i] = pts[i+1].obj
+		end
+changed = true
+	end
+
+	if constellations then
+assert(not changed, "todo need to remap constellations buf as well")
+		cpuConstellationBuf = ffi.new('float[?]', numPts)
+		for conIndex,con in ipairs(constellations) do
+			for _,i in ipairs(con.indexes) do
+				-- i is zero-based, conIndex is 1-based
+				cpuConstellationBuf[i] = conIndex-1	
+			end
 		end
 	end
 
@@ -389,7 +415,7 @@ typedef _<?=env.real?>4 real4;
 	env.code = env.code .. real3code
 	
 	-- get range
-	local s = require 'stat.set'('x','y','z','r', 'lum')
+	local s = require 'stat.set'('x','y','z','r', 'lum', 'temp')
 	-- TODO better way of setting these flags ... in ctor maybe?
 	for _,s in ipairs(s) do
 		s.onlyFinite = true
@@ -402,7 +428,7 @@ typedef _<?=env.real?>4 real4;
 	r stddev = 0.95579087454634
 	so 3 sigma is ... 3
 	
-	SagA* = 8178 Pc from us, so not in this data
+	SagA* = 8178 Pc from us, so not in the HYG or Gaia data
 
 	Proxima Centauri is 1.3 Pc from us 
 
@@ -415,7 +441,8 @@ typedef _<?=env.real?>4 real4;
 		local x,y,z = pos:unpack()
 		local r = pos:length()
 		local lum = cpuPointBuf[i].lum
-		s:accum(x, y, z, r, lum)
+		local temp = cpuPointBuf[i].temp
+		s:accum(x, y, z, r, lum, temp)
 		--rbin:accum(r)
 		--lumbin:accum(lum)
 	end
@@ -440,46 +467,59 @@ typedef _<?=env.real?>4 real4;
 		end
 	end
 
-	glPointBuf = GLArrayBuffer{
+	gpuPointBuf = GLArrayBuffer{
 		size = numPts * ffi.sizeof(pt_t),
 		data = cpuPointBuf,
 	}
 
-	pointAttrs = {
+	gpuConstellationBuf = GLArrayBuffer{
+		size = numPts * ffi.sizeof'float',
+		data = cpuConstellationBuf,
+	}
+
+
+	local pointAttrs = {
 		pos = {
-			buffer = glPointBuf,
+			buffer = gpuPointBuf,
 			size = 3,
 			type = gl.GL_FLOAT,
 			stride = ffi.sizeof(pt_t),
 			offset = ffi.offsetof(pt_t, 'pos'),
 		},
 		vel = pt_t == 'pt_9col_t' and {
-			buffer = glPointBuf,
+			buffer = gpuPointBuf,
 			size = 3,
 			type = gl.GL_FLOAT,
 			stride = ffi.sizeof(pt_t),
 			offset = ffi.offsetof(pt_t, 'vel'),
 		} or nil,
 		lum = pt_t == 'pt_9col_t' and {
-			buffer = glPointBuf,
+			buffer = gpuPointBuf,
 			size = 1,
 			type = gl.GL_FLOAT,
 			stride = ffi.sizeof(pt_t),
 			offset = ffi.offsetof(pt_t, 'lum'),
 		} or nil,
 		temp = pt_t == 'pt_9col_t' and {
-			buffer = glPointBuf,
+			buffer = gpuPointBuf,
 			size = 1,
 			type = gl.GL_FLOAT,
 			stride = ffi.sizeof(pt_t),
 			offset = ffi.offsetof(pt_t, 'temp'),
 		} or nil,
 		radius = pt_t == 'pt_9col_t' and {
-			buffer = glPointBuf,
+			buffer = gpuPointBuf,
 			size = 1,
 			type = gl.GL_FLOAT,
 			stride = ffi.sizeof(pt_t),
 			offset = ffi.offsetof(pt_t, 'radius'),
+		} or nil,
+		constellation = constellations and {
+			buffer = gpuConstellationBuf,
+			size = 1,
+			type = gl.GL_FLOAT,
+			stride = ffi.sizeof'float',	-- TODO just size of base type of buffer?
+			offset = 0,
 		} or nil,
 	}
 
@@ -494,6 +534,74 @@ typedef _<?=env.real?>4 real4;
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	
 	--refreshPoints()
+
+
+	hsvtex = GLHSVTex(1024, nil, true)
+
+--[[
+	tempMin = 3300
+	tempMax = 8000
+	-- https://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
+	local tempTexWidth = 1024
+	local tempImg = Image(tempTexWidth, 1, 3, 'unsigned char', function(i,j)
+		local frac = (i + .5) / tempTexWidth
+		local temp = frac * (tempMax - tempMin) + tempMin
+		local t = temp / 100
+		local r = t <= 66 and 255 or math.clamp(329.698727446 * ((t - 60) ^ -0.1332047592), 0, 255)
+		local g = t <= 66
+			and math.clamp(99.4708025861 * math.log(t) - 161.1195681661, 0, 255)
+			or math.clamp(288.1221695283 * ((t - 60) ^ -0.0755148492), 0, 255)
+		local b = t >= 66 
+			and 255 or (
+				t <= 19 
+					and 0 
+					or math.clamp(138.5177312231 * math.log(t - 10) - 305.0447927307, 0, 255)
+			)
+		return r,g,b
+	end)
+--]]
+-- [[ black body color table from http://www.vendian.org/mncharity/dir3/blackbody/UnstableURLs/bbr_color_D58.html
+	-- HYG data temp range is 1500 to 21700 
+	tempMin = 1000
+	tempMax = 40000
+	local rgbs = table()
+	for l in io.lines'bbr_color_D58.txt' do
+		if l ~= '' and l:sub(1,1) ~= '#' then
+			local cmf = l:sub(11,15)
+			if cmf == '10deg' then
+				local temp = tonumber(string.trim(l:sub(2,6)))
+				if temp >= tempMin and temp <= tempMax then
+					local r = tonumber(l:sub(82,83), 16)
+					local g = tonumber(l:sub(84,85), 16)
+					local b = tonumber(l:sub(86,87), 16)
+					rgbs:insert{r,g,b}
+				end
+			end
+		end
+	end
+	local tempImg = Image(#rgbs, 1, 3, 'unsigned char')
+	for i=0,#rgbs-1 do
+		for j=0,2 do
+			tempImg.buffer[j+3*i] = rgbs[i+1][j+1]
+		end
+	end
+--]]
+	tempTex = GLTex2D{
+		width = tempImg.width,
+		height = 1,
+		internalFormat = gl.GL_RGB,
+		format = gl.GL_RGB,
+		type = gl.GL_UNSIGNED_BYTE,
+		magFilter = gl.GL_LINEAR,
+		minFilter = gl.GL_NEAREST,
+		-- causing a gl error:
+		--wrap = {gl.GL_CLAMP_TO_EDGE, gl.GL_CLAMP_TO_EDGE},
+		image = tempImg,
+	}
+	glreport'here'
+
+
+
 
 --[[
 Sun: {absmag="4.850", base="", bayer="", bf="", ci="0.656", comp="1", comp_primary="0", con="", dec="0.000000", decrad="0", dist="0.0000", flam="", gl="", hd="", hip="", hr="", id="0", lum="1", mag="-26.700", pmdec="0.00", pmdecrad="0", pmra="0.00", pmrarad="0", proper="Sol", ra="0.000000", rarad="0", rv="0.0", spect="G2V", var="", var_max="", var_min="", vx="0.00000000", vy="0.00000000", vz="0.00000000", x="0.000005", y="0.000000", z="0.000000"}
@@ -543,21 +651,32 @@ local calcPointSize = template([[
 		LSunOverL0 = LSunOverL0,
 	})
 
+	-- i've neglected the postprocessing, and this has become the main shader
+	-- which does the fake-postproc just with a varying gl_PointSize
 	accumStarPointShader = GLProgram{
 		vertexCode = template([[
+<?
+local clnumber = require 'cl.obj.number'
+?>
 #version 460
 
 in vec3 pos;
 in float lum;
 in float temp;
+in float constellation;
 
-out float tempv;		//temperature, in K
 out float lumv;
+out vec3 tempcolor;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
-
 uniform float pointSizeBias;
+uniform bool showConstellations;
+uniform sampler2D tempTex;
+
+vec3 quatRotate(vec4 q, vec3 v) {
+	return v + 2. * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+}
 
 void main() {
 	vec4 vtx = vec4(pos.xyz, 1.);
@@ -576,21 +695,33 @@ void main() {
 		lumv *= pow(2., dimmer);
 	}
 
-	tempv = temp;
+	float tempfrac = (temp - <?=clnumber(tempMin)?>) * <?=clnumber(1/(tempMax - tempMin))?>;
+	tempcolor = texture2D(tempTex, vec2(tempfrac, .5)).rgb;
+
+	//if we are showing constellations then offset color by constellation index
+	if (showConstellations) {
+		tempcolor = vec3(1., .5., 5);
+		float amount = constellation / <?= clnumber(#(constellations or {}))?>;
+<? local _1_sqrt3 = 1 / 3^.5 ?>		
+		vec3 axis = vec3(<?=_1_sqrt3?>, <?=_1_sqrt3?>, <?=_1_sqrt3?>);
+		float halfAngle = <?=math.pi?> * amount;
+		vec4 q = vec4(axis * sin(halfAngle), cos(halfAngle));
+		tempcolor = quatRotate(q, tempcolor);
+	}
 }
-]], {calcPointSize = calcPointSize}),
+]], 	{
+			calcPointSize = calcPointSize,
+			constellations = constellations,
+			tempMin = tempMin,
+			tempMax = tempMax,
+		}),
 		fragmentCode = template([[
-<?
-local clnumber = require 'cl.obj.number'
-?>
 #version 130
 
-in float tempv;
 in float lumv;
+in vec3 tempcolor;
 
-uniform sampler2D tempTex;
 uniform float alpha;
-uniform float distSqAtten;
 
 void main() {
 	float lumf = lumv;
@@ -602,14 +733,9 @@ void main() {
 	lumf *= 1. / (10. * rsq + .1);
 #endif
 
-	float tempfrac = (tempv - <?=clnumber(tempMin)?>) * <?=clnumber(1/(tempMax - tempMin))?>;
-	vec3 tempcolor = texture2D(tempTex, vec2(tempfrac, .5)).rgb;
 	gl_FragColor = vec4(tempcolor * lumf * alpha, 1.);
 }
-]],			{
-				tempMin = tempMin,
-				tempMax = tempMax,
-			}),
+]]),
 		uniforms = {
 			tempTex = 0,
 		},
@@ -790,65 +916,6 @@ void main() {
 	drawIDShader:useNone()
 	glreport'here'
 
-
-	hsvtex = GLHSVTex(1024, nil, true)
-
---[[
-	-- https://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
-	local tempTexWidth = 1024
-	local tempImg = Image(tempTexWidth, 1, 3, 'unsigned char', function(i,j)
-		local frac = (i + .5) / tempTexWidth
-		local temp = frac * (tempMax - tempMin) + tempMin
-		local t = temp / 100
-		local r = t <= 66 and 255 or math.clamp(329.698727446 * ((t - 60) ^ -0.1332047592), 0, 255)
-		local g = t <= 66
-			and math.clamp(99.4708025861 * math.log(t) - 161.1195681661, 0, 255)
-			or math.clamp(288.1221695283 * ((t - 60) ^ -0.0755148492), 0, 255)
-		local b = t >= 66 
-			and 255 or (
-				t <= 19 
-					and 0 
-					or math.clamp(138.5177312231 * math.log(t - 10) - 305.0447927307, 0, 255)
-			)
-		return r,g,b
-	end)
---]]
--- [[ black body color table from http://www.vendian.org/mncharity/dir3/blackbody/UnstableURLs/bbr_color_D58.html
-	local rgbs = table()
-	for l in io.lines'bbr_color_D58.txt' do
-		if l ~= '' and l:sub(1,1) ~= '#' then
-			local cmf = l:sub(11,15)
-			if cmf == '10deg' then
-				local temp = tonumber(string.trim(l:sub(2,6)))
-				if temp >= tempMin and temp <= tempMax then
-					local r = tonumber(l:sub(82,83), 16)
-					local g = tonumber(l:sub(84,85), 16)
-					local b = tonumber(l:sub(86,87), 16)
-					rgbs:insert{r,g,b}
-				end
-			end
-		end
-	end
-	local tempImg = Image(#rgbs, 1, 3, 'unsigned char')
-	for i=0,#rgbs-1 do
-		for j=0,2 do
-			tempImg.buffer[j+3*i] = rgbs[i+1][j+1]
-		end
-	end
---]]
-	tempTex = GLTex2D{
-		width = tempImg.width,
-		height = 1,
-		internalFormat = gl.GL_RGB,
-		format = gl.GL_RGB,
-		type = gl.GL_UNSIGNED_BYTE,
-		magFilter = gl.GL_LINEAR,
-		minFilter = gl.GL_NEAREST,
-		-- causing a gl error:
-		--wrap = {gl.GL_CLAMP_TO_EDGE, gl.GL_CLAMP_TO_EDGE},
-		image = tempImg,
-	}
-	glreport'here'
 
 	-- maybe i can quick sort and throw in some random compare and that'll do some kind of rough estimate 
 print('looking for max')
@@ -1049,6 +1116,9 @@ function App:drawScene()
 		if accumStarPointShader.uniforms.pointSizeBias then
 			gl.glUniform1f(accumStarPointShader.uniforms.pointSizeBias.loc, pointSizeBias)
 		end
+		if accumStarPointShader.uniforms.showConstellations then
+			gl.glUniform1i(accumStarPointShader.uniforms.showConstellations.loc, showConstellations and 1 or 0)
+		end
 	
 		gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
 		gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
@@ -1216,9 +1286,9 @@ function App:update()
 	if showNeighbors then
 		gl.glEnable(gl.GL_BLEND)
 		gl.glColor3f(0,.2,0)
-		glPointBuf:bind()
+		gpuPointBuf:bind()
 		gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
-		glPointBuf:unbind()
+		gpuPointBuf:unbind()
 		gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 		closestStarLineElemBuf:bind() 
 		gl.glDrawElements(gl.GL_LINES, closestStarLines.size, gl.GL_UNSIGNED_INT, nil)
@@ -1320,6 +1390,7 @@ function App:updateGUI()
 	checkboxTable('draw lines', _G, 'drawLines')
 	checkboxTable('show pick scene', _G, 'showPickScene')	
 	checkboxTable('show grid', _G, 'drawGrid')	
+	checkboxTable('show constellations', _G, 'showConstellations')
 	checkboxTable('show nbhd', _G, 'showNeighbors')
 
 	sliderFloatTable('vel scalar', _G, 'velScalarValue', 0, 1000000000, '%.7f', 10)
@@ -1380,6 +1451,12 @@ function App:updateGUI()
 		local name = names and names[selectedIndex] or nil
 		if name then
 			s:insert('name: '..tostring(name))
+		end
+		if constellations then
+			local c = constellations[tonumber(cpuConstellationBuf[selectedIndex])+1].name
+			if c then
+				s:insert('constellation: '..c)
+			end
 		end
 
 		local pt = cpuPointBuf[selectedIndex]
