@@ -43,8 +43,8 @@ print = set this to print out all the remaining points
 nolumnans = remove nan luminosity ... not needed, this was a mixup of abs mag and lum, and idk why abs mag had nans (maybe it too was being calculated from lums that were abs mags that had negative values?)
 addsun = add our sun to the dataset.  I don't see it in there.
 nounnamed = remove stars that don't have entries in the namefile
-buildNbhds = build neighbhoods
-buildVels
+buildnbhds = build neighbhoods
+buildvels
 --]]
 local cmdline = require 'ext.cmdline'(...)
 
@@ -223,27 +223,28 @@ local LSunOverL0 = LSun / L0
 
 -- set to true to put some rough connections between neighboring stars
 -- which TODO looks like soup until I dist-atten it somehow
-local buildNeighborhood = cmdline.buildNbhds
-local buildVelocityBuffers = cmdline.buildVels
+local buildNeighborhood = cmdline.buildnbhds
+local buildVelocityBuffers = cmdline.buildvels
 
 -- _G so that sliderFloatTable can use them
-alphaValue = .5
-lineAlphaValue = .5
+starPointAlpha = .5
+velLineAlpha = .5
 pointSizeBias = 0
-hsvRangeValue = .2
-hdrScaleValue = .001
-hdrGammaValue = 1
-bloomLevelsValue = 0
-showDensityValue = false
-velScalarValue = 1
+hsvRange = .2
+hdrScale = .001
+hdrGamma = 1
+bloomLevels = 0
+showDensity = false
+velScalar = 1
 drawPoints = true
 drawVelLines = true
-normalizeVelValue = false
+normalizeVel = false
 showPickScene = false
 showInformation = true			-- show information on the current star being hovered over
 drawGrid = true			-- draw a sphere with 30' segments around our orbiting star
 gridRadius = 100
 showNeighbors = false	-- associated with the initialization flag buildNeighborhood
+nbhdLineAlpha = 1
 showConstellations = false
 sliceRMin = 0
 sliceRMax = math.huge
@@ -551,13 +552,18 @@ print('looking for max')
 		local threeSigma = 570
 		local min = -570
 		local max = 570
-		local nodeCount = 1
+		local nodeCount = 0
+		local box3 = require 'vec.box3'
 		local root = {
-			min = vec3d(min,min,min),
-			max = vec3d(max,max,max),
+			index = nodeCount,
+			box = box3{
+				min = {min, min, min},
+				max = {max, max, max},
+			},
 			pts = table(),
 		}
-		root.mid = (root.min + root.max) * .5
+		root.mid = (root.box.min + root.box.max) * .5
+		nodeCount = nodeCount + 1
 		local nodemax = 10
 		local function addToTree(node, i)
 			local pos = cpuPointBuf[i].pos	
@@ -565,9 +571,9 @@ print('looking for max')
 			-- have we divided?  pay it forward.
 			if node.children then
 				local childIndex = bit.bor(
-					(pos.x > node.mid.x) and 1 or 0,
-					(pos.y > node.mid.y) and 2 or 0,
-					(pos.z > node.mid.z) and 4 or 0)
+					(pos.x > node.mid[1]) and 1 or 0,
+					(pos.y > node.mid[2]) and 2 or 0,
+					(pos.z > node.mid[3]) and 4 or 0)
 				return addToTree(node.children[childIndex], i)
 			end
 		
@@ -581,30 +587,33 @@ print('looking for max')
 					local yL = bit.band(childIndex,2) == 0
 					local zL = bit.band(childIndex,4) == 0
 					local child = {
-						min = vec3d(
-							xL and node.min.x or node.mid.x,
-							yL and node.min.y or node.mid.y,
-							zL and node.min.z or node.mid.z
-						),
-						max = vec3d(
-							xL and node.mid.x or node.max.x,
-							yL and node.mid.y or node.max.y,
-							zL and node.mid.z or node.max.z
-						),
+						index = nodeCount,
+						box = box3{
+							min = {
+								xL and node.box.min[1] or node.mid[1],
+								yL and node.box.min[2] or node.mid[2],
+								zL and node.box.min[3] or node.mid[3]
+							},
+							max = {
+								xL and node.mid[1] or node.box.max[1],
+								yL and node.mid[2] or node.box.max[2],
+								zL and node.mid[3] or node.box.max[3]
+							},
+						},
 						pts = table()
 					}
-					nodeCount = nodeCount + 1
-					child.mid = (child.min + child.max) * .5
+					child.mid = (child.box.min + child.box.max) * .5
 					child.parent = node
 					node.children[childIndex] = child
+					nodeCount = nodeCount + 1
 				end
 				-- split the nodes up into the children
 				for _,i in ipairs(node.pts) do
 					local pos = cpuPointBuf[i].pos	
 					local childIndex = bit.bor(
-						(pos.x > node.mid.x) and 1 or 0,
-						(pos.y > node.mid.y) and 2 or 0,
-						(pos.z > node.mid.z) and 4 or 0)
+						(pos.x > node.mid[1]) and 1 or 0,
+						(pos.y > node.mid[2]) and 2 or 0,
+						(pos.z > node.mid[3]) and 4 or 0)
 					addToTree(node.children[childIndex], i)
 				end
 				node.pts = nil
@@ -616,6 +625,13 @@ print'pushing into bins'
 		end
 print('created '..nodeCount..' nodes')
 print'searching bins'	
+	
+		-- when connecting each star to all closest stars:
+		-- nbhdThrehsold = 5 <=> 248422 lines
+		-- nbhdThrehsold = 7 <=> 689832 lines
+		-- nbhdThrehsold = 10 <=> too many 
+		local nbhdThreshold = 7	-- in Pc
+		
 		local ai = 1
 		local lastTime = os.time()	
 		local function searchTree(node)
@@ -626,6 +642,41 @@ print'searching bins'
 				end
 			else
 				assert(node.pts)
+
+				-- TODO how about nbhd threshold based on abs mag? log10 of distance from neighboring stars?
+				-- so you see more connectiosn for more visible stars?
+				-- so the lines represent what can see the star?
+				local touchbnd = box3{
+					min = {
+						node.box.min[1] - nbhdThreshold, 
+						node.box.min[2] - nbhdThreshold, 
+						node.box.min[3] - nbhdThreshold, 
+					}, 
+					max = {
+						node.box.max[1] + nbhdThreshold, 
+						node.box.max[2] + nbhdThreshold, 
+						node.box.max[3] + nbhdThreshold, 
+					},
+				}
+
+				local touchingNodes = table()
+				local function search2(node2)
+					-- if we don't contain the node, or if we don't touch the node, then bail
+					if not node2.box:touches(touchbnd) then return end
+					if node2.children then
+						assert(not node2.pts)
+						for ch=0,7 do
+							search2(node2.children[ch])
+						end
+					else
+						-- if touchbnd contains node2.box then just add all
+						assert(node2.pts)
+						touchingNodes:insert(node2)
+					end
+				end
+				-- search through all touching nodes of this node
+				search2(root)
+
 
 				-- TODO for each point in the leaf
 				-- search all neighbors and all parents, and all parents' neighbors
@@ -660,10 +711,11 @@ print'searching bins'
 					nb.dist = dist
 					cpuNbhdLineBuf:push_back(nb)
 --]=]
--- [=[
-					for j=i+2,n do
+--[=[
+					for j=i+1,n do
 						local pj = cpuPointBuf[pts[j]]
 						local dist = (pi.pos - pj.pos):length()
+						-- only add if dist is half the box width?
 						local na = ffi.new'nbhd_t'
 						na.pos:set(pi.pos:unpack())
 						na.dist = dist
@@ -674,14 +726,33 @@ print'searching bins'
 						cpuNbhdLineBuf:push_back(nb)					
 					end
 --]=]
-					
+-- [=[				
 					-- now compare up the tree
 					-- but there are no points in non-leaf nodes
 					-- so we have to find all leafs that are neighboring this node
 					-- so ... i guess that means traverse the whole tree
 					-- and look at whose bounding points are contained by our bounding points
-					local n = node.parent
-
+					for _,node2 in ipairs(touchingNodes) do
+						-- don't process node pairs twice
+						if node2.index >= node.index then
+							for j = (node == node2 and i+1 or 1),#node2.pts do
+								local pj = cpuPointBuf[node2.pts[j]]
+								local distSq = (pi.pos - pj.pos):lenSq()
+								if distSq < nbhdThreshold * nbhdThreshold then
+									local dist = math.sqrt(distSq)
+									local na = ffi.new'nbhd_t'
+									na.pos:set(pi.pos:unpack())
+									na.dist = dist
+									cpuNbhdLineBuf:push_back(na)
+									local nb = ffi.new'nbhd_t'
+									nb.pos:set(pj.pos:unpack())
+									nb.dist = dist
+									cpuNbhdLineBuf:push_back(nb)					
+								end
+							end
+						end
+					end
+--]=]
 					--[[
 					local thisTime = os.time()
 					if lastTime ~= thisTime then
@@ -693,7 +764,7 @@ print'searching bins'
 			end
 		end
 		searchTree(root)
-print'done'
+print('created '..#cpuNbhdLineBuf..' nbhd lines')
 
 		gpuNbhdLineBuf = GLArrayBuffer{
 			size = ffi.sizeof(cpuNbhdLineBuf.type) * #cpuNbhdLineBuf,
@@ -945,7 +1016,7 @@ in float lumv;
 in vec3 tempcolor;
 in float discardv;
 
-uniform float alpha;
+uniform float starPointAlpha;
 
 void main() {
 	if (discardv > 0.) {
@@ -961,7 +1032,7 @@ void main() {
 	lumf *= 1. / (10. * rsq + .1);
 #endif
 
-	gl_FragColor = vec4(tempcolor * lumf * alpha, 1.);
+	gl_FragColor = vec4(tempcolor * lumf * starPointAlpha, 1.);
 }
 ]]),
 		uniforms = {
@@ -1008,7 +1079,7 @@ void main() {
 
 in float lumv;
 
-uniform float alpha;
+uniform float velLineAlpha;
 
 void main() {
 	float lumf = lumv;
@@ -1025,7 +1096,7 @@ void main() {
 	lumf *= 1. / (10. * rsq + .1);
 #endif
 
-	vec3 color = vec3(.1, 1., .1) * lumf * alpha;
+	vec3 color = vec3(.1, 1., .1) * lumf * velLineAlpha;
 	gl_FragColor = vec4(color, 1.); 
 	//gl_FragColor = vec4(1., 1., 1., 100.);
 }
@@ -1104,6 +1175,7 @@ in float dist;
 
 out float lumv;
 
+uniform float nbhdLineAlpha;
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 
@@ -1111,9 +1183,9 @@ void main() {
 	vec4 vtx = vec4(pos, 1.);
 	vec4 vmv = modelViewMatrix * vtx;
 	gl_Position = projectionMatrix * vmv;
-//	float distInPc = length(vmv.xyz);
-	lumv = 10. / (dist 
-//		* (distInPc + 1.)
+	float viewDist = length(vmv.xyz);
+	lumv = nbhdLineAlpha / (dist * dist
+		* (viewDist + 1.)
 );
 }
 ]],
@@ -1206,7 +1278,7 @@ function App:drawScene()
 		
 		accumStarPointShader:use()
 		accumStarPointShader:setUniforms{
-			alpha = alphaValue,
+			starPointAlpha = starPointAlpha,
 			pointSizeBias = pointSizeBias,
 			sliceRMin = sliceRMin,
 			sliceRMax = sliceRMax,
@@ -1231,9 +1303,9 @@ function App:drawScene()
 	if drawVelLines and buildVelocityBuffers then
 		accumStarLineShader:use()
 		accumStarLineShader:setUniforms{
-			alpha = lineAlphaValue,
-			velScalar = velScalarValue,
-			normalizeVel = normalizeVelValue and 1 or 0,
+			velLineAlpha = velLineAlpha,
+			velScalar = velScalar,
+			normalizeVel = normalizeVel and 1 or 0,
 			modelViewMatrix = modelViewMatrix.ptr,
 			projectionMatrix = projectionMatrix.ptr,
 		}
@@ -1297,11 +1369,11 @@ function App:drawWithAccum()
 
 	renderAccumShader:use()
 	renderAccumShader:setUniforms{
-		hdrScale = hdrScaleValue,
-		hdrGamma = hdrGammaValue,
-		hsvRange = hsvRangeValue,
-		bloomLevels = bloomLevelsValue,
-		showDensity = showDensityValue and 1 or 0,
+		hdrScale = hdrScale,
+		hdrGamma = hdrGamma,
+		hsvRange = hsvRange,
+		bloomLevels = bloomLevels,
+		showDensity = showDensity and 1 or 0,
 	}
 	fbotex:bind(0)
 	hsvtex:bind(1)
@@ -1357,6 +1429,7 @@ function App:update()
 		gl.glEnable(gl.GL_BLEND)
 		drawNbhdLineShader:use()
 		drawNbhdLineShader:setUniforms{
+			nbhdLineAlpha = nbhdLineAlpha,
 			modelViewMatrix = modelViewMatrix.ptr,
 			projectionMatrix = projectionMatrix.ptr,
 		}
@@ -1481,14 +1554,14 @@ function App:updateGUI()
 	checkboxTable('draw points', _G, 'drawPoints')
 	sliderFloatTable('point size', _G, 'pointSizeBias', -10, 10)
 	sliderFloatTable('pick size', _G, 'pickSizeBias', 0, 20)
-	inputFloatTable('point alpha value', _G, 'alphaValue')
+	inputFloatTable('point alpha value', _G, 'starPointAlpha')
 
 --[[ not used atm	
-	checkboxTable('show density', _G, 'showDensityValue')
-	sliderFloatTable('hdr scale', _G, 'hdrScaleValue', 0, 1000, '%.7f', 10)
-	sliderFloatTable('hdr gamma', _G, 'hdrGammaValue', 0, 1000, '%.7f', 10)
-	sliderFloatTable('hsv range', _G, 'hsvRangeValue', 0, 1000, '%.7f', 10)
-	sliderFloatTable('bloom levels', _G, 'bloomLevelsValue', 0, 8)
+	checkboxTable('show density', _G, 'showDensity')
+	sliderFloatTable('hdr scale', _G, 'hdrScale', 0, 1000, '%.7f', 10)
+	sliderFloatTable('hdr gamma', _G, 'hdrGamma', 0, 1000, '%.7f', 10)
+	sliderFloatTable('hsv range', _G, 'hsvRange', 0, 1000, '%.7f', 10)
+	sliderFloatTable('bloom levels', _G, 'bloomLevels', 0, 8)
 --]]	
 	
 	inputFloatTable('slice r min', _G, 'sliceRMin')
@@ -1502,6 +1575,7 @@ function App:updateGUI()
 	-- draw nhbd lines stuff which looks dumb right now
 	if buildNeighborhood then
 		checkboxTable('show nbhd', _G, 'showNeighbors')
+		inputFloatTable('nbhd alpha', _G, 'nbhdLineAlpha')
 	end
 
 	-- view stuff
@@ -1545,9 +1619,9 @@ function App:updateGUI()
 
 	-- draw vel lines
 	checkboxTable('draw vel lines', _G, 'drawVelLines')
-	inputFloatTable('line alpha value', _G, 'lineAlphaValue')
-	inputFloatTable('vel scalar', _G, 'velScalarValue')
-	checkboxTable('normalize velocity', _G, 'normalizeVelValue')
+	inputFloatTable('line alpha value', _G, 'velLineAlpha')
+	inputFloatTable('vel scalar', _G, 'velScalar')
+	checkboxTable('normalize velocity', _G, 'normalizeVel')
 
 	-- gui stuff
 	checkboxTable('show mouseover info', _G, 'showInformation')
