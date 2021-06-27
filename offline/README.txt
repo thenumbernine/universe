@@ -17,11 +17,36 @@ universe/
 		gaia/
 			source/	<- put the FITS file here, should be found at http://gea.esac.esa.int/archive/ adql form with the query...
 						"select source_id, ra, dec, parallax, pmra, pmdec, radial_velocity, teff_val, radius_val, lum_val from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null order by source_id asc"
-					... 7183262 have pmra, pmdec, radial_velocity (from "select count(source_id) from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null")
-					... 6081418 have pmra, pmdec, radial_velocity, lum_val (from "select count(source_id) from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null and lum_val is not null")
-					... 6081418 have pmra, pmdec, radial_velocity, teff_val, radius_val, lum_val 
+					... 7,183,262 have pmra, pmdec, radial_velocity (from "select count(source_id) from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null")
+					... 6,081,418 have pmra, pmdec, radial_velocity, lum_val (from "select count(source_id) from gaiadr2.gaia_source where pmra is not null and pmdec is not null and radial_velocity is not null and lum_val is not null")
+					... 6,081,418 have pmra, pmdec, radial_velocity, teff_val, radius_val, lum_val 
+
+
+				how many have ra, dec, lum_val, teff_val, radius_val?  just possibly missing velocity.
+					... 76,956,778 have teff_val, lum_val, radius_val from "select count(source_id) from gaiadr2.gaia_source where lum_val is not null and teff_val is not null and radius_val is not null;"
+
 				The Gaia online query only has a maximum of 3000000 rows so you will have to add 'offset 3000000' and 'offset 6000000' etc to get all possible files.
 				Name them: 1.fits 2.fits 3.fits
+		gaia-dr2-dist/
+			source/
+				fits file goes here
+
+					select gaia.source_id, gaia.ra, gaia.dec, gaia.teff_val, gaia.radius_val, gaia.lum_val, dist.r_est 
+					from gaiadr2.gaia_source as gaia 
+					inner join external.gaiadr2_geometric_distance as dist 
+					on gaia.source_id = dist.source_id 
+					where gaia.teff_val is not null 
+					and gaia.lum_val is not null 
+					and dist.r_est is not null 
+					;
+
+					maybe also query radius_val too if you want, but what's that good for, except when you are closely orbitting the star 
+
+					and even though there are 1.3 billion dist calcs, there are only 76,956,778 that include temp and lum
+					so ... how to download that in 3mil row chunks ... 
+
+			Tha Gaia DR2 + Max Planck extra distance calculations on 1.3 billion stars
+
 
 
 USAGE:

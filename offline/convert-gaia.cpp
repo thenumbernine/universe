@@ -345,7 +345,7 @@ struct ConvertSDSS {
 				}
 
 				if (verbose) {
-					std::cout << "distance (Mpc) " << distance << std::endl;
+					std::cout << "distance (Pc) " << distance << std::endl;
 				}
 
 				if (interactive) {

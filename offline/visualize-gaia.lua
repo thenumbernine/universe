@@ -38,10 +38,13 @@ lummin = set this to filter out for min value in solar luminosity
 lumhicount = show only this many of the highest-luminosity stars
 appmaghicount = show only this many of the highest apparent magnitude stars
 rlowcount = show only this many of the stars with lowest r
+rmax = filter out points further than this value
 print = set this to print out all the remaining points
 nolumnans = remove nan luminosity ... not needed, this was a mixup of abs mag and lum, and idk why abs mag had nans (maybe it too was being calculated from lums that were abs mags that had negative values?)
 addsun = add our sun to the dataset.  I don't see it in there.
 nounnamed = remove stars that don't have entries in the namefile
+buildNbhds = build neighbhoods
+buildVels
 --]]
 local cmdline = require 'ext.cmdline'(...)
 
@@ -50,7 +53,7 @@ local set = cmdline.set or 'hyg'
 
 local filename = cmdline.filename or ('datasets/'..set..'/points/points-9col.f32')
 local namefile = cmdline.namefile or ('datasets/'..set..'/namedStars.lua')
-local consfile = cmdline.consfile or ('datasets/'..set..'/constellations.lua')
+local constellationFile = cmdline.consfile or ('datasets/'..set..'/constellations.lua')
 
 local format = cmdline.format or filename:match'%-(.*)%.f32$' or '3col'
 
@@ -64,11 +67,25 @@ if namefile then
 	end
 end
 
+-- this file holds info for the constellation field value of the pt_t
+-- it also holds the 'indexes' but this is a bad idea for larger datasets
+-- hmm, how about I don't store constellation per-point/ channels at all? 
+-- and instead I just store regions of the sky?
 local constellations
-if consfile then
-	local consdata = file[consfile]
+if constellationFile then
+	local consdata = file[constellationFile]
 	if consdata then
 		constellations = fromlua(consdata)
+		constellations = table.sort(constellations, function(a,b)
+			return (a.name or ''):lower() < (b.name or ''):lower()
+		end)
+		for _,constellation in ipairs(constellations) do
+			constellation.enabled = false
+		end
+--[[ shuffling is great for getting asosciated colors unique
+-- but it will ruin the association with the 'constellation' channel in the pt_t buffer
+-- so TODO instead, how about remapping via a table / texture ?		
+-- though I am leaning away from the 'constellation' channel, since larger databases like Gaia do not have it		
 		if constellations then
 -- idk if it's just my list, but when i color hue by constellation, i get a rainbow
 -- and i don't want a rainbow, i want discernible colors
@@ -83,6 +100,7 @@ if consfile then
 				constellations:insert(1, baseStars)
 			end
 		end
+--]]		
 		print('loaded '..#constellations..' constellations')
 	end
 end
@@ -97,15 +115,15 @@ App.viewDist = 5e-4
 my gaia data: 
 	float pos[3]
 	float vel[3]
-	float luminosity		<-> absoluteMagnitude
-	float temperature		<-> colorIndex
+	float luminosity
+	float temperature
 	float radius
 	TODO uint64_t source_id
 my hyg data:
 	float pos[3]
 	float vel[3]
-	float absoluteMagnitude	<-> luminosity
-	float colorIndex		<-> temperature
+	float luminosity
+	float temperature
 	float constellationIndex
 --]]
 ffi.cdef[[
@@ -148,6 +166,15 @@ typedef struct {
 	*/
 	float temp;
 
+	//TODO
+	//in HYG I'm actually outputting the constellation index here
+	// which I'm rebuilding later from the 'constellations' file ...
+	/// sooo ... dont' rebuild it? just make this 'constellation'
+	//and as far as radius ... HYG has r1 and r2 for spheroid sizes
+	//Gaia has 'radius' as well 
+	//how many valid columns in both?
+	// I should add on 'r1' and 'r2' .. or just 'radius' ... for both
+	// and make this 11 cols
 	//radius, probably in sun-radii
 	float radius;
 } pt_9col_t;
@@ -162,17 +189,26 @@ local pt_t = ({
 })[format] or error("couldn't deduce point type from format")
 
 -- 2x
-local glLinePosBufID = ffi.new'GLuint[1]'
-local glLineVelBufID = ffi.new'GLuint[1]'
+local gpuVelLineElemBuf
+local cpuVelLineElemBuf 
 
-local closestStarLines
-local closestStarLineElemBuf
 
-local env
+ffi.cdef[[
+typedef struct {
+	vec3f_t pos;	//pos of each endpoint of the line
+	float dist;		//distance between.  will be doubled up in pairs of vertexes for each line 
+} nbhd_t;
+]]
+
+local cpuNbhdLineBuf
+local gpuNbhdLineBuf
+
+local env	-- I'm not using CL at the moment 
+local drawIDShader
 local accumStarPointShader
 local accumStarLineShader
 local renderAccumShader
-local drawIDShader
+local drawNbhdLineShader
 
 local fbo
 local fbotex
@@ -185,11 +221,15 @@ local LSun = 3.828e+26 	-- Watts
 local L0 = 3.0128e+28	-- Watts
 local LSunOverL0 = LSun / L0
 
+-- set to true to put some rough connections between neighboring stars
+-- which TODO looks like soup until I dist-atten it somehow
+local buildNeighborhood = cmdline.buildNbhds
+local buildVelocityBuffers = cmdline.buildVels
 
 -- _G so that sliderFloatTable can use them
 alphaValue = .5
+lineAlphaValue = .5
 pointSizeBias = 0
-distSqAtten = 1e-5
 hsvRangeValue = .2
 hdrScaleValue = .001
 hdrGammaValue = 1
@@ -197,20 +237,17 @@ bloomLevelsValue = 0
 showDensityValue = false
 velScalarValue = 1
 drawPoints = true
-drawLines = false
-normalizeVelValue = 0
+drawVelLines = true
+normalizeVelValue = false
 showPickScene = false
+showInformation = true			-- show information on the current star being hovered over
 drawGrid = true			-- draw a sphere with 30' segments around our orbiting star
-showNeighbors = false
-showConstellations = true
-print[[
-TODO 
-rmin/rmax
-thetamin/thetamax
-phimin/phimax
-occlusion
-color constellations (might need that extra constellation channel)
-]]
+gridRadius = 100
+showNeighbors = false	-- associated with the initialization flag buildNeighborhood
+showConstellations = false
+sliceRMin = 0
+sliceRMax = math.huge
+
 
 --[[
 picking is based on point size drawn
@@ -227,7 +264,6 @@ pickSizeBias = 4
 
 local numPts	-- number of points
 local gpuPointBuf, cpuPointBuf
-local cpuConstellationBuf, glConsBuf	-- buffer of the index of the constellation
 
 function App:initGL(...)
 	App.super.initGL(self, ...)
@@ -260,6 +296,7 @@ print('loaded '..numPts..' stars...')
 	or cmdline.lumhicount
 	or cmdline.appmaghicount 
 	or cmdline.rlowcount
+	or cmdline.rmax 
 	or cmdline.nolumnans 
 	or cmdline.addsun
 	or (cmdline.nounnamed and names)
@@ -278,6 +315,7 @@ print('loaded '..numPts..' stars...')
 					pts:remove(i+1)
 				end
 			end
+			print('nounnamed filtered down to '..#pts)
 		end
 
 		if cmdline.nolumnans then
@@ -326,9 +364,27 @@ print('loaded '..numPts..' stars...')
 			end):sub(1, cmdline.rlowcount)
 			print('rlowcount filtered down to '..#pts)
 		end
+		if cmdline.rmax then
+			pts = pts:filter(function(pt)
+				return pt.obj.pos:length() <= cmdline.rmax
+			end)
+			print('rmin filtered down to '..#pts)
+		end
 
-		-- now remap named stars
-		if names or constellations then
+		-- now remap the constellations and names 
+		if names then
+			local newnames = names and {} or nil
+			for i,pt in ipairs(pts) do
+				-- pts will be 0-based
+				if names then
+					newnames[i-1] = names[pt.index]
+				end
+			end
+			if names then
+				names = newnames
+			end
+		end
+		if constellations then
 			if constellations then
 				for _,c in ipairs(constellations) do
 					c.indexset = table.mapi(c.indexes, function(index)
@@ -337,12 +393,7 @@ print('loaded '..numPts..' stars...')
 					c.indexes = {}
 				end
 			end
-			local newnames = names and {} or nil
 			for i,pt in ipairs(pts) do
-				-- pts will be 0-based
-				if names then
-					newnames[i-1] = names[pt.index]
-				end
 				if constellations then
 					for _,c in ipairs(constellations) do
 						if c.indexset[pt.index] then
@@ -355,9 +406,6 @@ print('loaded '..numPts..' stars...')
 				for _,c in ipairs(constellations) do
 					c.indexset = nil
 				end
-			end
-			if names then
-				names = newnames
 			end
 		end
 
@@ -374,17 +422,6 @@ print('loaded '..numPts..' stars...')
 			cpuPointBuf[i] = pts[i+1].obj
 		end
 changed = true
-	end
-
-	if constellations then
-assert(not changed, "todo need to remap constellations buf as well")
-		cpuConstellationBuf = ffi.new('float[?]', numPts)
-		for conIndex,con in ipairs(constellations) do
-			for _,i in ipairs(con.indexes) do
-				-- i is zero-based, conIndex is 1-based
-				cpuConstellationBuf[i] = conIndex-1	
-			end
-		end
 	end
 
 	env = CLEnv{precision='float', size=numPts, useGLSharing=false}
@@ -415,7 +452,7 @@ typedef _<?=env.real?>4 real4;
 	env.code = env.code .. real3code
 	
 	-- get range
-	local s = require 'stat.set'('x','y','z','r', 'lum', 'temp')
+	local s = require 'stat.set'('x','y','z','r', 'v', 'lum', 'temp')
 	-- TODO better way of setting these flags ... in ctor maybe?
 	for _,s in ipairs(s) do
 		s.onlyFinite = true
@@ -434,51 +471,25 @@ typedef _<?=env.real?>4 real4;
 
 	lum stddev is 163, so 3 stddev is ~ 500
 	--]]
-	--local rbin = require 'stat.bin'(0, 3e+6, 50)
-	--local lumbin = require 'stat.bin'(0, 1000, 200)
 	for i=0,numPts-1 do
-		local pos = cpuPointBuf[i].pos
+		local pt = cpuPointBuf[i]
+		local pos = pt.pos
 		local x,y,z = pos:unpack()
 		local r = pos:length()
-		local lum = cpuPointBuf[i].lum
-		local temp = cpuPointBuf[i].temp
-		s:accum(x, y, z, r, lum, temp)
-		--rbin:accum(r)
-		--lumbin:accum(lum)
+		local v = pt.vel:length()
+		local lum = pt.lum
+		local temp = pt.temp
+		s:accum(x, y, z, r, v, lum, temp)
 	end
 	print("data range (Pc):")
 	print(s)
---	print('r bins = '..rbin)
---	print('lum bins = '..lumbin)
-
-	local cpuLinePosBuf = ffi.new('_float4[?]', 2*numPts)	-- pts buf x number of vtxs
-	local cpuLineVelBuf = ffi.new('_float4[?]', 2*numPts)
-
-	for i=0,numPts-1 do
-		for j=0,1 do
-			cpuLinePosBuf[j+2*i].x = cpuPointBuf[i].pos.x
-			cpuLinePosBuf[j+2*i].y = cpuPointBuf[i].pos.y
-			cpuLinePosBuf[j+2*i].z = cpuPointBuf[i].pos.z
-			cpuLinePosBuf[j+2*i].w = cpuPointBuf[i].lum
-			cpuLineVelBuf[j+2*i].x = cpuPointBuf[i].vel.x
-			cpuLineVelBuf[j+2*i].y = cpuPointBuf[i].vel.y
-			cpuLineVelBuf[j+2*i].z = cpuPointBuf[i].vel.z
-			cpuLineVelBuf[j+2*i].w = j
-		end
-	end
 
 	gpuPointBuf = GLArrayBuffer{
 		size = numPts * ffi.sizeof(pt_t),
 		data = cpuPointBuf,
 	}
 
-	gpuConstellationBuf = GLArrayBuffer{
-		size = numPts * ffi.sizeof'float',
-		data = cpuConstellationBuf,
-	}
-
-
-	local pointAttrs = {
+	local pt_t_attrs = {
 		pos = {
 			buffer = gpuPointBuf,
 			size = 3,
@@ -514,53 +525,205 @@ typedef _<?=env.real?>4 real4;
 			stride = ffi.sizeof(pt_t),
 			offset = ffi.offsetof(pt_t, 'radius'),
 		} or nil,
-		constellation = constellations and {
-			buffer = gpuConstellationBuf,
-			size = 1,
-			type = gl.GL_FLOAT,
-			stride = ffi.sizeof'float',	-- TODO just size of base type of buffer?
-			offset = 0,
-		} or nil,
 	}
 
-	gl.glGenBuffers(1, glLinePosBufID)
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
-	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*numPts*ffi.sizeof'_float4', cpuLinePosBuf, gl.GL_STATIC_DRAW)
 
-	gl.glGenBuffers(1, glLineVelBufID)
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLineVelBufID[0])
-	gl.glBufferData(gl.GL_ARRAY_BUFFER, 2*numPts*ffi.sizeof'_float4', cpuLineVelBuf, gl.GL_STATIC_DRAW)
+	if buildVelocityBuffers then
+		cpuVelLineElemBuf = vector'int'
+		for i=0,numPts-1 do
+			cpuVelLineElemBuf:push_back(i)
+			cpuVelLineElemBuf:push_back(i)
+		end
+		
+		gpuVelLineElemBuf = GLElementArrayBuffer{
+			size = ffi.sizeof(cpuVelLineElemBuf.type) * #cpuVelLineElemBuf,
+			data = cpuVelLineElemBuf.v,
+		}
+	end
+
+	local nbhd_t_attrs
+	if buildNeighborhood then
+		-- maybe i can quick sort and throw in some random compare and that'll do some kind of rough estimate 
+print('looking for max')
+		cpuNbhdLineBuf = vector'nbhd_t'
+		-- heuristic with bins
+		-- r stddev is 190, so 3 is 570
+		local threeSigma = 570
+		local min = -570
+		local max = 570
+		local nodeCount = 1
+		local root = {
+			min = vec3d(min,min,min),
+			max = vec3d(max,max,max),
+			pts = table(),
+		}
+		root.mid = (root.min + root.max) * .5
+		local nodemax = 10
+		local function addToTree(node, i)
+			local pos = cpuPointBuf[i].pos	
+			
+			-- have we divided?  pay it forward.
+			if node.children then
+				local childIndex = bit.bor(
+					(pos.x > node.mid.x) and 1 or 0,
+					(pos.y > node.mid.y) and 2 or 0,
+					(pos.z > node.mid.z) and 4 or 0)
+				return addToTree(node.children[childIndex], i)
+			end
+		
+			-- not divided yet?  push into leaf until it gets too big, then divide.
+			node.pts:insert(i)
+			if #node.pts >= nodemax then
+				-- make children
+				node.children = {}
+				for childIndex=0,7 do
+					local xL = bit.band(childIndex,1) == 0
+					local yL = bit.band(childIndex,2) == 0
+					local zL = bit.band(childIndex,4) == 0
+					local child = {
+						min = vec3d(
+							xL and node.min.x or node.mid.x,
+							yL and node.min.y or node.mid.y,
+							zL and node.min.z or node.mid.z
+						),
+						max = vec3d(
+							xL and node.mid.x or node.max.x,
+							yL and node.mid.y or node.max.y,
+							zL and node.mid.z or node.max.z
+						),
+						pts = table()
+					}
+					nodeCount = nodeCount + 1
+					child.mid = (child.min + child.max) * .5
+					child.parent = node
+					node.children[childIndex] = child
+				end
+				-- split the nodes up into the children
+				for _,i in ipairs(node.pts) do
+					local pos = cpuPointBuf[i].pos	
+					local childIndex = bit.bor(
+						(pos.x > node.mid.x) and 1 or 0,
+						(pos.y > node.mid.y) and 2 or 0,
+						(pos.z > node.mid.z) and 4 or 0)
+					addToTree(node.children[childIndex], i)
+				end
+				node.pts = nil
+			end
+		end
+print'pushing into bins'	
+		for i=0,numPts-1 do
+			addToTree(root, i)
+		end
+print('created '..nodeCount..' nodes')
+print'searching bins'	
+		local ai = 1
+		local lastTime = os.time()	
+		local function searchTree(node)
+			if node.children then
+				assert(not node.pts)
+				for childIndex=0,7 do
+					searchTree(node.children[childIndex])
+				end
+			else
+				assert(node.pts)
+
+				-- TODO for each point in the leaf
+				-- search all neighbors and all parents, and all parents' neighbors
+				-- which means everything except siblings-of-siblings
+
+				local pts = node.pts
+				local n = #pts
+				for i=1,n-1 do
+					local pi = cpuPointBuf[pts[i]]
+
+--[=[
+					local bestj = i+1
+					local pj = cpuPointBuf[pts[bestj]]
+					local bestdistsq = (pi.pos - pj.pos):lenSq()
+					for j=i+2,n do
+						pj = cpuPointBuf[pts[j]]
+						distsq = (pi.pos - pj.pos):lenSq()
+						if distsq < bestdistsq then
+							bestdistsq = distsq
+							bestj = j
+						end
+					end
+					pj = cpuPointBuf[pts[bestj]]
+					
+					local dist = (pi.pos - pj.pos):length()
+					local na = ffi.new'nbhd_t'
+					na.pos:set(pi.pos:unpack())
+					na.dist = dist
+					cpuNbhdLineBuf:push_back(na)
+					local nb = ffi.new'nbhd_t'
+					nb.pos:set(pj.pos:unpack())
+					nb.dist = dist
+					cpuNbhdLineBuf:push_back(nb)
+--]=]
+-- [=[
+					for j=i+2,n do
+						local pj = cpuPointBuf[pts[j]]
+						local dist = (pi.pos - pj.pos):length()
+						local na = ffi.new'nbhd_t'
+						na.pos:set(pi.pos:unpack())
+						na.dist = dist
+						cpuNbhdLineBuf:push_back(na)
+						local nb = ffi.new'nbhd_t'
+						nb.pos:set(pj.pos:unpack())
+						nb.dist = dist
+						cpuNbhdLineBuf:push_back(nb)					
+					end
+--]=]
+					
+					-- now compare up the tree
+					-- but there are no points in non-leaf nodes
+					-- so we have to find all leafs that are neighboring this node
+					-- so ... i guess that means traverse the whole tree
+					-- and look at whose bounding points are contained by our bounding points
+					local n = node.parent
+
+					--[[
+					local thisTime = os.time()
+					if lastTime ~= thisTime then
+						lastTime = thisTime
+						print((100 * (ai / nkbins)) .. '% done')
+					end
+					--]]
+				end
+			end
+		end
+		searchTree(root)
+print'done'
+
+		gpuNbhdLineBuf = GLArrayBuffer{
+			size = ffi.sizeof(cpuNbhdLineBuf.type) * #cpuNbhdLineBuf,
+			data = cpuNbhdLineBuf.v,
+		}
 	
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-	
+		nbhd_t_attrs = {
+			pos = {
+				buffer = gpuNbhdLineBuf,
+				size = 3,
+				type = gl.GL_FLOAT,
+				stride = ffi.sizeof'nbhd_t',
+				offset = ffi.offsetof('nbhd_t', 'pos'),
+			},
+			dist = {
+				buffer = gpuNbhdLineBuf,
+				size = 1,
+				type = gl.GL_FLOAT,
+				stride = ffi.sizeof'nbhd_t',
+				offset = ffi.offsetof('nbhd_t', 'dist'),
+			},
+		}
+	end
+
 	--refreshPoints()
-
 
 	hsvtex = GLHSVTex(1024, nil, true)
 
---[[
-	tempMin = 3300
-	tempMax = 8000
-	-- https://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
-	local tempTexWidth = 1024
-	local tempImg = Image(tempTexWidth, 1, 3, 'unsigned char', function(i,j)
-		local frac = (i + .5) / tempTexWidth
-		local temp = frac * (tempMax - tempMin) + tempMin
-		local t = temp / 100
-		local r = t <= 66 and 255 or math.clamp(329.698727446 * ((t - 60) ^ -0.1332047592), 0, 255)
-		local g = t <= 66
-			and math.clamp(99.4708025861 * math.log(t) - 161.1195681661, 0, 255)
-			or math.clamp(288.1221695283 * ((t - 60) ^ -0.0755148492), 0, 255)
-		local b = t >= 66 
-			and 255 or (
-				t <= 19 
-					and 0 
-					or math.clamp(138.5177312231 * math.log(t - 10) - 305.0447927307, 0, 255)
-			)
-		return r,g,b
-	end)
---]]
--- [[ black body color table from http://www.vendian.org/mncharity/dir3/blackbody/UnstableURLs/bbr_color_D58.html
+
+	-- black body color table from http://www.vendian.org/mncharity/dir3/blackbody/UnstableURLs/bbr_color_D58.html
 	-- HYG data temp range is 1500 to 21700 
 	tempMin = 1000
 	tempMax = 40000
@@ -570,6 +733,8 @@ typedef _<?=env.real?>4 real4;
 			local cmf = l:sub(11,15)
 			if cmf == '10deg' then
 				local temp = tonumber(string.trim(l:sub(2,6)))
+				-- TODO instead of tempMin/tempMax determining the texture bounds, have the texture determine the tempMin/tempMax bounds
+				-- and maybe remap it - logarithmically - or based on abs mag (log of lum)
 				if temp >= tempMin and temp <= tempMax then
 					local r = tonumber(l:sub(82,83), 16)
 					local g = tonumber(l:sub(84,85), 16)
@@ -585,7 +750,6 @@ typedef _<?=env.real?>4 real4;
 			tempImg.buffer[j+3*i] = rgbs[i+1][j+1]
 		end
 	end
---]]
 	tempTex = GLTex2D{
 		width = tempImg.width,
 		height = 1,
@@ -600,20 +764,6 @@ typedef _<?=env.real?>4 real4;
 	}
 	glreport'here'
 
-
-
-
---[[
-Sun: {absmag="4.850", base="", bayer="", bf="", ci="0.656", comp="1", comp_primary="0", con="", dec="0.000000", decrad="0", dist="0.0000", flam="", gl="", hd="", hip="", hr="", id="0", lum="1", mag="-26.700", pmdec="0.00", pmdecrad="0", pmra="0.00", pmrarad="0", proper="Sol", ra="0.000000", rarad="0", rv="0.0", spect="G2V", var="", var_max="", var_min="", vx="0.00000000", vy="0.00000000", vz="0.00000000", x="0.000005", y="0.000000", z="0.000000"}
-Polaris: {absmag="-3.643", base="", bayer="Alp", bf="1Alp UMi", ci="0.636", comp="1", comp_primary="11734", con="UMi", dec="89.264109", decrad="1.5579526129751475", dist="132.6260", flam="1", gl="", hd="8890", hip="11767", hr="424", id="11734", lum="2495.743794831569", mag="1.970", pmdec="-11.74", pmdecrad="-0.000000056917126", pmra="44.22", pmrarad="0.00000021438460954166665", proper="Polaris", ra="2.529750", rarad="0.6622870748653336", rv="-17.0", spect="F7:Ib-IIv SB", var="Alp", var_max="1.953", var_min="1.993", vx="-0.00001171", vy="0.00002692", vz="-0.00001748", x="1.343100", y="1.047629", z="132.614909"}
-Merak: {absmag="0.399", base="", bayer="Bet", bf="48Bet UMa", ci="0.033", comp="1", comp_primary="53754", con="UMa", dec="56.382427", decrad="0.9840589862911813", dist="24.4499", flam="48", gl="Wo 9343", hd="95418", hip="53910", hr="4295", id="53754", lum="60.311481961781745", mag="2.340", pmdec="33.74", pmdecrad="0.000000163576135", pmra="81.66", pmrarad="0.00000039589885154166667", proper="Merak", ra="11.030677", rarad="2.887824569114951", rv="-12.0", spect="A1V", var="", var_max="", var_min="", vx="0.00000737", vy="-0.00001191", vz="-0.00000801", x="-13.103033", y="3.398358", z="20.360601"}
-
-reconstructing the app.mag. from abs.mag. and dist, my calcs match theirs.
-and Polaris and Merak have an app.mag. difference of less than 0.5
-and my point size is based on app.mag.  So why is the difference much greater than 0.5 pixels?  
-it looks more on the line of 3 pixels, which is the abs.mag. difference.
-
---]]
 
 local calcPointSize = template([[
 	//how to calculate this in fragment space ...
@@ -651,6 +801,80 @@ local calcPointSize = template([[
 		LSunOverL0 = LSunOverL0,
 	})
 
+
+
+	-- since the point renderer varies its gl_PointSize with the magnitude, I gotta do that here as well
+	drawIDShader = GLProgram{
+		vertexCode = template([[
+#version 460
+
+in vec3 pos;
+in float lum;
+
+out float discardv;
+out vec3 color;
+
+uniform float pointSizeBias;
+uniform float pickSizeBias;
+
+uniform float sliceRMin, sliceRMax;
+uniform vec3 orbit;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+void main() {
+	vec4 vtx = vec4(pos.xyz, 1.);
+	vec4 vmv = modelViewMatrix * vtx;
+	gl_Position = projectionMatrix * vmv;
+
+	<?=calcPointSize?>
+	gl_PointSize = max(0., gl_PointSize);
+	gl_PointSize += pickSizeBias;
+
+	discardv = 0.;
+	vec3 orbitToPos = pos - orbit;
+	float distFromOrbitSq_in_Pc2 = dot(orbitToPos, orbitToPos);
+	if (distFromOrbitSq_in_Pc2 < sliceRMin * sliceRMin ||
+		distFromOrbitSq_in_Pc2 > sliceRMax * sliceRMax)
+	{
+		discardv = 1.;
+	}
+
+	float i = gl_VertexID;
+	color.r = mod(i, 256.);
+	i = (i - color.r) / 256.;
+	color.r *= 1. / 255.;
+	color.g = mod(i, 256.);
+	i = (i - color.g) / 256.;
+	color.g *= 1. / 255.;
+	color.b = mod(i, 256.);
+	i = (i - color.b) / 256.;
+	color.b *= 1. / 255.;
+}
+]], {calcPointSize = calcPointSize}),
+		fragmentCode = template[[
+#version 460
+
+in vec3 color;
+in float discardv;
+
+void main() {
+	if (discardv > 0.) {
+		discard;
+	}
+
+	gl_FragColor = vec4(color, 1.);
+}
+]],
+		attrs = pt_t_attrs,
+	}
+	glreport'here'
+	
+	drawIDShader:useNone()
+	glreport'here'
+
+
 	-- i've neglected the postprocessing, and this has become the main shader
 	-- which does the fake-postproc just with a varying gl_PointSize
 	accumStarPointShader = GLProgram{
@@ -663,20 +887,21 @@ local clnumber = require 'cl.obj.number'
 in vec3 pos;
 in float lum;
 in float temp;
-in float constellation;
 
 out float lumv;
 out vec3 tempcolor;
+out float discardv;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 uniform float pointSizeBias;
-uniform bool showConstellations;
 uniform sampler2D tempTex;
 
-vec3 quatRotate(vec4 q, vec3 v) {
-	return v + 2. * cross(q.xyz, cross(q.xyz, v) + q.w * v);
-}
+//how to occlude, based on radial distance, in Parsecs -- *FROM THE ORBIT*
+uniform float sliceRMin, sliceRMax;
+
+//current orbiting position, used for occlusion
+uniform vec3 orbit;
 
 void main() {
 	vec4 vtx = vec4(pos.xyz, 1.);
@@ -684,6 +909,15 @@ void main() {
 	gl_Position = projectionMatrix * vmv;
 
 	<?=calcPointSize?>
+
+	discardv = 0.;
+	vec3 orbitToPos = pos - orbit;
+	float distFromOrbitSq_in_Pc2 = dot(orbitToPos, orbitToPos);
+	if (distFromOrbitSq_in_Pc2 < sliceRMin * sliceRMin ||
+		distFromOrbitSq_in_Pc2 > sliceRMax * sliceRMax)
+	{
+		discardv = 1.;
+	}
 
 	lumv = 1.;
 
@@ -697,17 +931,6 @@ void main() {
 
 	float tempfrac = (temp - <?=clnumber(tempMin)?>) * <?=clnumber(1/(tempMax - tempMin))?>;
 	tempcolor = texture2D(tempTex, vec2(tempfrac, .5)).rgb;
-
-	//if we are showing constellations then offset color by constellation index
-	if (showConstellations) {
-		tempcolor = vec3(1., .5, .5);
-		float amount = constellation / <?= clnumber(#(constellations or {}))?>;
-<? local _1_sqrt3 = 1 / 3^.5 ?>		
-		vec3 axis = vec3(<?=_1_sqrt3?>, <?=_1_sqrt3?>, <?=_1_sqrt3?>);
-		float halfAngle = <?=math.pi?> * amount;
-		vec4 q = vec4(axis * sin(halfAngle), cos(halfAngle));
-		tempcolor = quatRotate(q, tempcolor);
-	}
 }
 ]], 	{
 			calcPointSize = calcPointSize,
@@ -716,14 +939,19 @@ void main() {
 			tempMax = tempMax,
 		}),
 		fragmentCode = template([[
-#version 130
+#version 460
 
 in float lumv;
 in vec3 tempcolor;
+in float discardv;
 
 uniform float alpha;
 
 void main() {
+	if (discardv > 0.) {
+		discard;
+	}
+
 	float lumf = lumv;
 
 #if 0
@@ -739,7 +967,7 @@ void main() {
 		uniforms = {
 			tempTex = 0,
 		},
-		attrs = pointAttrs,
+		attrs = pt_t_attrs,
 	}
 	
 
@@ -748,66 +976,68 @@ void main() {
 
 	accumStarLineShader = GLProgram{
 		vertexCode = [[
-#version 130
+#version 460
 
-in vec4 vel;
+in vec3 pos;
+in vec3 vel;
 
-out float lum;
+out float lumv;
 
 uniform float velScalar;
 uniform bool normalizeVel;
 
-void main() {
-	vec4 vtx = vec4(gl_Vertex.xyz, 1.);
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
 
-	vec3 _vel = vel.xyz;
-	if (normalizeVel) _vel = normalize(_vel);
+void main() {
+	vec4 vtx = vec4(pos.xyz, 1.);
+
+	vec3 velv = vel;
+	if (normalizeVel) velv = normalize(velv);
 	
-	//using an extra channel
-	float end = vel.w;
 	//trying to use a shader variable:	
-	//float end = float(gl_VertexID % 2 == 0);
-	vtx.xyz += _vel * end * velScalar;
+	float end = float(gl_VertexID % 2 == 0);
+	vtx.xyz += velv * end * velScalar;
 	
-	
-	gl_Position = gl_ModelViewProjectionMatrix * vtx;
-	lum = 1.;//gl_Vertex.w;
+	gl_Position = projectionMatrix * modelViewMatrix * vtx;
+	lumv = 1.;//gl_Vertex.w;
 }
 ]],
 		fragmentCode = [[
-#version 130
+#version 460
 
-in float lum;
+in float lumv;
 
 uniform float alpha;
 
 void main() {
-	float _lum = lum;
+	float lumf = lumv;
 
 #if 0	//inv sq dim
 	float z = gl_FragCoord.z / gl_FragCoord.w;
 	z *= .001;
-	_lum *= 1. / (z * z);
+	lumf *= 1. / (z * z);
 #endif
 
 #if 0	//make the point smooth 
 	vec2 d = gl_PointCoord.xy * 2. - 1.;
 	float rsq = dot(d,d);
-	_lum *= 1. / (10. * rsq + .1);
+	lumf *= 1. / (10. * rsq + .1);
 #endif
 
-	vec3 color = vec3(.1, 1., .1) * _lum * alpha;
+	vec3 color = vec3(.1, 1., .1) * lumf * alpha;
 	gl_FragColor = vec4(color, 1.); 
 	//gl_FragColor = vec4(1., 1., 1., 100.);
 }
 ]],
+		attrs = pt_t_attrs,
 	}
 	accumStarLineShader:useNone()
 	glreport'here'
 
 	renderAccumShader = GLProgram{
 		vertexCode = [[
-#version 130
+#version 460
 
 out vec2 texcoord;
 
@@ -862,179 +1092,48 @@ end
 	}
 	glreport'here'
 	renderAccumShader:useNone()
+	glreport'here'
 
-
-	-- since the point renderer varies its gl_PointSize with the magnitude, I gotta do that here as well
-	drawIDShader = GLProgram{
-		vertexCode = template([[
+	if buildNeighborhood then
+		drawNbhdLineShader = GLProgram{
+			vertexCode = [[
 #version 460
 
 in vec3 pos;
-in float lum;
+in float dist;
 
-out vec3 color;
+out float lumv;
 
-uniform float pointSizeBias;
-uniform float pickSizeBias;
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 
 void main() {
-	vec4 vtx = vec4(pos.xyz, 1.);
+	vec4 vtx = vec4(pos, 1.);
 	vec4 vmv = modelViewMatrix * vtx;
 	gl_Position = projectionMatrix * vmv;
-
-	<?=calcPointSize?>
-	gl_PointSize = max(0., gl_PointSize);
-	gl_PointSize += pickSizeBias;
-
-	float i = gl_VertexID;
-	color.r = mod(i, 256.);
-	i = (i - color.r) / 256.;
-	color.r *= 1. / 255.;
-	color.g = mod(i, 256.);
-	i = (i - color.g) / 256.;
-	color.g *= 1. / 255.;
-	color.b = mod(i, 256.);
-	i = (i - color.b) / 256.;
-	color.b *= 1. / 255.;
-}
-]], {calcPointSize = calcPointSize}),
-		fragmentCode = template[[
-#version 130
-
-in vec3 color;
-
-void main() {
-	gl_FragColor = vec4(color, 1.);
+//	float distInPc = length(vmv.xyz);
+	lumv = 10. / (dist 
+//		* (distInPc + 1.)
+);
 }
 ]],
-		attrs = pointAttrs,
-	}
-	glreport'here'
-	
-	drawIDShader:useNone()
-	glreport'here'
+			fragmentCode = [[
+#version 460
 
+in float lumv;
 
-	-- maybe i can quick sort and throw in some random compare and that'll do some kind of rough estimate 
-print('looking for max')
-	closestStarLines = vector'int'
-	-- heuristic with bins
-	-- r stddev is 190, so 3 is 570
-	local threeSigma = 570
-	local min = -570
-	local max = 570
-	local nodeCount = 1
-	local root = {
-		min = vec3d(min,min,min),
-		max = vec3d(max,max,max),
-		pts = table(),
-	}
-	root.mid = (root.min + root.max) * .5
-	local nodemax = 50
-	local function addToTree(node, i)
-		local pos = cpuPointBuf[i].pos	
-		
-		-- have we divided?  pay it forward.
-		if node.children then
-			local childIndex = bit.bor(
-				(pos.x > node.mid.x) and 1 or 0,
-				(pos.y > node.mid.y) and 2 or 0,
-				(pos.z > node.mid.z) and 4 or 0)
-			return addToTree(node.children[childIndex], i)
-		end
-	
-		-- not divided yet?  push into leaf until it gets too big, then divide.
-		node.pts:insert(i)
-		if #node.pts >= nodemax then
-			-- make children
-			node.children = {}
-			for childIndex=0,7 do
-				local xL = bit.band(childIndex,1) == 0
-				local yL = bit.band(childIndex,2) == 0
-				local zL = bit.band(childIndex,4) == 0
-				local child = {
-					min = vec3d(
-						xL and node.min.x or node.mid.x,
-						yL and node.min.y or node.mid.y,
-						zL and node.min.z or node.mid.z
-					),
-					max = vec3d(
-						xL and node.mid.x or node.max.x,
-						yL and node.mid.y or node.max.y,
-						zL and node.mid.z or node.max.z
-					),
-					pts = table()
-				}
-				nodeCount = nodeCount + 1
-				child.mid = (child.min + child.max) * .5
-				node.children[childIndex] = child
-			end
-			-- split the nodes up into the children
-			for _,i in ipairs(node.pts) do
-				local pos = cpuPointBuf[i].pos	
-				local childIndex = bit.bor(
-					(pos.x > node.mid.x) and 1 or 0,
-					(pos.y > node.mid.y) and 2 or 0,
-					(pos.z > node.mid.z) and 4 or 0)
-				addToTree(node.children[childIndex], i)
-			end
-			node.pts = nil
-		end
+void main() {
+	float lumf = lumv;
+	vec3 color = vec3(.1, 1., .1) * lumf;
+	gl_FragColor = vec4(color, 1.); 
+}
+]],
+			attrs = nbhd_t_attrs,
+		}
+		glreport'here'
+		drawNbhdLineShader:useNone()
+		glreport'here'
 	end
-print('created '..nodeCount..' nodes')
-print'pushing into bins'	
-	for i=0,numPts-1 do
-		addToTree(root, i)
-	end
-print'searching bins'	
-	local ai = 1
-	local lastTime = os.time()	
-	local function searchTree(node)
-		if node.children then
-			assert(not node.pts)
-			for childIndex=0,7 do
-				searchTree(node.children[childIndex])
-			end
-		else
-			assert(node.pts)
-
-			local pts = node.pts
-			local n = #pts
-			for i=1,n-1 do
-				local bestj = i+1
-				local pi = cpuPointBuf[pts[i]]
-				local pj = cpuPointBuf[pts[bestj]]
-				local bestdistsq = (pi.pos - pj.pos):lenSq()
-				for j=i+2,n do
-					pj = cpuPointBuf[pts[j]]
-					distsq = (pi.pos - pj.pos):lenSq()
-					if distsq < bestdistsq then
-						bestdistsq = distsq
-						bestj = j
-					end
-				end
-				closestStarLines:push_back(pts[i])
-				closestStarLines:push_back(pts[bestj])
-				
-				--[[
-				local thisTime = os.time()
-				if lastTime ~= thisTime then
-					lastTime = thisTime
-					print((100 * (ai / nkbins)) .. '% done')
-				end
-				--]]
-			end
-		end
-	end
-	searchTree(root)
-print'done'
-
-	closestStarLineElemBuf = GLElementArrayBuffer{
-		size = ffi.sizeof(closestStarLines.type) * #closestStarLines,
-		data = closestStarLines.v,
-	}
 end
 
 ffi.cdef[[
@@ -1055,23 +1154,23 @@ function App:drawPickScene()
 	gl.glClearColor(1,1,1,1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	gl.glEnable(gl.GL_DEPTH_TEST)
-	
+
+	-- TODO 
+	-- 1) smaller viewpoint of 3x3 pixels
+	-- 2) pick matrix to zoom in on the specific mouse location
+
 	gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
 	
 	drawIDShader:use()
-
-	if drawIDShader.uniforms.pointSizeBias then
-		gl.glUniform1f(drawIDShader.uniforms.pointSizeBias.loc, pointSizeBias)
-	end
-	if drawIDShader.uniforms.pickSizeBias then
-		gl.glUniform1f(drawIDShader.uniforms.pickSizeBias.loc, pickSizeBias)
-	end
-
-	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
-	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
-		
-	gl.glUniformMatrix4fv(drawIDShader.uniforms.modelViewMatrix.loc, 1, false, modelViewMatrix.ptr)
-	gl.glUniformMatrix4fv(drawIDShader.uniforms.projectionMatrix.loc, 1, false, projectionMatrix.ptr)
+	drawIDShader:setUniforms{
+		pointSizeBias = pointSizeBias,
+		pickSizeBias = pickSizeBias,
+		sliceRMin = sliceRMin,
+		sliceRMax = sliceRMax,
+		orbit = {self.view.orbit:unpack()},	-- TODO
+		modelViewMatrix = modelViewMatrix.ptr,
+		projectionMatrix = projectionMatrix.ptr,
+	}
 
 	drawIDShader.vao:use()
 	gl.glDrawArrays(gl.GL_POINTS, 0, numPts)
@@ -1104,27 +1203,18 @@ function App:drawScene()
 	
 	if drawPoints then
 		gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
-
-		accumStarPointShader:use()
 		
-		if accumStarPointShader.uniforms.alpha then
-			gl.glUniform1f(accumStarPointShader.uniforms.alpha.loc, alphaValue)
-		end
-		if accumStarPointShader.uniforms.distSqAtten then
-			gl.glUniform1f(accumStarPointShader.uniforms.distSqAtten.loc, distSqAtten)
-		end
-		if accumStarPointShader.uniforms.pointSizeBias then
-			gl.glUniform1f(accumStarPointShader.uniforms.pointSizeBias.loc, pointSizeBias)
-		end
-		if accumStarPointShader.uniforms.showConstellations then
-			gl.glUniform1i(accumStarPointShader.uniforms.showConstellations.loc, showConstellations and 1 or 0)
-		end
-	
-		gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
-		gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
-	
-		gl.glUniformMatrix4fv(accumStarPointShader.uniforms.modelViewMatrix.loc, 1, false, modelViewMatrix.ptr)
-		gl.glUniformMatrix4fv(accumStarPointShader.uniforms.projectionMatrix.loc, 1, false, projectionMatrix.ptr)
+		accumStarPointShader:use()
+		accumStarPointShader:setUniforms{
+			alpha = alphaValue,
+			pointSizeBias = pointSizeBias,
+			sliceRMin = sliceRMin,
+			sliceRMax = sliceRMax,
+			modelViewMatrix = modelViewMatrix.ptr,
+			projectionMatrix = projectionMatrix.ptr,
+			--orbit = self.view.orbit.s,		-- TODO orbit is a vec3 is a glsl float type
+			orbit = {self.view.orbit:unpack()},	-- but view.orbit is double[3], so we can't pass it as a ptr of the type associated with the glsl type(float)
+		}
 
 		tempTex:bind()
 	
@@ -1138,40 +1228,25 @@ function App:drawScene()
 		
 		gl.glDisable(gl.GL_PROGRAM_POINT_SIZE)
 	end
-	if drawLines then
+	if drawVelLines and buildVelocityBuffers then
 		accumStarLineShader:use()
-		if accumStarLineShader.uniforms.alpha then
-			gl.glUniform1f(accumStarLineShader.uniforms.alpha.loc, alphaValue)
-		end
-		if accumStarLineShader.uniforms.velScalar then
-			gl.glUniform1f(accumStarLineShader.uniforms.velScalar.loc, velScalarValue)
-		end
-		if accumStarLineShader.uniforms.normalizeVel then
-			gl.glUniform1f(accumStarLineShader.uniforms.normalizeVel.loc, normalizeVelValue)
-		end
+		accumStarLineShader:setUniforms{
+			alpha = lineAlphaValue,
+			velScalar = velScalarValue,
+			normalizeVel = normalizeVelValue and 1 or 0,
+			modelViewMatrix = modelViewMatrix.ptr,
+			projectionMatrix = projectionMatrix.ptr,
+		}
 
-		gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLinePosBufID[0])
-		gl.glVertexPointer(4, gl.GL_FLOAT, 0, nil)
+		accumStarLineShader.vao:use()
+		gpuVelLineElemBuf:bind()	-- vao:use() also calls bind() on the associated buffers, so do the element bind last
+		gl.glDrawElements(gl.GL_LINES, cpuVelLineElemBuf.size, gl.GL_UNSIGNED_INT, nil)
+		gpuVelLineElemBuf:unbind() 
+		accumStarLineShader.vao:useNone()
 
-		if accumStarLineShader.attrs.vel then
-			gl.glEnableVertexAttribArray(accumStarLineShader.attrs.vel.loc)
-			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, glLineVelBufID[0])
-			gl.glVertexAttribPointer(accumStarLineShader.attrs.vel.loc, 4, gl.GL_FLOAT, false, 0, nil)	-- 'normalize' doesn't seem to make a difference ...
-		end
-		
-		gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-	
-		gl.glDrawArrays(gl.GL_LINES, 0, 2*numPts)
-	
-		gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-		if accumStarLineShader.attrs.vel then
-			gl.glDisableVertexAttribArray(accumStarLineShader.attrs.vel.loc)
-		end
-		
 		accumStarLineShader:useNone()
 	end
-	
+
 	gl.glDisable(gl.GL_BLEND)
 end
 
@@ -1221,23 +1296,15 @@ function App:drawWithAccum()
 	gl.glLoadIdentity()
 
 	renderAccumShader:use()
+	renderAccumShader:setUniforms{
+		hdrScale = hdrScaleValue,
+		hdrGamma = hdrGammaValue,
+		hsvRange = hsvRangeValue,
+		bloomLevels = bloomLevelsValue,
+		showDensity = showDensityValue and 1 or 0,
+	}
 	fbotex:bind(0)
 	hsvtex:bind(1)
-	if renderAccumShader.uniforms.hdrScale then
-		gl.glUniform1f(renderAccumShader.uniforms.hdrScale.loc, hdrScaleValue)
-	end
-	if renderAccumShader.uniforms.hdrGamma then
-		gl.glUniform1f(renderAccumShader.uniforms.hdrGamma.loc, hdrGammaValue)
-	end
-	if renderAccumShader.uniforms.hsvRange then
-		gl.glUniform1f(renderAccumShader.uniforms.hsvRange.loc, hsvRangeValue)
-	end
-	if renderAccumShader.uniforms.bloomLevels then
-		gl.glUniform1f(renderAccumShader.uniforms.bloomLevels.loc, bloomLevelsValue)
-	end
-	if renderAccumShader.uniforms.showDensity then
-		gl.glUniform1i(renderAccumShader.uniforms.showDensity.loc, showDensityValue and 1 or 0)
-	end
 
 	gl.glBegin(gl.GL_QUADS)
 	gl.glVertex2f(0,0)
@@ -1257,7 +1324,7 @@ function App:drawWithAccum()
 
 end
 
-local function cartToSphere(r,theta,phi)
+local function sphericalToCartesian(r,theta,phi)
 	local ct = math.cos(theta)
 	local st = math.sin(theta)
 	local cp = math.cos(phi)
@@ -1270,6 +1337,9 @@ local function cartToSphere(r,theta,phi)
 end
 
 function App:update()
+	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
+	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
+	
 	self:drawPickScene()
 
 	if not showPickScene then
@@ -1283,17 +1353,18 @@ function App:update()
 
 
 	-- TODO inv square reduce this.... by inv square of one another, and by inv square from view
-	if showNeighbors then
+	if buildNeighborhood and showNeighbors then
 		gl.glEnable(gl.GL_BLEND)
-		gl.glColor3f(0,.2,0)
-		gpuPointBuf:bind()
-		gl.glVertexPointer(3, gl.GL_FLOAT, ffi.sizeof(pt_t), nil)
-		gpuPointBuf:unbind()
-		gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-		closestStarLineElemBuf:bind() 
-		gl.glDrawElements(gl.GL_LINES, closestStarLines.size, gl.GL_UNSIGNED_INT, nil)
-		closestStarLineElemBuf:unbind() 
-		gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+		drawNbhdLineShader:use()
+		drawNbhdLineShader:setUniforms{
+			modelViewMatrix = modelViewMatrix.ptr,
+			projectionMatrix = projectionMatrix.ptr,
+		}
+
+		drawNbhdLineShader.vao:use()
+		gl.glDrawArrays(gl.GL_LINES, 0, cpuNbhdLineBuf.size)
+		drawNbhdLineShader.vao:useNone()
+		drawNbhdLineShader:useNone()
 		gl.glDisable(gl.GL_BLEND)
 	end
 
@@ -1312,16 +1383,48 @@ function App:update()
 			local phi = 2 * math.pi * i / idiv
 			for j=0,jdiv-1 do
 				local theta = math.pi * j / jdiv
-				gl.glVertex3f((cartToSphere(100, theta, phi) + self.view.orbit):unpack())
-				gl.glVertex3f((cartToSphere(100, theta + dtheta, phi) + self.view.orbit):unpack())
+				gl.glVertex3f((sphericalToCartesian(gridRadius, theta, phi) + self.view.orbit):unpack())
+				gl.glVertex3f((sphericalToCartesian(gridRadius, theta + dtheta, phi) + self.view.orbit):unpack())
 				if j > 0 then
-					gl.glVertex3f((cartToSphere(100, theta, phi) + self.view.orbit):unpack())
-					gl.glVertex3f((cartToSphere(100, theta, phi + dphi) + self.view.orbit):unpack())
+					gl.glVertex3f((sphericalToCartesian(gridRadius, theta, phi) + self.view.orbit):unpack())
+					gl.glVertex3f((sphericalToCartesian(gridRadius, theta, phi + dphi) + self.view.orbit):unpack())
 				end
 			end
 		end
 		gl.glEnd()
 		gl.glDisable(gl.GL_BLEND)
+	end
+
+	if showConstellations then
+		for _,constellation in ipairs(constellations) do
+			if constellation.enabled then
+				gl.glColor3f(.5, .5, .5)
+				for i=0,7 do
+					local ir = constellation.dist[bit.band(i, 1) == 0 and 'min' or 'max']
+					local ith = math.pi/2 - (constellation.dec[bit.band(i, 2) == 0 and 'min' or 'max'])
+					local iph = constellation.ra[bit.band(i, 4) == 0 and 'min' or 'max']
+					for j=0,2 do
+						local k = bit.bxor(i, bit.lshift(1, j))
+						if k > i then
+							local jr = constellation.dist[bit.band(k, 1) == 0 and 'min' or 'max']
+							local jth = math.pi/2 - (constellation.dec[bit.band(k, 2) == 0 and 'min' or 'max'])
+							local jph = constellation.ra[bit.band(k, 4) == 0 and 'min' or 'max']
+							local div = 20
+							gl.glBegin(gl.GL_LINE_STRIP)
+							for m=0,div do
+								local s = m/div
+								local t = 1 - s
+								local r = s * ir + t * jr
+								local th = s * ith + t * jth
+								local ph = s * iph + t * jph
+								gl.glVertex3f(sphericalToCartesian(r, th, ph):unpack())
+							end
+							gl.glEnd()
+						end
+					end
+				end
+			end
+		end
 	end
 
 	glreport'here'
@@ -1375,39 +1478,37 @@ local search = {
 	lookat = '',
 }
 function App:updateGUI()
+	checkboxTable('draw points', _G, 'drawPoints')
 	sliderFloatTable('point size', _G, 'pointSizeBias', -10, 10)
 	sliderFloatTable('pick size', _G, 'pickSizeBias', 0, 20)
-	inputFloatTable('alpha value', _G, 'alphaValue')
-	inputFloatTable('dist sq atten', _G, 'distSqAtten')
+	inputFloatTable('point alpha value', _G, 'alphaValue')
+
+--[[ not used atm	
+	checkboxTable('show density', _G, 'showDensityValue')
 	sliderFloatTable('hdr scale', _G, 'hdrScaleValue', 0, 1000, '%.7f', 10)
 	sliderFloatTable('hdr gamma', _G, 'hdrGammaValue', 0, 1000, '%.7f', 10)
 	sliderFloatTable('hsv range', _G, 'hsvRangeValue', 0, 1000, '%.7f', 10)
 	sliderFloatTable('bloom levels', _G, 'bloomLevelsValue', 0, 8)
-	checkboxTable('show density', _G, 'showDensityValue')
-
-	checkboxTable('draw points', _G, 'drawPoints')
+--]]	
 	
-	checkboxTable('draw lines', _G, 'drawLines')
+	inputFloatTable('slice r min', _G, 'sliceRMin')
+	inputFloatTable('slice r max', _G, 'sliceRMax')
+
+	
 	checkboxTable('show pick scene', _G, 'showPickScene')	
 	checkboxTable('show grid', _G, 'drawGrid')	
-	checkboxTable('show constellations', _G, 'showConstellations')
-	checkboxTable('show nbhd', _G, 'showNeighbors')
+	inputFloatTable('grid radius', _G, 'gridRadius')
 
-	sliderFloatTable('vel scalar', _G, 'velScalarValue', 0, 1000000000, '%.7f', 10)
+	-- draw nhbd lines stuff which looks dumb right now
+	if buildNeighborhood then
+		checkboxTable('show nbhd', _G, 'showNeighbors')
+	end
 
-	checkboxTable('normalize velocity', _G, 'normalizeVelValue')
-
-	sliderFloatTable('fov y', self.view, 'fovY', 0, 180)
-
-	ig.igImage(
-		ffi.cast('void*', ffi.cast('intptr_t', tempTex.id)),
-		ig.ImVec2(128, 24),
-		ig.ImVec2(0,0),
-		ig.ImVec2(1,1))
-
+	-- view stuff
 	ig.igText('dist (Pc) '..(self.view.pos - self.view.orbit):length())
 	inputFloatTable('znear', self.view, 'znear')
 	inputFloatTable('zfar', self.view, 'zfar')
+	sliderFloatTable('fov y', self.view, 'fovY', 0, 180)
 
 	if names then
 		if textTable('orbit', search, 'orbit', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
@@ -1441,7 +1542,47 @@ function App:updateGUI()
 		end
 	end
 
-	if selectedIndex < 0xffffff 
+
+	-- draw vel lines
+	checkboxTable('draw vel lines', _G, 'drawVelLines')
+	inputFloatTable('line alpha value', _G, 'lineAlphaValue')
+	inputFloatTable('vel scalar', _G, 'velScalarValue')
+	checkboxTable('normalize velocity', _G, 'normalizeVelValue')
+
+	-- gui stuff
+	checkboxTable('show mouseover info', _G, 'showInformation')
+
+	checkboxTable('show constellations', _G, 'showConstellations')
+	if showConstellations then
+		local count = 0
+		for _,constellation in ipairs(constellations) do
+			if constellation.name then
+				if count > 0 
+				and count % 10 ~= 0
+				then 
+					ig.igSameLine() 
+				end
+				ig.igPushIDStr(constellation.name)
+				checkboxTable('', constellation, 'enabled')
+				if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
+					ig.igBeginTooltip()
+					ig.igText(constellation.name)
+					ig.igEndTooltip()
+				end
+				ig.igPopID()
+				count = count + 1
+			end
+		end
+	end
+
+	ig.igImage(
+		ffi.cast('void*', ffi.cast('intptr_t', tempTex.id)),
+		ig.ImVec2(128, 24),
+		ig.ImVec2(0,0),
+		ig.ImVec2(1,1))
+
+	if showInformation 
+	and selectedIndex < 0xffffff 
 	and selectedIndex >= 0
 	and selectedIndex < numPts
 	then
@@ -1452,15 +1593,8 @@ function App:updateGUI()
 		if name then
 			s:insert('name: '..tostring(name))
 		end
-		if constellations then
-			local c = constellations[tonumber(cpuConstellationBuf[selectedIndex])+1].name
-			if c then
-				s:insert('constellation: '..c)
-			end
-		end
-
 		local pt = cpuPointBuf[selectedIndex]
-		local dist = pt.pos:length()
+		local dist = (pt.pos - self.view.orbit):length()
 			
 		local LStarOverLSun = pt.lum
 		local absmag = (-2.5 / math.log(10)) * math.log(LStarOverLSun * LSunOverL0)
