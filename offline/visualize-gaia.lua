@@ -250,7 +250,7 @@ nbhdLineAlpha = 1
 showConstellations = false
 sliceRMin = 0
 sliceRMax = math.huge
-
+showStarNames = true
 
 --[[
 picking is based on point size drawn
@@ -1581,165 +1581,30 @@ local function textTable(title, t, k, ...)
 	end
 end
 
-
-local search = {
-	orbit = '',
-	lookat = '',
-}
-function App:updateGUI()
-	checkboxTable('draw points', _G, 'drawPoints')
-	sliderFloatTable('point size', _G, 'pointSizeBias', -10, 10)
-	sliderFloatTable('pick size', _G, 'pickSizeBias', 0, 20)
-	inputFloatTable('point alpha value', _G, 'starPointAlpha')
-
---[[ not used atm	
-	checkboxTable('show density', _G, 'showDensity')
-	sliderFloatTable('hdr scale', _G, 'hdrScale', 0, 1000, '%.7f', 10)
-	sliderFloatTable('hdr gamma', _G, 'hdrGamma', 0, 1000, '%.7f', 10)
-	sliderFloatTable('hsv range', _G, 'hsvRange', 0, 1000, '%.7f', 10)
-	sliderFloatTable('bloom levels', _G, 'bloomLevels', 0, 8)
---]]	
-	
-	inputFloatTable('slice r min', _G, 'sliceRMin')
-	inputFloatTable('slice r max', _G, 'sliceRMax')
-
-	
-	checkboxTable('show pick scene', _G, 'showPickScene')	
-	checkboxTable('show grid', _G, 'drawGrid')	
-	inputFloatTable('grid radius', _G, 'gridRadius')
-
-	-- draw nhbd lines stuff which looks dumb right now
-	if buildNeighborhood then
-		checkboxTable('show nbhd', _G, 'showNeighbors')
-		inputFloatTable('nbhd alpha', _G, 'nbhdLineAlpha')
-	end
-
-	-- view stuff
-	ig.igText('dist (Pc) '..(self.view.pos - self.view.orbit):length())
-	inputFloatTable('znear', self.view, 'znear')
-	inputFloatTable('zfar', self.view, 'zfar')
-	sliderFloatTable('fov y', self.view, 'fovY', 0, 180)
-
-	if namedStars then
-		if textTable('orbit', search, 'orbit', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
-			for i,v in pairs(namedStars) do
-				if v == search.orbit then
-					assert(i >= 0 and i < numPts, "oob index in name table "..i)
-					local pt = cpuPointBuf[i]
-					self.view.orbit:set(pt.pos:unpack())
-				end
-			end
-		end
-		if textTable('look at', search, 'lookat', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
-			for i,v in pairs(namedStars) do
-				if v == search.lookat then
-					local orbitDist = (self.view.pos - self.view.orbit):length()
-					local fwd = -self.view.angle:zAxis()
-					
-					assert(i >= 0 and i < numPts, "oob index in name table "..i)
-					local pt = cpuPointBuf[i]
-					local to = (pt.pos - self.view.pos):normalize()
-
-					local angle = math.acos(math.clamp(fwd:dot(to), -1, 1))
-					local axis = fwd:cross(to):normalize()
-
-					local rot = quatd():fromAngleAxis(axis.x, axis.y, axis.z, math.deg(angle))
-					quatd.mul(rot, self.view.angle, self.view.angle)
-					
-					self.view.pos = self.view.orbit + self.view.angle:zAxis() * orbitDist
-				end
-			end
-		end
-	end
-
-
-	-- draw vel lines
-	checkboxTable('draw vel lines', _G, 'drawVelLines')
-	inputFloatTable('line alpha value', _G, 'velLineAlpha')
-	inputFloatTable('vel scalar', _G, 'velScalar')
-	checkboxTable('normalize velocity', _G, 'normalizeVel')
-
-	-- gui stuff
-	checkboxTable('show mouseover info', _G, 'showInformation')
-
-	checkboxTable('show constellations', _G, 'showConstellations')
-	if showConstellations then
-		local count = 0
-		for _,constellation in ipairs(constellations) do
-			if constellation.name then
-				if count > 0 
-				and count % 10 ~= 0
-				then 
-					ig.igSameLine() 
-				end
-				ig.igPushIDStr(constellation.name)
-				checkboxTable('', constellation, 'enabled')
-				if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
-					ig.igBeginTooltip()
-					ig.igText(constellation.name)
-					ig.igEndTooltip()
-				end
-				ig.igPopID()
-				count = count + 1
-			end
-		end
-	end
-
-	ig.igImage(
-		ffi.cast('void*', ffi.cast('intptr_t', tempTex.id)),
-		ig.ImVec2(128, 24),
-		ig.ImVec2(0,0),
-		ig.ImVec2(1,1))
-
-	if showInformation 
-	and selectedIndex < 0xffffff 
-	and selectedIndex >= 0
-	and selectedIndex < numPts
-	then
-		local s = table()
-		s:insert('index: '..('%06x'):format(selectedIndex))
-
-		local name = namedStars and namedStars[selectedIndex] or nil
-		if name then
-			s:insert('name: '..tostring(name))
-		end
-		local pt = cpuPointBuf[selectedIndex]
-		local dist = (pt.pos - self.view.orbit):length()
-			
-		local LStarOverLSun = pt.lum
-		local absmag = (-2.5 / math.log(10)) * math.log(LStarOverLSun * LSunOverL0)
-		local appmag = absmag - 5 + (5 / math.log(10)) * math.log(dist)
-
-		s:insert('dist (Pc): '..dist)
-		s:insert('lum (LSun): '..LStarOverLSun)
-		s:insert('temp (K): '..pt.temp)
-		s:insert('abs mag: '..absmag)
-		s:insert('app mag: '..appmag)
-
-		ig.igBeginTooltip()
-		ig.igText(s:concat'\n')
-		ig.igEndTooltip()
-	end
-
+local nameWithAppMagLastPos
+local namesWithAppMag
+local function guiShowStars(self)
+	-- do this before any other tooltip, so it will be on bottom
 	-- there's usually just 5000 or so of these
 	-- and if we filter by apparent magnitude then there can't be many visible at once
-	if namedStars
+	if showStarNames 
+	and namedStars
 	-- and showAllNamedStarsAtOnce
 	then
 		ig.igPushIDStr('star names')
 	
-		-- global / persist: lastOrbitPos
-		if not lastOrbitPos 
-		or (lastOrbitPos - self.view.orbit):lenSq() > .01	-- greater than some epsilon of how far to move, squared.  make the dist less than the closest stars in the dataset
+		-- global / persist: nameWithAppMagLastPos
+		if not nameWithAppMagLastPos 
+		or (nameWithAppMagLastPos - self.view.pos):lenSq() > .01	-- greater than some epsilon of how far to move, squared.  make the dist less than the closest stars in the dataset
 		then 
-			lastOrbitPos = lastOrbitPos or vec3d() 
-			lastOrbitPos:set(self.view.orbit:unpack()) 
-		
+			nameWithAppMagLastPos = nameWithAppMagLastPos or vec3d() 
+			nameWithAppMagLastPos:set(self.view.pos:unpack()) 
+print('updating namesWithAppMag')	
 			-- now sort all named indexes basedon their apparent magnitude
 			-- global / persist: namesWithAppMag 
 			namesWithAppMag = table.map(namedStars, function(name, index, t)
 				local pt = cpuPointBuf[index]
-				local distSq = (pt.pos - self.view.orbit):lenSq()
+				local distSq = (pt.pos - self.view.pos):lenSq()
 				local log10DistInPc = .5 * _1_log_10 * math.log(distSq)
 				local LStarOverL0 = pt.lum * LSunOverL0
 				local absmag = -2.5 * _1_log_10 * math.log(LStarOverL0)
@@ -1884,6 +1749,152 @@ function App:updateGUI()
 		
 		ig.igPopID()
 	end
+end
+
+local search = {
+	orbit = '',
+	lookat = '',
+}
+function App:updateGUI()
+
+	checkboxTable('draw points', _G, 'drawPoints')
+	sliderFloatTable('point size', _G, 'pointSizeBias', -10, 10)
+	sliderFloatTable('pick size', _G, 'pickSizeBias', 0, 20)
+	inputFloatTable('point alpha value', _G, 'starPointAlpha')
+
+--[[ not used atm	
+	checkboxTable('show density', _G, 'showDensity')
+	sliderFloatTable('hdr scale', _G, 'hdrScale', 0, 1000, '%.7f', 10)
+	sliderFloatTable('hdr gamma', _G, 'hdrGamma', 0, 1000, '%.7f', 10)
+	sliderFloatTable('hsv range', _G, 'hsvRange', 0, 1000, '%.7f', 10)
+	sliderFloatTable('bloom levels', _G, 'bloomLevels', 0, 8)
+--]]	
+	
+	inputFloatTable('slice r min', _G, 'sliceRMin')
+	inputFloatTable('slice r max', _G, 'sliceRMax')
+
+	
+	checkboxTable('show pick scene', _G, 'showPickScene')	
+	checkboxTable('show grid', _G, 'drawGrid')	
+	inputFloatTable('grid radius', _G, 'gridRadius')
+
+	-- draw nhbd lines stuff which looks dumb right now
+	if buildNeighborhood then
+		checkboxTable('show nbhd', _G, 'showNeighbors')
+		inputFloatTable('nbhd alpha', _G, 'nbhdLineAlpha')
+	end
+
+	-- view stuff
+	ig.igText('dist (Pc) '..(self.view.pos - self.view.orbit):length())
+	inputFloatTable('znear', self.view, 'znear')
+	inputFloatTable('zfar', self.view, 'zfar')
+	sliderFloatTable('fov y', self.view, 'fovY', 0, 180)
+
+	if namedStars then
+		if textTable('orbit', search, 'orbit', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
+			for i,v in pairs(namedStars) do
+				if v == search.orbit then
+					assert(i >= 0 and i < numPts, "oob index in name table "..i)
+					local pt = cpuPointBuf[i]
+					self.view.orbit:set(pt.pos:unpack())
+				end
+			end
+		end
+		if textTable('look at', search, 'lookat', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
+			for i,v in pairs(namedStars) do
+				if v == search.lookat then
+					local orbitDist = (self.view.pos - self.view.orbit):length()
+					local fwd = -self.view.angle:zAxis()
+					
+					assert(i >= 0 and i < numPts, "oob index in name table "..i)
+					local pt = cpuPointBuf[i]
+					local to = (pt.pos - self.view.pos):normalize()
+
+					local angle = math.acos(math.clamp(fwd:dot(to), -1, 1))
+					local axis = fwd:cross(to):normalize()
+
+					local rot = quatd():fromAngleAxis(axis.x, axis.y, axis.z, math.deg(angle))
+					quatd.mul(rot, self.view.angle, self.view.angle)
+					
+					self.view.pos = self.view.orbit + self.view.angle:zAxis() * orbitDist
+				end
+			end
+		end
+	end
+
+
+	-- draw vel lines
+	checkboxTable('draw vel lines', _G, 'drawVelLines')
+	inputFloatTable('line alpha value', _G, 'velLineAlpha')
+	inputFloatTable('vel scalar', _G, 'velScalar')
+	checkboxTable('normalize velocity', _G, 'normalizeVel')
+
+	-- gui stuff
+	checkboxTable('show mouseover info', _G, 'showInformation')
+	checkboxTable('show star names', _G, 'showStarNames')
+
+	checkboxTable('show constellations', _G, 'showConstellations')
+	if showConstellations then
+		local count = 0
+		for _,constellation in ipairs(constellations) do
+			if constellation.name then
+				if count > 0 
+				and count % 10 ~= 0
+				then 
+					ig.igSameLine() 
+				end
+				ig.igPushIDStr(constellation.name)
+				checkboxTable('', constellation, 'enabled')
+				if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
+					ig.igBeginTooltip()
+					ig.igText(constellation.name)
+					ig.igEndTooltip()
+				end
+				ig.igPopID()
+				count = count + 1
+			end
+		end
+	end
+
+	ig.igImage(
+		ffi.cast('void*', ffi.cast('intptr_t', tempTex.id)),
+		ig.ImVec2(128, 24),
+		ig.ImVec2(0,0),
+		ig.ImVec2(1,1))
+
+	if showInformation 
+	and selectedIndex < 0xffffff 
+	and selectedIndex >= 0
+	and selectedIndex < numPts
+	then
+		local s = table()
+		s:insert('index: '..('%06x'):format(selectedIndex))
+
+		local name = namedStars and namedStars[selectedIndex] or nil
+		if name then
+			s:insert('name: '..tostring(name))
+		end
+		local pt = cpuPointBuf[selectedIndex]
+		local dist = (pt.pos - self.view.pos):length()
+			
+		local LStarOverLSun = pt.lum
+		local absmag = (-2.5 / math.log(10)) * math.log(LStarOverLSun * LSunOverL0)
+		local appmag = absmag - 5 + (5 / math.log(10)) * math.log(dist)
+
+		s:insert('dist (Pc): '..dist)
+		s:insert('lum (LSun): '..LStarOverLSun)
+		s:insert('temp (K): '..pt.temp)
+		s:insert('abs mag: '..absmag)
+		s:insert('app mag: '..appmag)
+
+		ig.igBeginTooltip()
+		ig.igText(s:concat'\n')
+		ig.igEndTooltip()
+	end
+
+	-- hmm, whether i call this first or last, it always shows up over the tooltips ..
+	-- maybe because of the type of popup i'm using?
+	guiShowStars(self)
 end
 
 --[[
