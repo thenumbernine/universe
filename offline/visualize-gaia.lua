@@ -44,7 +44,7 @@ nolumnans = remove nan luminosity ... not needed, this was a mixup of abs mag an
 addsun = add our sun to the dataset.  I don't see it in there.
 nounnamed = remove stars that don't have entries in the namefile
 buildnbhds = build neighbhoods
-buildvels
+buildvels = build velocity field lines
 --]]
 local cmdline = require 'ext.cmdline'(...)
 
@@ -59,11 +59,11 @@ local format = cmdline.format or filename:match'%-(.*)%.f32$' or '3col'
 
 -- lua table mapping from index to string
 -- TODO now upon mouseover, determine star and show name by it
-local names
+local namedStars
 if namefile then
 	local namedata = file[namefile]
 	if namedata then
-		names = fromlua(namedata)
+		namedStars = fromlua(namedata)
 	end
 end
 
@@ -107,6 +107,8 @@ end
 
 local App = class(require 'glapp.orbit'(require 'imguiapp'))
 local ig = require 'ffi.imgui'
+	
+local _1_log_10 = 1 / math.log(10)
 
 App.title = 'pointcloud visualization tool'
 App.viewDist = 5e-4
@@ -300,7 +302,7 @@ print('loaded '..numPts..' stars...')
 	or cmdline.rmax 
 	or cmdline.nolumnans 
 	or cmdline.addsun
-	or (cmdline.nounnamed and names)
+	or (cmdline.nounnamed and namedStars)
 	then
 		local pts = table()
 		for i=0,numPts-1 do
@@ -308,11 +310,11 @@ print('loaded '..numPts..' stars...')
 			pts:insert{obj=ffi.new(pt_t, cpuPointBuf[i]), index=i}
 		end
 
-		-- do this first, while names <-> objs, before moving any objs
+		-- do this first, while namedStars <-> objs, before moving any objs
 		if cmdline.nounnamed then
-			assert(names, "you can't filter out unnamed stars if you don't have a name file")
+			assert(namedStars, "you can't filter out unnamed stars if you don't have a name file")
 			for i=numPts-1,0,-1 do
-				if not names[i] then
+				if not namedStars[i] then
 					pts:remove(i+1)
 				end
 			end
@@ -372,17 +374,17 @@ print('loaded '..numPts..' stars...')
 			print('rmin filtered down to '..#pts)
 		end
 
-		-- now remap the constellations and names 
-		if names then
-			local newnames = names and {} or nil
+		-- now remap the constellations and namedStars 
+		if namedStars then
+			local newnames = namedStars and {} or nil
 			for i,pt in ipairs(pts) do
 				-- pts will be 0-based
-				if names then
-					newnames[i-1] = names[pt.index]
+				if namedStars then
+					newnames[i-1] = namedStars[pt.index]
 				end
 			end
-			if names then
-				names = newnames
+			if namedStars then
+				namedStars = newnames
 			end
 		end
 		if constellations then
@@ -422,7 +424,6 @@ print('loaded '..numPts..' stars...')
 		for i=0,numPts-1 do
 			cpuPointBuf[i] = pts[i+1].obj
 		end
-changed = true
 	end
 
 	env = CLEnv{precision='float', size=numPts, useGLSharing=false}
@@ -453,7 +454,26 @@ typedef _<?=env.real?>4 real4;
 	env.code = env.code .. real3code
 	
 	-- get range
-	local s = require 'stat.set'('x','y','z','r', 'v', 'lum', 'temp')
+	local s = require 'stat.set'('x','y','z','r', 'v', 'lum', 'temp', 'log10lum')
+--[[
+HYG:
+r = {min = 0, max = 990.09945066522, avg = 245.82425693605, sqavg = 96753.244535951, stddev = 190.58772058502, count = 109399},
+v = {min = 0, max = 0.0017771109717193, avg = 3.619610793339e-05, sqavg = 2.6188731301195e-09, stddev = 3.6176164813229e-05, count = 109399},
+lum = {min = 1.2257446542208e-06, max = 67483.875, avg = 65.549295330161, sqavg = 231284.10516467, stddev = 476.43194167308, count = 109399},
+temp = {min = 1499.3383789063, max = 21707.421875, avg = 6182.1188766896, sqavg = 42211879.557415, stddev = 1998.3207329886, count = 109399},
+log10lum = {min = -5.9115999921446, max = 4.8292000123107, avg = 1.0959642811746, sqavg = 2.1518952720112, stddev = 0.97506798039962, count = 109399},
+
+Gaia:
+r = {min = 3.2871054403464, max = 2121788012.1646, avg = 3722.3396439795, sqavg = 913550045428.65, stddev = 955790.87127688, count = 7112113},
+v = {min = 1.2907013896885e-07, max = 86.409967259077, avg = 0.00012526101936957, sqavg = 0.0010910844398197, stddev = 0.033031329817262, count = 7112113},
+lum = {min = 0.030576450750232, max = 96606.6328125, avg = 51.305569407229, sqavg = 29367.297608038, stddev = 163.50852013225, count = 6081418},
+temp = {min = 3229, max = 9715.6669921875, avg = 4822.2554139669, sqavg = 23954513.485383, stddev = 836.87884896789, count = 7102644},
+log10lum = {min = -1.5146129279835, max = 4.9850069452041, avg = 1.0599897393166, sqavg = 1.8131122068599, stddev = 0.83038181543398, count = 6081418},	
+
+Seems with Gaia I am getting only a small subset of the luminosity range that I am with the HYG database.  I wonder why?  Maybe luminosity is one of the things they calculated last?  And I should just be deriving it from the magnitude?
+--]]
+
+	--local log10lumbin = require 'stat.bin'(-10, 10, 200)
 	-- TODO better way of setting these flags ... in ctor maybe?
 	for _,s in ipairs(s) do
 		s.onlyFinite = true
@@ -480,10 +500,44 @@ typedef _<?=env.real?>4 real4;
 		local v = pt.vel:length()
 		local lum = pt.lum
 		local temp = pt.temp
-		s:accum(x, y, z, r, v, lum, temp)
+		local log10lum = math.log(lum) * _1_log_10		-- multiply this by -2.5 to get the abs mag ... but how is that intuitive?
+		s:accum(x, y, z, r, v, lum, temp, log10lum)
 	end
 	print("data range (Pc):")
 	print(s)
+
+
+	if cmdline.makeLog10LumBins then
+		-- TODO why not just do this in the getstats or another offline tool?
+		local log10lumbincount = 200
+		local log10lumbins = require 'stat.bin'(
+			s.log10lum.min + (s.log10lum.min - s.log10lum.max) * .5 / log10lumbincount,
+			s.log10lum.max + (s.log10lum.max - s.log10lum.min) * .5 / log10lumbincount,
+			log10lumbincount)
+		for i=0,numPts-1 do
+			log10lumbins:accum(math.log(cpuPointBuf[i].lum) * _1_log_10)
+		end
+		do	--if normalizebins then
+			local total = 0
+			local dx = log10lumbins:getDx()
+			for i,x in ipairs(log10lumbins) do	-- I'd use table.sum but it sums non-natural keys
+				total = total + x * dx
+			end
+			for i=1,#log10lumbins do	-- I'd use table.sum but it sums non-natural keys
+				log10lumbins[i] = log10lumbins[i] / total
+			end
+		end
+		local plotdatafn = 'log10lum-dist-'..set..'.txt'
+		file[plotdatafn] = log10lumbins:getTextData()
+		require 'gnuplot'{
+			output = 'log10lum-dist-'..set..'.png',
+			style = 'data linespoints',
+			xlabel = 'log_{10} lum',
+			ylabel = '%age',
+			{datafile=plotdatafn, using='1:2', title=set},
+		}
+	end
+
 
 	gpuPointBuf = GLArrayBuffer{
 		size = numPts * ffi.sizeof(pt_t),
@@ -631,7 +685,11 @@ print'searching bins'
 		-- nbhdThrehsold = 7 <=> 689832 lines
 		-- nbhdThrehsold = 10 <=> too many 
 		local nbhdThreshold = 7	-- in Pc
-		
+		-- targetApparentMagnitude = -1 <=> 103454 lines (incl dups)
+		-- targetApparentMagnitude = 0 <=> 412688 lines
+		-- but this method looks dumb
+		--local targetApparentMagnitude = 0
+
 		local ai = 1
 		local lastTime = os.time()	
 		local function searchTree(node)
@@ -643,41 +701,6 @@ print'searching bins'
 			else
 				assert(node.pts)
 
-				-- TODO how about nbhd threshold based on abs mag? log10 of distance from neighboring stars?
-				-- so you see more connectiosn for more visible stars?
-				-- so the lines represent what can see the star?
-				local touchbnd = box3{
-					min = {
-						node.box.min[1] - nbhdThreshold, 
-						node.box.min[2] - nbhdThreshold, 
-						node.box.min[3] - nbhdThreshold, 
-					}, 
-					max = {
-						node.box.max[1] + nbhdThreshold, 
-						node.box.max[2] + nbhdThreshold, 
-						node.box.max[3] + nbhdThreshold, 
-					},
-				}
-
-				local touchingNodes = table()
-				local function search2(node2)
-					-- if we don't contain the node, or if we don't touch the node, then bail
-					if not node2.box:touches(touchbnd) then return end
-					if node2.children then
-						assert(not node2.pts)
-						for ch=0,7 do
-							search2(node2.children[ch])
-						end
-					else
-						-- if touchbnd contains node2.box then just add all
-						assert(node2.pts)
-						touchingNodes:insert(node2)
-					end
-				end
-				-- search through all touching nodes of this node
-				search2(root)
-
-
 				-- TODO for each point in the leaf
 				-- search all neighbors and all parents, and all parents' neighbors
 				-- which means everything except siblings-of-siblings
@@ -687,55 +710,69 @@ print'searching bins'
 				for i=1,n-1 do
 					local pi = cpuPointBuf[pts[i]]
 
---[=[
-					local bestj = i+1
-					local pj = cpuPointBuf[pts[bestj]]
-					local bestdistsq = (pi.pos - pj.pos):lenSq()
-					for j=i+2,n do
-						pj = cpuPointBuf[pts[j]]
-						distsq = (pi.pos - pj.pos):lenSq()
-						if distsq < bestdistsq then
-							bestdistsq = distsq
-							bestj = j
+					--[[
+					what if dist threshold of connection varies with its lum?
+					like, dist threshold is how far away an apparent magnitude of X would be
+					
+					m = -5/2 log10(LStar/L0) - 5 + 5 log10(d)
+					m/5 + 1/2 log10(LStar/L0) + 1 = log10(d)
+					d = 10^(m/5 + 1) sqrt(LStar/L0)
+					ex: for LSun, the dist at which it has 
+					app mag = -1 <=> d = 0.7 pc
+					app mag = 0 <=> d = 1.1 pc
+					app mag = 1 <=> d = 1.8 pc
+					app mag = 2 <=> d = 2.8 pc
+					app mag = 3 <=> d = 4.5 pc
+					app mag = 4 <=> d = 7.1 pc
+					app mag = 6 <=> d = 17.9 pc
+
+					--]]
+					--local nbhdThreshold = 10^(targetApparentMagnitude  / 5 + 1) * math.sqrt(pi.lum * LSunOverL0)
+
+					-- TODO how about nbhd threshold based on abs mag? log10 of distance from neighboring stars?
+					-- so you see more connectiosn for more visible stars?
+					-- so the lines represent what can see the star?
+					local touchbnd = box3{
+						min = {
+							pi.pos.x - nbhdThreshold, 
+							pi.pos.y - nbhdThreshold, 
+							pi.pos.z - nbhdThreshold, 
+						}, 
+						max = {
+							pi.pos.x + nbhdThreshold, 
+							pi.pos.y + nbhdThreshold, 
+							pi.pos.z + nbhdThreshold, 
+						},
+					}
+
+					local touchingNodes = table()
+					local function search2(node2)
+						-- if we don't contain the node, or if we don't touch the node, then bail
+						if not node2.box:touches(touchbnd) then return end
+						if node2.children then
+							assert(not node2.pts)
+							for ch=0,7 do
+								search2(node2.children[ch])
+							end
+						else
+							-- if touchbnd contains node2.box then just add all
+							assert(node2.pts)
+							touchingNodes:insert(node2)
 						end
 					end
-					pj = cpuPointBuf[pts[bestj]]
-					
-					local dist = (pi.pos - pj.pos):length()
-					local na = ffi.new'nbhd_t'
-					na.pos:set(pi.pos:unpack())
-					na.dist = dist
-					cpuNbhdLineBuf:push_back(na)
-					local nb = ffi.new'nbhd_t'
-					nb.pos:set(pj.pos:unpack())
-					nb.dist = dist
-					cpuNbhdLineBuf:push_back(nb)
---]=]
---[=[
-					for j=i+1,n do
-						local pj = cpuPointBuf[pts[j]]
-						local dist = (pi.pos - pj.pos):length()
-						-- only add if dist is half the box width?
-						local na = ffi.new'nbhd_t'
-						na.pos:set(pi.pos:unpack())
-						na.dist = dist
-						cpuNbhdLineBuf:push_back(na)
-						local nb = ffi.new'nbhd_t'
-						nb.pos:set(pj.pos:unpack())
-						nb.dist = dist
-						cpuNbhdLineBuf:push_back(nb)					
-					end
---]=]
--- [=[				
+					-- search through all touching nodes of this node
+					search2(root)
+
 					-- now compare up the tree
 					-- but there are no points in non-leaf nodes
 					-- so we have to find all leafs that are neighboring this node
 					-- so ... i guess that means traverse the whole tree
 					-- and look at whose bounding points are contained by our bounding points
 					for _,node2 in ipairs(touchingNodes) do
-						-- don't process node pairs twice
-						if node2.index >= node.index then
-							for j = (node == node2 and i+1 or 1),#node2.pts do
+						for j = (node == node2 and i+1 or 1),#node2.pts do
+							-- don't process point pairs twice
+							if node.pts[i] > node2.pts[j] then
+								-- TODO Prevent duplicates, though now distance tests are asymmetric
 								local pj = cpuPointBuf[node2.pts[j]]
 								local distSq = (pi.pos - pj.pos):lenSq()
 								if distSq < nbhdThreshold * nbhdThreshold then
@@ -752,7 +789,7 @@ print'searching bins'
 							end
 						end
 					end
---]=]
+
 					--[[
 					local thisTime = os.time()
 					if lastTime ~= thisTime then
@@ -1067,8 +1104,8 @@ void main() {
 	if (normalizeVel) velv = normalize(velv);
 	
 	//trying to use a shader variable:	
-	float end = float(gl_VertexID % 2 == 0);
-	vtx.xyz += velv * end * velScalar;
+	float end = mod(float(gl_VertexID), 2.);
+	vtx.xyz += velv * (end - .5) * velScalar;
 	
 	gl_Position = projectionMatrix * modelViewMatrix * vtx;
 	lumv = 1.;//gl_Vertex.w;
@@ -1315,7 +1352,6 @@ function App:drawScene()
 		gl.glDrawElements(gl.GL_LINES, cpuVelLineElemBuf.size, gl.GL_UNSIGNED_INT, nil)
 		gpuVelLineElemBuf:unbind() 
 		accumStarLineShader.vao:useNone()
-
 		accumStarLineShader:useNone()
 	end
 
@@ -1584,9 +1620,9 @@ function App:updateGUI()
 	inputFloatTable('zfar', self.view, 'zfar')
 	sliderFloatTable('fov y', self.view, 'fovY', 0, 180)
 
-	if names then
+	if namedStars then
 		if textTable('orbit', search, 'orbit', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
-			for i,v in pairs(names) do
+			for i,v in pairs(namedStars) do
 				if v == search.orbit then
 					assert(i >= 0 and i < numPts, "oob index in name table "..i)
 					local pt = cpuPointBuf[i]
@@ -1595,7 +1631,7 @@ function App:updateGUI()
 			end
 		end
 		if textTable('look at', search, 'lookat', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
-			for i,v in pairs(names) do
+			for i,v in pairs(namedStars) do
 				if v == search.lookat then
 					local orbitDist = (self.view.pos - self.view.orbit):length()
 					local fwd = -self.view.angle:zAxis()
@@ -1663,7 +1699,7 @@ function App:updateGUI()
 		local s = table()
 		s:insert('index: '..('%06x'):format(selectedIndex))
 
-		local name = names and names[selectedIndex] or nil
+		local name = namedStars and namedStars[selectedIndex] or nil
 		if name then
 			s:insert('name: '..tostring(name))
 		end
@@ -1683,6 +1719,170 @@ function App:updateGUI()
 		ig.igBeginTooltip()
 		ig.igText(s:concat'\n')
 		ig.igEndTooltip()
+	end
+
+	-- there's usually just 5000 or so of these
+	-- and if we filter by apparent magnitude then there can't be many visible at once
+	if namedStars
+	-- and showAllNamedStarsAtOnce
+	then
+		ig.igPushIDStr('star names')
+	
+		-- global / persist: lastOrbitPos
+		if not lastOrbitPos 
+		or (lastOrbitPos - self.view.orbit):lenSq() > .01	-- greater than some epsilon of how far to move, squared.  make the dist less than the closest stars in the dataset
+		then 
+			lastOrbitPos = lastOrbitPos or vec3d() 
+			lastOrbitPos:set(self.view.orbit:unpack()) 
+		
+			-- now sort all named indexes basedon their apparent magnitude
+			-- global / persist: namesWithAppMag 
+			namesWithAppMag = table.map(namedStars, function(name, index, t)
+				local pt = cpuPointBuf[index]
+				local distSq = (pt.pos - self.view.orbit):lenSq()
+				local log10DistInPc = .5 * _1_log_10 * math.log(distSq)
+				local LStarOverL0 = pt.lum * LSunOverL0
+				local absmag = -2.5 * _1_log_10 * math.log(LStarOverL0)
+				local appmag = absmag - 5. + 5. * log10DistInPc
+
+				return {
+					name = name,
+					index = index,
+					appmag = appmag,
+				}, #t+1
+			end)
+			namesWithAppMag:sort(function(a,b)
+				return a.appmag < b.appmag
+			end)
+		end
+		
+
+		local windowCount = 0
+		local function addWindowForStar(x, y, name)
+			ig.igPushIDStr(name)
+			ig.igSetNextWindowPos(
+				ig.ImVec2(x,y), 	-- ImVec2 pos
+				0,					-- ImGuiCond cond
+				ig.ImVec2()			-- ImVec2 pivot
+			)
+			-- there's got to be a better way to have floating text in imgui
+			-- imgui can't handle more than one tooltip
+			-- and popups seem to eat up the input and i can't drag the screen any more.
+			-- even if they have all the 'no input' and 'no nav' flags possible set
+			--ig.igOpenPopup('star name', 0)
+			-- igBeginPopup vs igBeginPopupEx, the only difference is normal takes str for title, Ex takes ImGuiID which is an int ... ?
+--					if ig.igBeginPopup('star name', 
+--						bit.bor(
+--							ig.ImGuiWindowFlags_NoFocusOnAppearing,
+--							ig.ImGuiWindowFlags_NoBringToFrontOnFocus,
+--						)
+--					) then
+				ig.igBegin(name, nil, bit.bor(
+--						ig.ImGuiWindowFlags_NoSavedSettings,
+--						ig.ImGuiWindowFlags_NoNav,
+--						ig.ImGuiWindowFlags_NoInputs,	-- crashes?
+				
+				ig.ImGuiWindowFlags_NoDecoration,
+--						ig.ImGuiWindowFlags_NoResize,
+--						ig.ImGuiWindowFlags_NoScrollbar,
+--						ig.ImGuiWindowFlags_NoCollapse
+
+				ig.ImGuiWindowFlags_Tooltip
+			))
+			ig.igText(name)
+			ig.igEnd()
+			ig.igPopID()
+			windowCount = windowCount + 1
+			return windowCount > 10
+		end
+
+		local visibleNamedStars
+--[[		
+		for index,name in pairs(namedStars) do
+--]]
+-- [[
+		for _,info in ipairs(namesWithAppMag) do
+			local index, name = info.index, info.name
+--]]
+			assert(index >= 0 and index < numPts)
+			local pt = cpuPointBuf[index]
+			local vpt = modelViewMatrix * require 'matrix'{pt.pos.x, pt.pos.y, pt.pos.z, 1}
+			local mz = vpt[3]
+			if -mz > self.view.znear
+			and -mz < self.view.zfar
+			then
+				-- find the point in screen coords
+				local spt = projectionMatrix * vpt
+				spt = spt / spt[4]
+
+				-- only in bounds in the projection
+				local x = spt[1]
+				local y = spt[2]
+				if x >= -1 and x <= 1
+				and y >= -1 and y <= 1
+				then
+					x = (1 + x) * .5 * self.width
+					y = (1 - y) * .5 * self.height
+
+					local mx = vpt[1]
+					local my = vpt[2]
+
+					-- [[ handle immediately
+					if addWindowForStar(x, y, name) then break end
+					--]]
+					--[=[ insert and sort now or later:
+					local star = {
+						x = x,
+						y = y,
+						name = name,
+					}				
+					local distSq = mx*mx + my*my + mz*mz
+					local log10DistInPc = .5 * _1_log_10 * math.log(distSq)
+					local LStarOverL0 = pt.lum * LSunOverL0
+					local absmag = -2.5 * _1_log_10 * math.log(LStarOverL0)
+					local appmag = absmag - 5. + 5. * log10DistInPc
+					star.appmag = appmag
+					--[[ insert and sort later?
+					visibleNamedStars = visibleNamedStars or table()
+					visibleNamedStars:insert(star)
+					--]]
+					--[[ insert in-order.  
+					-- TODO insert in-order in a tree?
+					visibleNamedStars = visibleNamedStars or table()
+					local found
+					for j=1,#visibleNamedStars do
+						if visibleNamedStars[j].appmag > star.appmag then
+							visibleNamedStars:insert(j, star)
+							found = true
+							break
+						end
+					end
+					if not found then
+						visibleNamedStars:insert(star)
+					end
+					--]]
+					--]=]
+					-- TODO how about re-sorting the stars based on apparent magnitude from the oribiting star
+					-- and only recalculating them when the orbit moves?
+				end
+			end
+		end
+		
+		--[[ insert and sort later
+		visibleNamedStars:sort(function(a,b)
+			return a.appmag > b.appmag
+		end)
+		--]]
+
+		--[[ don't handle immediately
+		if visibleNamedStars then
+			for _,star in ipairs(visibleNamedStars) do
+				if addWindowForStar(star.x, star.y, star.name) then break end
+			end
+		end
+		--]]
+		
+		ig.igPopID()
 	end
 end
 
