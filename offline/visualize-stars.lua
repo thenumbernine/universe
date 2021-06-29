@@ -1,5 +1,6 @@
 #!/usr/bin/env luajit
 -- simple pointcloud visualizer
+-- TODO move this to solarsystem project, so i can keep building off of it, and comparing it to the solarsystem renderer, and eventually add in things like the exoplanets
 local class = require 'ext.class'
 local table = require 'ext.table'
 local range = require 'ext.range'
@@ -105,8 +106,16 @@ if constellationFile then
 	end
 end
 
+
+-- TODO combine the non-indexes part of points/constellations with the constellationNamesForAbbrevs.lua and constellationLines.lua 
+-- and put all non-pointset constlelation info in one place
+-- and call the abbreviation 'abbrev' intsead of 'name'
+local constellationNameForAbbrev = fromlua(file['constellationNamesForAbbrevs.lua'])
+
+
+
 local App = class(require 'glapp.orbit'(require 'imguiapp'))
-local ig = require 'ffi.imgui'
+local ig = require 'ffi.imgui'		-- windows bug, gotta include ig after imguiapp (or after imgui?)
 	
 local _1_log_10 = 1 / math.log(10)
 
@@ -229,9 +238,10 @@ local buildNeighborhood = cmdline.buildnbhds
 local buildVelocityBuffers = cmdline.buildvels
 
 -- _G so that sliderFloatTable can use them
-starPointAlpha = .5
+starPointAlpha = 1
+pointSizeScale = 3
+pointSizeBias = -3
 velLineAlpha = .5
-pointSizeBias = 0
 hsvRange = .2
 hdrScale = .001
 hdrGamma = 1
@@ -264,6 +274,7 @@ that way brighter stars would overbear closer weaker neighbors
 pickSizeBias = 4
 
 
+local starTex
 
 local numPts	-- number of points
 local gpuPointBuf, cpuPointBuf
@@ -830,6 +841,27 @@ print('created '..#cpuNbhdLineBuf..' nbhd lines')
 
 	hsvtex = GLHSVTex(1024, nil, true)
 
+	local starTexSize = 256
+	starTex = GLTex2D{
+		image = Image(starTexSize, starTexSize, 3, 'unsigned char', function(x,y)
+			local u = ((x + .5) / starTexSize) * 2 - 1
+			local v = ((y + .5) / starTexSize) * 2 - 1
+			
+			--[[
+			local l = math.exp(-5 * (u*u + v*v))
+			--]]
+			-- [[
+			local r = math.sqrt(u*u + v*v)
+			local l = math.exp(-50 * (r - .75)^2)
+			--]]
+			
+			l = math.floor(l * 255)
+			return l,l,l
+		end),
+		wrap = {s = gl.GL_CLAMP_TO_EDGE, t = gl.GL_CLAMP_TO_EDGE},
+		magFilter = gl.GL_LINEAR,
+		minFilter = gl.GL_NEAREST,
+	}
 
 	-- black body color table from http://www.vendian.org/mncharity/dir3/blackbody/UnstableURLs/bbr_color_D58.html
 	-- HYG data temp range is 1500 to 21700 
@@ -852,23 +884,13 @@ print('created '..#cpuNbhdLineBuf..' nbhd lines')
 			end
 		end
 	end
-	local tempImg = Image(#rgbs, 1, 3, 'unsigned char')
-	for i=0,#rgbs-1 do
-		for j=0,2 do
-			tempImg.buffer[j+3*i] = rgbs[i+1][j+1]
-		end
-	end
 	tempTex = GLTex2D{
-		width = tempImg.width,
-		height = 1,
-		internalFormat = gl.GL_RGB,
-		format = gl.GL_RGB,
-		type = gl.GL_UNSIGNED_BYTE,
+		image = Image(#rgbs, 1, 3, 'unsigned char', function(i,j)
+			return table.unpack(rgbs[i+1])
+		end),
+		wrap = {s = gl.GL_CLAMP_TO_EDGE, t = gl.GL_CLAMP_TO_EDGE},
 		magFilter = gl.GL_LINEAR,
 		minFilter = gl.GL_NEAREST,
-		-- causing a gl error:
-		--wrap = {gl.GL_CLAMP_TO_EDGE, gl.GL_CLAMP_TO_EDGE},
-		image = tempImg,
 	}
 	glreport'here'
 
@@ -904,7 +926,7 @@ local calcPointSize = template([[
 	HDR will have to factor into here somehow ...
 	*/
 
-	gl_PointSize = 6.5 - apparentMagnitude + pointSizeBias;
+	gl_PointSize = (6.5 - apparentMagnitude) * pointSizeScale + pointSizeBias;
 ]], {
 		LSunOverL0 = LSunOverL0,
 	})
@@ -922,6 +944,7 @@ in float lum;
 out float discardv;
 out vec3 color;
 
+uniform float pointSizeScale;
 uniform float pointSizeBias;
 uniform float pickSizeBias;
 
@@ -1002,6 +1025,7 @@ out float discardv;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
+uniform float pointSizeScale;
 uniform float pointSizeBias;
 uniform sampler2D tempTex;
 
@@ -1054,6 +1078,7 @@ in vec3 tempcolor;
 in float discardv;
 
 uniform float starPointAlpha;
+uniform sampler2D starTex;
 
 void main() {
 	if (discardv > 0.) {
@@ -1069,11 +1094,14 @@ void main() {
 	lumf *= 1. / (10. * rsq + .1);
 #endif
 
-	gl_FragColor = vec4(tempcolor * lumf * starPointAlpha, 1.);
+	gl_FragColor = vec4(tempcolor * lumf * starPointAlpha, 1.)
+		* texture2D(starTex, gl_PointCoord)
+	;
 }
 ]]),
 		uniforms = {
 			tempTex = 0,
+			starTex = 1,
 		},
 		attrs = pt_t_attrs,
 	}
@@ -1272,6 +1300,7 @@ function App:drawPickScene()
 	
 	drawIDShader:use()
 	drawIDShader:setUniforms{
+		pointSizeScale = pointSizeScale,
 		pointSizeBias = pointSizeBias,
 		pickSizeBias = pickSizeBias,
 		sliceRMin = sliceRMin,
@@ -1312,10 +1341,12 @@ function App:drawScene()
 	
 	if drawPoints then
 		gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
+		gl.glEnable(gl.GL_POINT_SPRITE)			-- i thought this was perma-on after 3.2?  guess not
 		
 		accumStarPointShader:use()
 		accumStarPointShader:setUniforms{
 			starPointAlpha = starPointAlpha,
+			pointSizeScale = pointSizeScale,
 			pointSizeBias = pointSizeBias,
 			sliceRMin = sliceRMin,
 			sliceRMax = sliceRMax,
@@ -1325,16 +1356,19 @@ function App:drawScene()
 			orbit = {self.view.orbit:unpack()},	-- but view.orbit is double[3], so we can't pass it as a ptr of the type associated with the glsl type(float)
 		}
 
-		tempTex:bind()
-	
+		tempTex:bind(0)
+		starTex:bind(1)
+
 		accumStarPointShader.vao:use()
 		gl.glDrawArrays(gl.GL_POINTS, 0, numPts)
 		accumStarPointShader.vao:useNone()
 	
-		tempTex:unbind()
+		starTex:unbind(1)
+		tempTex:unbind(0)
 		
 		accumStarPointShader:useNone()
 		
+		gl.glDisable(gl.GL_POINT_SPRITE)		
 		gl.glDisable(gl.GL_PROGRAM_POINT_SIZE)
 	end
 	if drawVelLines and buildVelocityBuffers then
@@ -1567,6 +1601,17 @@ local function checkboxTable(title, t, key, ...)
 	return result
 end
 
+local function checkboxTooltipTable(title, ...)
+	ig.igPushIDStr(title)
+	local result = checkboxTable('', ...)
+	if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
+		ig.igBeginTooltip()
+		ig.igText(title)
+		ig.igEndTooltip()
+	end
+	ig.igPopID()
+	return result
+end
 
 -- TODO dynamic sized buffer?
 local str = ffi.new'char[256]'
@@ -1599,7 +1644,6 @@ local function guiShowStars(self)
 		then 
 			nameWithAppMagLastPos = nameWithAppMagLastPos or vec3d() 
 			nameWithAppMagLastPos:set(self.view.pos:unpack()) 
-print('updating namesWithAppMag')	
 			-- now sort all named indexes basedon their apparent magnitude
 			-- global / persist: namesWithAppMag 
 			namesWithAppMag = table.map(namedStars, function(name, index, t)
@@ -1751,6 +1795,7 @@ print('updating namesWithAppMag')
 	end
 end
 
+showAllConstellations = false
 local search = {
 	orbit = '',
 	lookat = '',
@@ -1758,7 +1803,8 @@ local search = {
 function App:updateGUI()
 
 	checkboxTable('draw points', _G, 'drawPoints')
-	sliderFloatTable('point size', _G, 'pointSizeBias', -10, 10)
+	sliderFloatTable('point size scale', _G, 'pointSizeScale', -10, 10)
+	sliderFloatTable('point size bias', _G, 'pointSizeBias', -10, 10)
 	sliderFloatTable('pick size', _G, 'pickSizeBias', 0, 20)
 	inputFloatTable('point alpha value', _G, 'starPointAlpha')
 
@@ -1835,22 +1881,22 @@ function App:updateGUI()
 
 	checkboxTable('show constellations', _G, 'showConstellations')
 	if showConstellations then
+		if checkboxTooltipTable('All', _G, 'showAllConstellations') then	-- TODO infer
+			for _,constellation in ipairs(constellations) do
+				constellation.enabled = showAllConstellations
+			end
+		end
+		ig.igSameLine() 
+
 		local count = 0
 		for _,constellation in ipairs(constellations) do
 			if constellation.name then
 				if count > 0 
-				and count % 10 ~= 0
+				and count % 10 ~= 9
 				then 
 					ig.igSameLine() 
 				end
-				ig.igPushIDStr(constellation.name)
-				checkboxTable('', constellation, 'enabled')
-				if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
-					ig.igBeginTooltip()
-					ig.igText(constellation.name)
-					ig.igEndTooltip()
-				end
-				ig.igPopID()
+				checkboxTooltipTable(constellationNameForAbbrev[constellation.name], constellation, 'enabled')
 				count = count + 1
 			end
 		end
