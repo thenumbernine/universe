@@ -19,7 +19,7 @@ local CLEnv = require 'cl.obj.env'
 local c = 299792.458	--km/s
 local H0 = 69.32	--km/s/Mpc
 
-local App = class(require 'glapp.orbit'(require 'imguiapp'))
+local App = require 'imguiapp.withorbit'()
 App.title = 'FoG tool'
 App.viewDist = 2
 
