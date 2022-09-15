@@ -184,7 +184,7 @@ local function iterateOfflineData()
 	for l in io.lines(filename) do
 		if l == '{' or l == '}' or l == '' then
 		else
-			local entry = assert(assert(load('return '..l:sub(1,-2)))())
+			local entry = assert(fromlua(l:sub(1,-2)))
 			coroutine.yield(entry)
 		end
 	end
