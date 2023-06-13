@@ -8,6 +8,7 @@
 	dir="ltr"
 >
 	<head>
+		<meta charset="utf-8">
 		<title>Map of the Universe</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 		<meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -18,75 +19,21 @@
 		<meta property="og:image:width" content="1301"/>
 		<meta property="og:image:height" content="654"/>
 
-		<script type='text/javascript' src='/js/jquery-1.11.1.min.js'></script>
-		<script type='text/javascript' src='/js/purl.js'></script>
-		<script type='text/javascript' src='/js/util.js'></script>
-		<script type='text/javascript' src='/js/gl-matrix.2.2.0.min.js'></script>
-		<script type='text/javascript' src='/js/gl-util.js'></script>
-		<script type='text/javascript' src='/js/mouse3d.js'></script>
-		<script type='text/javascript' src='otypedescs.js'></script>
-		<!-- script type='text/javascript' src='simbad-catalog.json'></script -->
-		<script type='text/javascript' src='main.js'></script>
-		
-<!-- script type='text/javascript'>
-var _gaq = _gaq || [];
-_gaq.push(['_setAccount', 'UA-17312646-1']);
-_gaq.push(['_trackPageview']);
-(function() {
-	var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-	ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-	var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-})();
-</script -->
+		<script type='module' src='main.js' defer></script>
 
-		<style type='text/css'>
-
-body {
-	background-color:black;
-	color:white;
-}
-
-a:link {
-	cursor:pointer;
-	color:#00FFFF;
-}
-
-a:visited {
-	cursor:pointer;
-	color:#00FFFF;
-}
-
-a:hover {
-	cursor:pointer;
-	color:#00FFFF;
-}
-
-a:active {
-	cursor:pointer;
-	color:#00FFFF;
-}
-	
-/* wikipedia hacks */
-.editsection {
-	display:none;
-}
-
-::-webkit-scrollbar {
-	display:none;
-}
-		</style>
+		<link rel='stylesheet' href='style.css'/>
 	</head>
-	<body style='margin:0px; overflow:hidden'>
-		<div id='panel' style='overflow-x:hidden; z-index:1; position:absolute; background-color:rgba(0,0,0,.75)'>
-			<a href='#' id='help' style='padding-right:10px'>Help</a>
-			<a href='#' id='find' style='padding-right:10px'>Find</a>
+	<body>
+		<div id='panel'>
+			<a href='#' id='help'>Help</a>
+			<a href='#' id='find'>Find</a>
 			<span id='fps'></span>
 			<br>
-			<div id='sources'></div>
-			<div style='padding-right:20px'>
+			<div id='fileRequests'></div>
+			<div id='orbitInfo'>
 				Distance: <span id='distance'></span> Mpc<br>
-				Orbit Coords: <span id='orbitcoords'></span><br>
-				<input id='showgrid' type='checkbox'/>Grid Size: <span id='gridsize'></span><br>
+				Orbit Coords: <span id='orbitCoords'></span><br>
+				<input id='showgrid' type='checkbox'/>Grid Size: <span id='gridSize'></span><br>
 			</div>
 			<div id='target'></div>
 			<div id='desc'></div>
