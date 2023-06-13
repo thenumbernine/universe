@@ -188,7 +188,8 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 						},
 					}).then(response => {
 						if (!response.ok) throw 'not ok';
-						response.json().then(obj => {
+						response.json()
+						.then(obj => {
 console.log(obj);
 							const parse = obj.parse;
 							if (!parse) return; 
@@ -263,7 +264,8 @@ console.log(obj);
 			fetch('getpoint.lua?'+fetchArgs.toString())
 			.then(response => {
 				if (!response.ok) throw 'not ok';
-				response.json().then(obj => {
+				response.json()
+				.then(obj => {
 					console.log('got', obj);
 					ids.target.innerhTML = '';
 					buildWikiPage(obj);
@@ -513,7 +515,8 @@ function findObject(ident) {
 	fetch('findpoint.lua?'+fetchArgs.toString())
 	.then(response => {
 		if (!response.ok) throw 'not ok';
-		response.json().then(results => {
+		response.json()
+		.then(results => {
 			if (!(results && results.indexes.length)) throw 'no results';
 			//TODO send parameters of what sets are visible, search across requested sets
 			//NOTICE this assumes set0 is the Simbad results, which is the only one the find and getinfo webservices are linked to
