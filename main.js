@@ -179,28 +179,28 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 				success:function(response) {
 					console.log(response);
 			*/
-					fetch('https://en.wikipedia.org/w/api.php', {
-						data : {
-							action : 'parse',
-							page : search,
-							format : 'json',
-							prop : 'text',
-						},
-					}).then(response => {
+					const fetchArgs = new URLSearchParams();
+					//https://stackoverflow.com/a/38921370/2714073
+					fetchArgs.set('origin', '*'); //wikipedia allow cors ... only works as GET param?
+					fetchArgs.set('action', 'parse');
+					fetchArgs.set('format', 'json');
+					fetchArgs.set('prop', 'text');
+					fetch('https://en.wikipedia.org/w/api.php?'+fetchArgs.toString())
+					.then(response => {
 						if (!response.ok) throw 'not ok';
 						response.json()
 						.then(obj => {
-console.log(obj);
+console.log('wikipedia fetch response', obj);
 							const parse = obj.parse;
 							if (!parse) return; 
 							const title = parse.title
 							if (!title) return; 
-							const text = parse.text;
+							let text = parse.text;
 							if (!text) return;
 							text = text['*'];
 							if (!text) return;
-							lastTitle = title;
-							lastText = text;
+							//lastTitle = title;
+							//lastText = text;
 							DOM('br', {appendTo:ids.desc});
 							DOM('br', {appendTo:ids.desc});
 							DOM('a', {
@@ -266,7 +266,7 @@ console.log(obj);
 				if (!response.ok) throw 'not ok';
 				response.json()
 				.then(obj => {
-					console.log('got', obj);
+console.log('getpoint response', obj);
 					ids.target.innerhTML = '';
 					buildWikiPage(obj);
 				});
