@@ -187,7 +187,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 					fetchArgs.set('prop', 'text');
 					fetch('https://en.wikipedia.org/w/api.php?'+fetchArgs.toString())
 					.then(response => {
-						if (!response.ok) throw 'not ok';
+						if (!response.ok) return Promise.reject('not ok');
 						response.json()
 						.then(obj => {
 console.log('wikipedia fetch response', obj);
@@ -263,7 +263,7 @@ console.log('wikipedia fetch response', obj);
 			fetchArgs.set('point', pointIndex);
 			fetch('getpoint.lua?'+fetchArgs.toString())
 			.then(response => {
-				if (!response.ok) throw 'not ok';
+				if (!response.ok) return Promise.reject('not ok');
 				response.json()
 				.then(obj => {
 console.log('getpoint response', obj);
@@ -514,7 +514,7 @@ function findObject(ident) {
 	fetchArgs.set('ident', ident);
 	fetch('findpoint.lua?'+fetchArgs.toString())
 	.then(response => {
-		if (!response.ok) throw 'not ok';
+		if (!response.ok) return Promise.reject('not ok');
 		response.json()
 		.then(results => {
 			if (!(results && results.indexes.length)) throw 'no results';
