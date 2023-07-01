@@ -383,7 +383,7 @@ $(document).ready(function() {
 	var xhr = new XMLHttpRequest();
 	xhr.open('GET', '../datasets/2mrs/density.vol', true);
 	xhr.responseType = 'arraybuffer';
-	xhr.onload = function(e) {
+	xhr.addEventListener('load', e => {
 		var arrayBuffer = this.response;
 		var data = new DataView(arrayBuffer);
 		
@@ -398,7 +398,7 @@ $(document).ready(function() {
 		adjustSize();
 
 		volume.init(f32Buffer);
-	};
+	});
 	xhr.send();
 
 })
