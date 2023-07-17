@@ -2,7 +2,7 @@
 require 'ext'
 require 'htmlparser'
 require 'htmlparse.xpath'
-d = file'datasets/allsky/format_psc.html':read()
+d = path'datasets/allsky/format_psc.html':read()
 t = htmlparser.new(d):parse()
 return htmlparser.xpath(t, '//tr'):filter(function(n) return #n.child > 3 and n.child[1].tag == 'td' end):map(function(n) return flattenText(n.child[1]) end):concat(' ')
 --]]

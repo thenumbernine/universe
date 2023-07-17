@@ -7,4 +7,4 @@ for _,row in ipairs(results.data) do
 	t[row[1]] = row[2]
 end
 local json = require 'dkjson'
-file'../otypedescs.js':write('var otypeDescs = '..json.encode(t,{indent=true}))
+path'../otypedescs.js':write('var otypeDescs = '..json.encode(t,{indent=true}))

@@ -374,7 +374,7 @@ function App:initGL(...)
 	self.view.zfar = 3
 
 	-- init cl after gl so it has sharing
-	local data = file'datasets/sdss3/points/spherical.f64':read()	-- format is double z, ra, dec
+	local data = path'datasets/sdss3/points/spherical.f64':read()	-- format is double z, ra, dec
 	n = #data / (3 * ffi.sizeof'double')
 	print('n='..n)
 

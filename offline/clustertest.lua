@@ -25,14 +25,14 @@ local opts = {
 			local setname = getsetname(i)
 			local prevsetname = getsetname(i-1)
 			if i == 1 then
-				if not file('datasets/'..setname..'/points/points.f32'):exists() then
+				if not path('datasets/'..setname..'/points/points.f32'):exists() then
 					exec('convert-2mrs')	-- makes datasets/2mrs/points/*.f32 
 				end
 			else
-				if not file('datasets/'..setname..'/points/points.f32'):exists() then
-					file('datasets/'..setname):mkdir()
-					file('datasets/'..setname..'/points'):mkdir()
-					file('datasets/'..setname..'/stats'):mkdir()
+				if not path('datasets/'..setname..'/points/points.f32'):exists() then
+					path('datasets/'..setname):mkdir()
+					path('datasets/'..setname..'/points'):mkdir()
+					path('datasets/'..setname..'/stats'):mkdir()
 					exec('copy datasets/'..prevsetname..'/points/* datasets/'..setname..'/points/')
 					exec('flatten-clusters --set '..setname)
 				end

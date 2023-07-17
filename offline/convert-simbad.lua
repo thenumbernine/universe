@@ -163,9 +163,9 @@ local function getOnlineData()
 
 	addDiameters(entries)
 	
-	file'datasets/simbad':mkdir(true)
+	path'datasets/simbad':mkdir(true)
 	-- save with one record on one line ... because lua can't handle the whole thing at once
-	file(filename):write(
+	path(filename):write(
 		'{\n'
 		.. entries:map(function(entry)
 			return tolua(entry, {indent=false})..',\n'
@@ -174,7 +174,7 @@ local function getOnlineData()
 	return entries
 end
 
-if not file(filename):exists() then
+if not path(filename):exists() then
 	-- writing in Lua was able to work without running out of memory, but reading in Luajit doesn't ...
 	getOnlineData()
 end
@@ -192,7 +192,7 @@ end
 
 --local json = require 'dkjson'
 
-local oTypes = fromlua(file'../otypedescs.lua':read())
+local oTypes = fromlua(path'../otypedescs.lua':read())
 local galaxyOTypes = table.map(
 	oTypes, function(v,k,t)
 		v = v:lower()
@@ -210,9 +210,9 @@ local function filter(entry)
 	and galaxyOTypes[entry.otype]
 end
 
-file'datasets/simbad/points':mkdir()
+path'datasets/simbad/points':mkdir()
 
-if not file'datasets/simbad/points/points.f32':exists() then
+if not path'datasets/simbad/points/points.f32':exists() then
 	local ffi = require 'ffi'
 	require 'ffi.c.stdio'
 	print'writing out point file...'
@@ -234,7 +234,7 @@ end
 
 local cols = table{'id','otype'}
 local colmaxs
-if not file'datasets/simbad/catalog.specs':exists() then
+if not path'datasets/simbad/catalog.specs':exists() then
 	print'writing out catalog spec file...'
 	-- write out catalog data and spec files
 	colmaxs = cols:map(function(col)
@@ -250,12 +250,12 @@ if not file'datasets/simbad/catalog.specs':exists() then
 			end
 		end
 	end
-	file'datasets/simbad/catalog.specs':write(tolua(colmaxs))
+	path'datasets/simbad/catalog.specs':write(tolua(colmaxs))
 else
-	colmaxs = assert(fromlua(file'datasets/simbad/catalog.specs':read()), "failed to load colmaxs")
+	colmaxs = assert(fromlua(path'datasets/simbad/catalog.specs':read()), "failed to load colmaxs")
 end
 
-if not file'datasets/simbad/catalog.dat':exists() then
+if not path'datasets/simbad/catalog.dat':exists() then
 	local ffi = require 'ffi'
 	require 'ffi.c.stdio'
 	local catalogFile = assert(ffi.C.fopen('datasets/simbad/catalog.dat', 'wb'))
@@ -273,11 +273,11 @@ if not file'datasets/simbad/catalog.dat':exists() then
 	ffi.C.fclose(catalogFile)
 end
 
-if not file'datasets/simbad/catalog.lua':exists() then
+if not path'datasets/simbad/catalog.lua':exists() then
 	print'writing out catalog file in lua format...'
 	--[[
 	local json = require 'dkjson'
-	file'datasets/simbad/catalog.json':write(json.encode(setmetatable(entries:map(function(entry)
+	path'datasets/simbad/catalog.json':write(json.encode(setmetatable(entries:map(function(entry)
 		local result = {}
 		for _,col in ipairs(cols) do
 			result[col] = entry[col]
@@ -287,7 +287,7 @@ if not file'datasets/simbad/catalog.lua':exists() then
 	--]]
 
 	-- TODO convert this separately, because luajit and luarocks aren't being friendly
-	local f = assert(file'datasets/simbad/catalog.lua':open'w')
+	local f = assert(path'datasets/simbad/catalog.lua':open'w')
 	f:write'{\n'
 	for entry in coroutine.wrap(iterateOfflineData) do
 		if filter(entry) then
@@ -302,10 +302,10 @@ if not file'datasets/simbad/catalog.lua':exists() then
 	f:close()
 end
 
-if not file'datasets/simbad/catalog.json':exists() then
+if not path'datasets/simbad/catalog.json':exists() then
 	print'writing out catalog file in json format...'
 	local json = require 'dkjson'
-	file'datasets/simbad/catalog.json':write(json.encode(fromlua(file'datasets/simbad/catalog.lua':read())))
+	path'datasets/simbad/catalog.json':write(json.encode(fromlua(path'datasets/simbad/catalog.lua':read())))
 end
 
 print'done!'
