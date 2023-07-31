@@ -214,7 +214,7 @@ path'datasets/simbad/points':mkdir()
 
 if not path'datasets/simbad/points/points.f32':exists() then
 	local ffi = require 'ffi'
-	require 'ffi.c.stdio'
+	require 'ffi.req' 'c.stdio'
 	print'writing out point file...'
 	local pointFile = assert(ffi.C.fopen('datasets/simbad/points/points.f32', 'wb'))
 	local numWritten = 0
@@ -257,7 +257,7 @@ end
 
 if not path'datasets/simbad/catalog.dat':exists() then
 	local ffi = require 'ffi'
-	require 'ffi.c.stdio'
+	require 'ffi.req' 'c.stdio'
 	local catalogFile = assert(ffi.C.fopen('datasets/simbad/catalog.dat', 'wb'))
 	local tmplen = colmaxs:sup()+1
 	local tmp = ffi.new('char[?]', tmplen)

@@ -8,7 +8,7 @@ return htmlparser.xpath(t, '//tr'):filter(function(n) return #n.child > 3 and n.
 --]]
 require 'ext'
 local ffi = require 'ffi'
-require 'ffi.C.stdio'
+local stdio = require 'ffi.req' 'c.stdio'
 local cols = [[ra dec/decl err_maj err_min err_ang designation j_m j_cmsig j_msigcom j_snr h_m h_cmsig h_msigcom h_snr k_m k_cmsig k_msigcom k_snr ph_qual rd_flg bl_flg cc_flg ndet prox pxpa pxcntr gal_contam mp_flg pts_key/cntr hemis date scan glon glat x_scan jdate j_psfchi h_psfchi k_psfchi j_m_stdap j_msig_stdap h_m_stdap h_msig_stdap k_m_stdap k_msig_stdap dist_edge_ns dist_edge_ew dist_edge_flg dup_src use_src a dist_opt phi_opt b_m_opt vr_m_opt nopt_mchs ext_key scan_key coadd_key coadd]]
 cols = cols:split('%s+'):map(function(v,k) return k,v end)
 
