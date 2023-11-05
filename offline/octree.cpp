@@ -1,5 +1,6 @@
 #include "octree.h"
 #include <fstream>
+#include <cstring>	//std::memset
 
 //root ctor
 OctreeNode::OctreeNode(const vec3f &min_, const vec3f &max_) 
@@ -10,7 +11,7 @@ OctreeNode::OctreeNode(const vec3f &min_, const vec3f &max_)
 	bbox(box3f(min_, max_)),
 	usedBBox(box3f(vec3f(INFINITY), vec3f(-INFINITY)))
 {
-	memset(ch, 0, sizeof(ch));
+	std::memset(ch, 0, sizeof(ch));
 }
 
 //child ctor 
@@ -27,7 +28,7 @@ OctreeNode::OctreeNode(OctreeNode *parent_, int whichChild_)
 		bbox.min[i] = axisPlus ? parentCenter[i] : parent->bbox.min[i];
 		bbox.max[i] = axisPlus ? parent->bbox.max[i] : parentCenter[i];
 	}
-	memset(ch, 0, sizeof(ch));
+	std::memset(ch, 0, sizeof(ch));
 }
 
 
@@ -40,7 +41,7 @@ OctreeNode::OctreeNode(OctreeNode *parent_, int whichChild_, const vec3f &min_, 
 	bbox(box3f(min_, max_)),
 	usedBBox(box3f(vec3f(INFINITY), vec3f(-INFINITY)))
 {
-	memset(ch, 0, sizeof(ch));
+	std::memset(ch, 0, sizeof(ch));
 }
 
 OctreeNode::~OctreeNode() {

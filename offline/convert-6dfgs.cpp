@@ -1,5 +1,5 @@
 #include <cstring>
-#include <cmath>
+#include <cmath>		//std::isnan
 #include <filesystem>
 #include "exception.h"
 #include "util.h"
@@ -81,7 +81,7 @@ struct Convert6DFGS {
 				vtx[1] = (float)(distance * sin(rad_ra) * cos_dec);
 				vtx[2] = (float)(distance * sin(rad_dec));
 
-				if (!isnan(vtx[0]) && !isnan(vtx[1]) && !isnan(vtx[2])
+				if (!std::isnan(vtx[0]) && !std::isnan(vtx[1]) && !std::isnan(vtx[2])
 					&& vtx[0] != INFINITY && vtx[0] != -INFINITY 
 					&& vtx[1] != INFINITY && vtx[1] != -INFINITY 
 					&& vtx[2] != INFINITY && vtx[2] != -INFINITY

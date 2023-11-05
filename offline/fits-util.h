@@ -15,11 +15,35 @@ void fitsSafe(Func f, Args && ... args) {
 
 template<typename T> constexpr int fitsType;
 template<> constexpr int fitsType<bool> = TBIT;
+
+static_assert(sizeof(int8_t) == 1);
+template<> constexpr int fitsType<int8_t> = TSBYTE;
+static_assert(sizeof(uint8_t) == 1);
 template<> constexpr int fitsType<uint8_t> = TBYTE;
+
+static_assert(sizeof(int16_t) == 2);
 template<> constexpr int fitsType<int16_t> = TSHORT;
-//template<> constexpr int fitsType<int32_t> = TINT32BIT;
+static_assert(sizeof(uint16_t) == 2);
+template<> constexpr int fitsType<uint16_t> = TUSHORT;
+
+static_assert(sizeof(int32_t) == 4);
 template<> constexpr int fitsType<int32_t> = TLONG;
+static_assert(sizeof(uint32_t) == 4);
+template<> constexpr int fitsType<uint32_t> = TULONG;
+//template<> constexpr int fitsType<int32_t> = TINT32BIT;
+
+static_assert(sizeof(int64_t) == 8);
 template<> constexpr int fitsType<int64_t> = TLONGLONG;
+static_assert(sizeof(uint64_t) == 8);
+template<> constexpr int fitsType<uint64_t> = TULONGLONG;
+
+//gcc considers 'long long int' to be a dif type than 'int64_t' (which is 'long int' / 'long' ...?)
+// even though they're both the same size
+static_assert(sizeof(long long int) == 8);
+template<> constexpr int fitsType<long long int> = TLONGLONG;
+static_assert(sizeof(unsigned long long int) == 8);
+template<> constexpr int fitsType<unsigned long long int> = TLONGLONG;
+
 template<> constexpr int fitsType<float> = TFLOAT;
 template<> constexpr int fitsType<double> = TDOUBLE;
 template<> constexpr int fitsType<std::string> = TSTRING;

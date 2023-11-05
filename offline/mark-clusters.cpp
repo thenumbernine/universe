@@ -33,6 +33,7 @@ for 50k we can associate pointers with points ... but what about with 500m?
 */
 #include <iostream>
 #include <fstream>
+#include <cstring>
 
 #include "octree.h"
 #include "defs.h"
@@ -74,9 +75,9 @@ for b = (4/3 pi nBar_gal r_link^3)^1/3 = (4/3 pi nBar_gal)^1/3 r_link
 	}
 
 	bool handleArg(int argc, char **argv, int &k) {
-		if (!strcmp(argv[k], "--radial") && k < argc-1) {
+		if (!std::strcmp(argv[k], "--radial") && k < argc-1) {
 			radialThreshold = atof(argv[++k]);
-		} else if (!strcmp(argv[k], "--transverse") && k < argc-1) {
+		} else if (!std::strcmp(argv[k], "--transverse") && k < argc-1) {
 			transverseThreshold = atof(argv[++k]);
 		} else {
 			return false;
@@ -129,11 +130,11 @@ struct MergeTest_PowerSpectrumPaper {
 	}
 	
 	bool handleArg(int argc, char **argv, int &k) {
-		if (!strcmp(argv[k], "--density-cutoff") && k < argc-1) {
+		if (!std::strcmp(argv[k], "--density-cutoff") && k < argc-1) {
 			densityCutoff = atof(argv[++k]);
-		} else if (!strcmp(argv[k], "--transverse-max") && k < argc-1) {
+		} else if (!std::strcmp(argv[k], "--transverse-max") && k < argc-1) {
 			rTransverseMax = atof(argv[++k]);
-		} else if (!strcmp(argv[k], "--threshold") && k < argc-1) {
+		} else if (!std::strcmp(argv[k], "--threshold") && k < argc-1) {
 			distanceThreshold = atof(argv[++k]);
 		} else {
 			return false;
@@ -353,7 +354,7 @@ void _main(std::vector<std::string> const & args) {
 
 	typedef int clusterIndex_t;	//just don't exceed 2b clusters 
 	int *vtxClusters = new int[numVtxs];
-	memset(vtxClusters, -1, sizeof(int) * numVtxs);
+	std::memset(vtxClusters, -1, sizeof(int) * numVtxs);
 	for (int clusterIndex = 0; clusterIndex < clusters.size(); ++clusterIndex) {
 		Cluster *cluster = clusters[clusterIndex];
 		for (std::vector<vec3f*>::iterator vi = cluster->vtxs.begin(); vi != cluster->vtxs.end(); ++vi) {

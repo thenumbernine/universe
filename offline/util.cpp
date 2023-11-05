@@ -1,6 +1,6 @@
 #include <fstream>
 #include <filesystem>
-
+#include <cstring>	//std::strncpy
 #include "util.h"
 #include "exception.h"
 

@@ -6,6 +6,8 @@ convert-sdss			generates point file
 #include <vector>
 #include <map>
 #include <string>
+#include <cstring>	//std::memset
+#include <cmath>	//std::isnan
 #include <limits>
 #include "stat.h"
 #include "exception.h"
@@ -82,7 +84,7 @@ struct ConvertSDSS3 {
 			for (;;) {
 				int colNum = 0;
 				char colName[256];
-				memset(colName, 0, sizeof(colName));
+				std::memset(colName, 0, sizeof(colName));
 				fits_get_colname(file, CASESEN, (char *)"*", colName, &colNum, &status);
 				if (status == COL_NOT_FOUND) break;
 				if (status != 0 && status != COL_NOT_UNIQUE) throw Exception() << fitsGetError(status);
@@ -343,7 +345,7 @@ struct ConvertSDSS3 {
 				vtx[1] = (float)(distance * value_CY); 
 				vtx[2] = (float)(distance * value_CZ);
 
-				if (!isnan(vtx[0]) && !isnan(vtx[1]) && !isnan(vtx[2])
+				if (!std::isnan(vtx[0]) && !std::isnan(vtx[1]) && !std::isnan(vtx[2])
 					&& vtx[0] != INFINITY && vtx[0] != -INFINITY 
 					&& vtx[1] != INFINITY && vtx[1] != -INFINITY 
 					&& vtx[2] != INFINITY && vtx[2] != -INFINITY
@@ -379,7 +381,7 @@ struct ConvertSDSS3 {
 				vtx[1] = value_RA;
 				vtx[2] = value_DEC;
 				
-				if (!isnan(vtx[0]) && !isnan(vtx[1]) && !isnan(vtx[2])
+				if (!std::isnan(vtx[0]) && !std::isnan(vtx[1]) && !std::isnan(vtx[2])
 					&& vtx[0] != INFINITY && vtx[0] != -INFINITY 
 					&& vtx[1] != INFINITY && vtx[1] != -INFINITY 
 					&& vtx[2] != INFINITY && vtx[2] != -INFINITY

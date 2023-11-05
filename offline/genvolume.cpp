@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <fstream>
+#include <cstring>	//std::memset
 #include "exception.h"
 #include "stat.h"
 #include "util.h"
@@ -24,7 +25,7 @@ struct Volume {
 		unusedCount(0)
 	{
 		//init data
-		memset(density, 0, sizeof(float) * size * size * size);
+		std::memset(density, 0, sizeof(float) * size * size * size);
 	}
 
 	virtual ~Volume() {

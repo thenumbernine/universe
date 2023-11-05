@@ -78,7 +78,7 @@ function refreshPanelSize() {
 		ids.panel.style.height = window.innerHeight;
 		if (!panelCloseButton) {
 			panelCloseButton = DOM('img', {
-				src:'close.png', 
+				src:'close.png',
 				width:'48px',
 				css:{
 					position:'absolute',
@@ -130,7 +130,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 	} else {
 		selected.sceneObj.hidden = false;
 		let i = 3*pointIndex;
-		
+
 		let x = dataSet.arrayBuffer[i++];
 		let y = dataSet.arrayBuffer[i++];
 		let z = dataSet.arrayBuffer[i++];
@@ -167,7 +167,7 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 			} else if (dataSet.title == 'SIMBAD') {
 				search = obj.id;
 			}
-			
+
 			//console.log("searching "+search);
 			ids.desc.innerHTML = '';
 			/*
@@ -192,9 +192,9 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 						.then(obj => {
 console.log('wikipedia fetch response', obj);
 							const parse = obj.parse;
-							if (!parse) return; 
+							if (!parse) return;
 							const title = parse.title
-							if (!title) return; 
+							if (!title) return;
 							let text = parse.text;
 							if (!text) return;
 							text = text['*'];
@@ -204,7 +204,7 @@ console.log('wikipedia fetch response', obj);
 							DOM('br', {appendTo:ids.desc});
 							DOM('br', {appendTo:ids.desc});
 							DOM('a', {
-								text:'Wikipedia:', 
+								text:'Wikipedia:',
 								href:'https://www.wikipedia.org',
 								css:{
 									fontSize:'10pt',
@@ -314,10 +314,10 @@ function universeMouseDown(e) {
 };
 
 function universeMouseRotate(dx, dy) {
-	// mouse line debugging 
+	// mouse line debugging
 	//universeUpdateHover();
 	//return;
-	
+
 	let rotAngle = Math.PI / 180 * .01 * Math.sqrt(dx*dx + dy*dy);
 	quat.setAxisAngle(tmpQ, [-dy, -dx, 0], rotAngle);
 	//mat4.translate(glutil.scene.mvMat, glutil.scene.mvMat, [10*dx/canvas.width, -10*dy/canvas.height, 0]);
@@ -332,7 +332,7 @@ function universeMouseRotate(dx, dy) {
 
 	applyLastMouseRot();
 	//update();
-	
+
 	universeUpdateHover();
 }
 
@@ -353,21 +353,21 @@ function universeUpdateHover() {
 	let viewZ = glutil.view.pos[2];
 	//fast axis extraction from quaternions.  z is negative'd to get the fwd dir
 	//TODO make use of my added vec3.quatXYZAxis functions in gl-util.js
-	let viewFwdX = -2 * (glutil.view.angle[0] * glutil.view.angle[2] + glutil.view.angle[3] * glutil.view.angle[1]); 
-	let viewFwdY = -2 * (glutil.view.angle[1] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[0]); 
-	let viewFwdZ = -(1 - 2 * (glutil.view.angle[0] * glutil.view.angle[0] + glutil.view.angle[1] * glutil.view.angle[1])); 
-	let viewRightX = 1 - 2 * (glutil.view.angle[1] * glutil.view.angle[1] + glutil.view.angle[2] * glutil.view.angle[2]); 
-	let viewRightY = 2 * (glutil.view.angle[0] * glutil.view.angle[1] + glutil.view.angle[2] * glutil.view.angle[3]); 
-	let viewRightZ = 2 * (glutil.view.angle[0] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[1]); 
+	let viewFwdX = -2 * (glutil.view.angle[0] * glutil.view.angle[2] + glutil.view.angle[3] * glutil.view.angle[1]);
+	let viewFwdY = -2 * (glutil.view.angle[1] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[0]);
+	let viewFwdZ = -(1 - 2 * (glutil.view.angle[0] * glutil.view.angle[0] + glutil.view.angle[1] * glutil.view.angle[1]));
+	let viewRightX = 1 - 2 * (glutil.view.angle[1] * glutil.view.angle[1] + glutil.view.angle[2] * glutil.view.angle[2]);
+	let viewRightY = 2 * (glutil.view.angle[0] * glutil.view.angle[1] + glutil.view.angle[2] * glutil.view.angle[3]);
+	let viewRightZ = 2 * (glutil.view.angle[0] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[1]);
 	let viewUpX = 2 * (glutil.view.angle[0] * glutil.view.angle[1] - glutil.view.angle[3] * glutil.view.angle[2]);
 	let viewUpY = 1 - 2 * (glutil.view.angle[0] * glutil.view.angle[0] + glutil.view.angle[2] * glutil.view.angle[2]);
 	let viewUpZ = 2 * (glutil.view.angle[1] * glutil.view.angle[2] + glutil.view.angle[3] * glutil.view.angle[0]);
-	
+
 	let aspectRatio = glutil.canvas.width / glutil.canvas.height;
 	let mxf = mouse.xf * 2 - 1;
 	let myf = 1 - mouse.yf * 2;
-	//why is fwd that much further away?  how does 
-	
+	//why is fwd that much further away?  how does
+
 	let tanFovY = Math.tan(glutil.view.fovY * Math.PI / 360);
 	let mouseDirX = viewFwdX + tanFovY * (viewRightX * aspectRatio * mxf + viewUpX * myf);
 	let mouseDirY = viewFwdY + tanFovY * (viewRightY * aspectRatio * mxf + viewUpY * myf);
@@ -383,7 +383,7 @@ function universeUpdateHover() {
 	for (let j = 0; j < dataSets.length; j++) {
 		let dataSet = dataSets[j];
 		if (dataSet.sceneObj.hidden) continue;
-					
+
 		let arrayBuffer = dataSet.arrayBuffer;
 		for (let i = 0; i < arrayBuffer.length; ) {
 			//point that we're testing intersection for
@@ -397,8 +397,8 @@ function universeUpdateHover() {
 
 			let viewToPointLength = Math.sqrt(viewToPointX * viewToPointX + viewToPointY * viewToPointY + viewToPointZ * viewToPointZ);
 			let viewToPointDotMouseDir = viewToPointX * mouseDirX + viewToPointY * mouseDirY + viewToPointZ * mouseDirZ;
-			
-			let dot = viewToPointDotMouseDir / (mouseDirLength * viewToPointLength); 
+
+			let dot = viewToPointDotMouseDir / (mouseDirLength * viewToPointLength);
 			if (dot > .99) {
 				let dist = viewToPointLength;
 				if (dist < bestDist && dot > bestDot) {
@@ -439,7 +439,7 @@ function universeMouseClick(e) {
 }
 
 function initCallbacks() {
-	
+
 	window.addEventListener('resize', resize);
 
 	/*
@@ -495,7 +495,7 @@ function initCallbacks() {
 		touchclickstart : function() {
 			//if we're using mobile based input then hide hover always
 			hover.stayHidden = true;
-			
+
 			//keep track here of any mousedown
 			//upon click, use this hover info, because it is proly invalid by touchend
 			touchHoverSet = hover.set;
@@ -541,18 +541,18 @@ args:
 */
 function fileRequest(args) {
 	const div = DOM('div');
-	
+
 	const downloadAnchor = DOM('a', {
 		click : () => {download();},
 		appendTo : div,
 	});
-	
+
 	DOM('img', {
 		src : 'download.png',
 		appendTo : downloadAnchor,
 	});
 	DOM('span', {text:args.title, appendTo:div});
-	
+
 	const download = () => {
 		removeFromParent(downloadAnchor);
 		const progress = DOM('progress', {
@@ -562,7 +562,7 @@ function fileRequest(args) {
 			},
 			appendTo : div,
 		});
-		
+
 		const xhr = new XMLHttpRequest();
 		xhr.open('GET', args.url, true);
 		xhr.responseType = 'arraybuffer';
@@ -582,7 +582,7 @@ function fileRequest(args) {
 			});
 			div.parentNode.insertBefore(input, div);
 			const anchor = DOM('a', {
-				text:args.title, 
+				text:args.title,
 				href:args.source,
 				attrs : {
 					target : '_blank',
@@ -594,7 +594,7 @@ function fileRequest(args) {
 
 			const arrayBuffer = xhr.response;
 			const data = new DataView(arrayBuffer);
-			
+
 			const floatBuffer = new Float32Array(data.byteLength / Float32Array.BYTES_PER_ELEMENT);
 			const len = floatBuffer.length;
 			for (let j = 0; j < len; ++j) {
@@ -605,7 +605,7 @@ function fileRequest(args) {
 		});
 		xhr.send();
 	};
-	
+
 	return {div:div, download:download};
 }
 
@@ -626,7 +626,7 @@ function resize() {
 
 function applyLastMouseRot() {
 	//if (lastMouseRot[3] == 1) return false;
-	
+
 	vec3.sub(tmpV, glutil.view.pos, selected.arrayBuf);
 	let posDist = vec3.length(tmpV);
 	vec3.transformQuat(tmpV, tmpV, lastMouseRot);
@@ -637,8 +637,8 @@ function applyLastMouseRot() {
 	} else {
 		vec3.copy(glutil.view.pos, tmpV);
 	}
-	
-	//RHS apply so it is relative to current view 
+
+	//RHS apply so it is relative to current view
 	//newViewAngle := glutil.view.angle * tmpQ
 	quat.mul(glutil.view.angle, lastMouseRot, glutil.view.angle);
 	quat.normalize(glutil.view.angle, glutil.view.angle);
@@ -648,13 +648,13 @@ function applyLastMouseRot() {
 
 function lookAtSelected() {
 	if (selected.index === undefined) return false;
-	
+
 	const viewX = glutil.view.pos[0], viewY = glutil.view.pos[1], viewZ = glutil.view.pos[2];
 	const pointX = selected.arrayBuf[0], pointY = selected.arrayBuf[1], pointZ = selected.arrayBuf[2];
 	let viewToSelX = pointX - viewX, viewToSelY = pointY - viewY, viewToSelZ = pointZ - viewZ;
-	const viewFwdX = -2 * (glutil.view.angle[0] * glutil.view.angle[2] + glutil.view.angle[3] * glutil.view.angle[1]); 
-	const viewFwdY = -2 * (glutil.view.angle[1] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[0]); 
-	const viewFwdZ = -(1 - 2 * (glutil.view.angle[0] * glutil.view.angle[0] + glutil.view.angle[1] * glutil.view.angle[1])); 
+	const viewFwdX = -2 * (glutil.view.angle[0] * glutil.view.angle[2] + glutil.view.angle[3] * glutil.view.angle[1]);
+	const viewFwdY = -2 * (glutil.view.angle[1] * glutil.view.angle[2] - glutil.view.angle[3] * glutil.view.angle[0]);
+	const viewFwdZ = -(1 - 2 * (glutil.view.angle[0] * glutil.view.angle[0] + glutil.view.angle[1] * glutil.view.angle[1]));
 	const viewToSelInvLen = 1 / Math.sqrt(viewToSelX * viewToSelX + viewToSelY * viewToSelY + viewToSelZ * viewToSelZ);
 	viewToSelX *= viewToSelInvLen; viewToSelY *= viewToSelInvLen; viewToSelZ *= viewToSelInvLen;
 	const viewFwdInvLen = 1 / Math.sqrt(viewFwdX * viewFwdX + viewFwdY * viewFwdY + viewFwdZ * viewFwdZ);
@@ -676,7 +676,7 @@ function lookAtSelected() {
 
 	quat.mul(glutil.view.angle, lookQuat, glutil.view.angle);
 	quat.normalize(glutil.view.angle, glutil.view.angle);
-	
+
 	return true;
 }
 
@@ -699,9 +699,9 @@ function doUpdate() {
 	let centerY = selected.arrayBuf[1];
 	let centerZ = selected.arrayBuf[2];
 
-	let dx = glutil.view.pos[0] - centerX; 
-	let dy = glutil.view.pos[1] - centerY; 
-	let dz = glutil.view.pos[2] - centerZ; 
+	let dx = glutil.view.pos[0] - centerX;
+	let dy = glutil.view.pos[1] - centerY;
+	let dz = glutil.view.pos[2] - centerZ;
 	let d2 = dx * dx + dy * dy + dz * dz;
 	let newViewDistance = Math.sqrt(d2);
 	if (newViewDistance != viewDistance) {
@@ -766,7 +766,7 @@ function init1() {
 
 	lastMouseRot = quat.create();
 	tmpV = vec3.create();
-	tmpQ = quat.create();	
+	tmpQ = quat.create();
 
 	glutil.onfps = function(fps) {
 		ids.fps.innerText = fps.toFixed(2) + " fps";
@@ -816,7 +816,7 @@ void main() {
 }
 `,
 		uniforms : {
-			tex : 0, 
+			tex : 0,
 			spriteWidth : 1./10.,
 			screenWidth : glutil.canvas.width
 		}
@@ -842,12 +842,12 @@ void main() {
 	vec2 absDelta = abs(gl_PointCoord - .5);
 	float dist = max(absDelta.x, absDelta.y);
 	if (dist < .4) discard;
-	fragColor = vec4(color, 1.); 
+	fragColor = vec4(color, 1.);
 }
 `,
 		uniforms : {spriteWidth:1./10./2.}
 	});
-	
+
 	//scene objs
 
 	selected = new Highlight();
@@ -941,7 +941,7 @@ void main() {
 
 	//draw
 	initCallbacks();
-		
+
 	resize();
 	refreshDistance();
 
@@ -963,7 +963,7 @@ function init3() {
 			url:v.url,
 			source:v.source,
 			load:(arrayBuffer, input) => {
-				
+
 				let pointVtxBuf = new glutil.ArrayBuffer({
 					data : arrayBuffer,
 					usage : gl.STATIC_DRAW
@@ -992,15 +992,15 @@ function init3() {
 				} else {
 					input.checked = true;
 				}
-				
+
 				dataSet.sceneObj = sceneObj;
-	
+
 				//start off the render loop:
 				let ondraw;
 				ondraw = function() {
 					glutil.draw();
-	
-					if (selected.index !== undefined) { 
+
+					if (selected.index !== undefined) {
 						gridObj.pos[0] = selected.arrayBuf[0];
 						gridObj.pos[1] = selected.arrayBuf[1];
 						gridObj.pos[2] = selected.arrayBuf[2];

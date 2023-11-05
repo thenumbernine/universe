@@ -3,10 +3,11 @@ usage:
 first pass: 	convert-2mrs			generates point file and generate catalog.specs
 second pass: 	convert-2mrs --catalog	generates catalog.dat using catalog.specs
 */
-#include <cmath>
+#include <cmath>	//std::isnan
 #include <filesystem>
 #include <map>
 #include <string>
+#include <cstring>	//std::strtok
 #include <limits>
 
 #include "exception.h"
@@ -257,7 +258,7 @@ struct Convert2MRS {
 					}
 					*/
 
-					if (!isnan(vtx[0]) && !isnan(vtx[1]) && !isnan(vtx[2])
+					if (!std::isnan(vtx[0]) && !std::isnan(vtx[1]) && !std::isnan(vtx[2])
 						&& vtx[0] != INFINITY && vtx[0] != -INFINITY 
 						&& vtx[1] != INFINITY && vtx[1] != -INFINITY 
 						&& vtx[2] != INFINITY && vtx[2] != -INFINITY

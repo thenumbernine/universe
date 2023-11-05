@@ -5,6 +5,7 @@
 #include <list>
 #include <mutex>
 #include <thread>
+#include <memory>	//shared_ptr
 #include "exception.h"
 #include "util.h"
 

@@ -4,6 +4,8 @@ convert-gaia			generates point file
 */
 #include <filesystem>
 #include <limits>
+#include <cstring>	//std::memset
+#include <cmath>	//std::isnan
 #include "stat.h"
 #include "exception.h"
 #include "util.h"
@@ -73,8 +75,8 @@ struct ConvertSDSS {
 		Stat stat_vx, stat_vy, stat_vz;
 		
 		//not a complete 'stat', just min/max
-		long long source_id_min = -std::numeric_limits<long long>::infinity();
-		long long source_id_max = std::numeric_limits<long long>::infinity();
+		int64_t source_id_min = -std::numeric_limits<int64_t>::infinity();
+		int64_t source_id_max = std::numeric_limits<int64_t>::infinity();
 
 		//derived:
 		Stat stat_distance;
@@ -108,7 +110,7 @@ struct ConvertSDSS {
 				for (;;) {
 					int colNum = 0;
 					char colName[256];
-					memset(colName, 0, sizeof(colName));
+					std::memset(colName, 0, sizeof(colName));
 					fits_get_colname(file, CASESEN, (char *)"*", colName, &colNum, &status);
 					if (status == COL_NOT_FOUND) break;
 					if (status != 0 && status != COL_NOT_UNIQUE) throw Exception() << fitsGetError(status);
@@ -131,7 +133,7 @@ struct ConvertSDSS {
 			int readStringStartIndex = columns.size();
 
 			//source_id
-			auto col_source_id = std::make_shared<FITSTypedColumn<long long>>(file, "source_id"); columns.push_back(col_source_id);
+			auto col_source_id = std::make_shared<FITSTypedColumn<int64_t>>(file, "source_id"); columns.push_back(col_source_id);
 			//right ascension (radians)
 			auto col_ra = std::make_shared<FITSTypedColumn<double>>(file, "ra"); columns.push_back(col_ra);
 			//declination (radians)
@@ -301,7 +303,7 @@ struct ConvertSDSS {
 						velocity[2] = (e_ra_z * pmra_km_s + e_dec_z * pmdec_km_s + e_r_z * radial_velocity_km_s) * (1000. / parsec_in_meters * year_in_seconds);
 					}
 					
-					if (!isnan(position[0]) && !isnan(position[1]) && !isnan(position[2])
+					if (!std::isnan(position[0]) && !std::isnan(position[1]) && !std::isnan(position[2])
 						&& position[0] != INFINITY && position[0] != -INFINITY 
 						&& position[1] != INFINITY && position[1] != -INFINITY 
 						&& position[2] != INFINITY && position[2] != -INFINITY

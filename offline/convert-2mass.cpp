@@ -3,6 +3,7 @@ TODO
 perf test, strtok vs std::getline, buffer all vs explicit unrolled (current) method
 */
 #include <cstdlib>		// system()
+#include <cstring>		// std::strtok
 #include <filesystem>
 #include <cmath>
 #include <iostream>
@@ -319,7 +320,7 @@ void process(std::string const & srcfilename, std::string const & dstfilename) {
 					<< std::endl
 				;
 			}
-			if (!isnan(vtx[0]) && !isnan(vtx[1]) && !isnan(vtx[2])
+			if (!std::isnan(vtx[0]) && !std::isnan(vtx[1]) && !std::isnan(vtx[2])
 				&& vtx[0] != INFINITY && vtx[0] != -INFINITY 
 				&& vtx[1] != INFINITY && vtx[1] != -INFINITY 
 				&& vtx[2] != INFINITY && vtx[2] != -INFINITY
@@ -391,7 +392,10 @@ void runOnGZip(const char *basename) {
 	if (!std::filesystem::exists(rawname)) {
 		std::string cmd = std::string() + "7z x -odatasets/allsky/raw datasets/allsky/source/" + basename + ".gz";
 		std::cout << "extracting " << cmd << std::endl;
-		std::system(cmd.c_str());
+		int code = std::system(cmd.c_str());
+		if (code) {
+			throw Exception() << cmd << " failed with error code " << code;
+		}
 	}
 	
 	//for all files named psc_???.gz
