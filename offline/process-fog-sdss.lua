@@ -20,6 +20,7 @@ local c = 299792.458	--km/s
 local H0 = 69.32	--km/s/Mpc
 
 local App = require 'imguiapp.withorbit'()
+App.viewUseGLMatrixMode = true
 App.title = 'FoG tool'
 App.viewDist = 2
 
