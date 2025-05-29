@@ -47,6 +47,24 @@ universe/
 
 			Tha Gaia DR2 + Max Planck extra distance calculations on 1.3 billion stars
 
+			- ok new Gaia DR3 -
+
+				select count(source_id) from gaiadr3.gaia_source as gaia:  1811709771
+
+				select count(gaia.source_id) from gaiadr3.gaia_source as gaia; should be same
+
+				-- select gaia.source_id, gaia.ra, gaia.dec, gaia.teff_gspphot, params.lum_flame, params.radius_flame, params.mass_flame
+				select count(gaia.source_id)
+				from gaiadr3.gaia_source as gaia
+				inner join gaiadr3.astrophysical_parameters as params
+				on gaia.source_id = params.source_id
+				where gaia.ra is not null
+				and gaia.dec is not null
+				and gaia.teff_gspphot is not null
+				and params.lum_flame is not null
+				and params.radius_flame is not null
+				and params.mass_flame is not null
+				;
 
 
 USAGE:
