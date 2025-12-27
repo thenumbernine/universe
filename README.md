@@ -20,4 +20,4 @@ GET parameters:
 		SDSS-DR16
 		SIMBAD 
 
-Check it out at http://christopheremoore.net/universe
+Check it out at http://thenumbernine.github.io/universe
