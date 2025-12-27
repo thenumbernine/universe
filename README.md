@@ -13,11 +13,4 @@ Datasets:
 - SDSS-DR16
 - Gaia
 
-GET parameters:
-	?dataset= specifies the initial dataset:
-		2MRS		(default)
-		6dF GS
-		SDSS-DR16
-		SIMBAD 
-
 Check it out at http://thenumbernine.github.io/universe
