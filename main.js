@@ -1,5 +1,6 @@
 import {vec3, quat} from '/js/gl-matrix-3.4.1/index.js';
-import {assertExists, DOM, getIDs, removeFromParent, show, hide, hidden, preload, asyncfor} from '/js/util.js';
+import {assertExists, getIDs, removeFromParent, show, hide, hidden, preload, asyncfor} from '/js/util.js';
+import {appendChildren, A, Br, Canvas, Div, Dom, Img, Input, Progress, Span} from '/js/dom.js';
 import {GLUtil} from '/js/gl-util.js';
 import {makeGradient} from '/js/gl-util-Gradient.js';
 import {Mouse3D} from '/js/mouse3d.js';
@@ -77,18 +78,16 @@ function refreshPanelSize() {
 		ids.panel.style.width = '375px';
 		ids.panel.style.height = window.innerHeight;
 		if (!panelCloseButton) {
-			panelCloseButton = DOM('img', {
+			panelCloseButton = Img({
 				src:'close.png',
 				width:'48px',
-				css:{
+				style:{
 					position:'absolute',
 					top:'10px',
 					left:'300px',
 					zIndex:1,
 				},
-				click:function() {
-					closeSidePanel();
-				},
+				events:{click:e=>{closeSidePanel();}},
 				appendTo : document.body,
 			});
 		}
@@ -147,8 +146,8 @@ function setSelectedGalaxy(dataSet, pointIndex) {
 				obj.otype = otypeDescs[obj.otype] || obj.otype;
 			}
 			cols.forEach(col => {
-				DOM('div', {
-					text : col+': '+obj[col]+' ',
+				Div({
+					innerText : col+': '+obj[col]+' ',
 					appendTo : ids.target,
 				});
 			});
@@ -201,21 +200,24 @@ console.log('wikipedia fetch response', obj);
 							if (!text) return;
 							//lastTitle = title;
 							//lastText = text;
-							DOM('br', {appendTo:ids.desc});
-							DOM('br', {appendTo:ids.desc});
-							DOM('a', {
-								text:'Wikipedia:',
-								href:'https://www.wikipedia.org',
-								css:{
-									fontSize:'10pt',
-								},
-								attrs : {
-									target : '_blank',
-								},
-								appendTo : ids.desc,
-							});
-							DOM('h2', {text:title, appendTo : ids.desc});
-							const textDiv = DOM('div', {innerHTML : text, appendTo : ids.desc});
+							const textDiv = Div({innerHTML : text});
+							appendChildren(
+								ids.desc,
+								Br(),
+								Br(),
+								A({
+									innerText:'Wikipedia:',
+									href:'https://www.wikipedia.org',
+									style:{
+										fontSize:'10pt',
+									},
+									attrs:{
+										target:'_blank',
+									},
+								}),
+								Dom({tagName:'h2', innerText:title}),
+								textDiv
+							);
 							document.querySelectorAll('a', textDiv).forEach(anchor => {
 								const href = anchor.href;
 								if (href[0] == '#') {
@@ -229,7 +231,6 @@ console.log('wikipedia fetch response', obj);
 								}
 								anchor.target = '_blank';
 							});
-
 
 							panelIsOpen = true;
 							refreshPanelSize();
@@ -252,8 +253,9 @@ console.log('wikipedia fetch response', obj);
 		//if (dataSet.title == 'Simbad') {
 		//	buildWikiPage(simbadCatalog[pointIndex]);	//for local json support.  this file is 1mb, so i'm not going to use that online.
 		//} else
+		/* this service isn't available in the github.io version...
 		if (dataSet.title == '2MRS' || dataSet.title == 'SIMBAD') {
-			DOM('img', {
+			Img({
 				src:"loading.gif",
 				style:"padding-top:10px; padding-left:10px",
 				appendTo:ids.target,
@@ -278,6 +280,7 @@ console.log('getpoint response', obj);
 				}, 3000);
 			});
 		}
+		*/
 	}
 
 	//update the cleared last mouse rotation / update change in target
@@ -540,22 +543,21 @@ args:
 	toggle
 */
 function fileRequest(args) {
-	const div = DOM('div');
+	const div = Div();
 
-	const downloadAnchor = DOM('a', {
-		click : () => {download();},
-		appendTo : div,
+	const downloadAnchor = A({
+		events:{click:e=>{download();}},
+		appendTo:div,
+		children:[
+			Img({src:'download.png'}),
+		],
 	});
 
-	DOM('img', {
-		src : 'download.png',
-		appendTo : downloadAnchor,
-	});
-	DOM('span', {text:args.title, appendTo:div});
+	Span({innerText:args.title, appendTo:div});
 
 	const download = () => {
 		removeFromParent(downloadAnchor);
-		const progress = DOM('progress', {
+		const progress = Progress({
 			attrs : {
 				max : 100,
 				value : 0,
@@ -574,22 +576,24 @@ function fileRequest(args) {
 		xhr.addEventListener('load', e => {
 			progress.setAttribute('value', '100');
 
-			const input = DOM('input', {
+			const input = Input({
 				type:'checkbox',
-				change:e => {
-					args.toggle(e.target.checked);
+				events:{
+					change:e => {
+						args.toggle(e.target.checked);
+					},
 				},
 			});
 			div.parentNode.insertBefore(input, div);
-			const anchor = DOM('a', {
-				text:args.title,
+			const anchor = A({
+				innerText:args.title,
 				href:args.source,
 				attrs : {
 					target : '_blank',
 				},
 			});
 			div.parentNode.insertBefore(anchor, div);
-			div.parentNode.insertBefore(DOM('br'), div);
+			div.parentNode.insertBefore(Br(), div);
 			removeFromParent(div);
 
 			const arrayBuffer = xhr.response;
@@ -721,8 +725,8 @@ let initDataSet = urlparams.get('dataset') || '2MRS';
 
 closeSidePanel();
 
-canvas = DOM('canvas', {
-	css : {
+canvas = Canvas({
+	style : {
 		left : 0,
 		top : 0,
 		position : 'absolute',
